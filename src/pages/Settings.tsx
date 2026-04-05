@@ -1,0 +1,799 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Settings as SettingsIcon, 
+  Moon, 
+  Sun, 
+  Globe, 
+  FileText, 
+  Cloud, 
+  Shield, 
+  Bell, 
+  Trash2,
+  ChevronRight,
+  LogOut,
+  Building2,
+  Plus,
+  CheckCircle2,
+  Link2,
+  Tag,
+  X,
+  Database
+} from 'lucide-react';
+import { useApp } from '../contexts/AppContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { cn } from '../lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
+
+export default function Settings() {
+  const { 
+    settings, updateSettings, companies, currentCompany, setCurrentCompany, 
+    refreshData, addCompany, deleteCompany, pullCompanies, syncStatus,
+    linkDevice
+  } = useApp();
+  const { theme, toggleTheme } = useTheme();
+  const [emailInput, setEmailInput] = React.useState(settings.user_email || '');
+  const [linkEmailInput, setLinkEmailInput] = React.useState('');
+  const [isAddCompanyModalOpen, setIsAddCompanyModalOpen] = React.useState(false);
+  const [newCompanyName, setNewCompanyName] = React.useState('');
+  const [showSqlSetup, setShowSqlSetup] = React.useState(false);
+  const [isDeleteCompanyModalOpen, setIsDeleteCompanyModalOpen] = React.useState<string | null>(null);
+
+  const currencies = [
+    { code: 'PKR', name: 'Pakistan Rupee' },
+    { code: 'USD', name: 'US Dollar' },
+    { code: 'None', name: 'None' },
+  ];
+
+  const pdfThemes = [
+    { id: 'standard', name: 'Standard' },
+    { id: 'modern', name: 'Modern' },
+    { id: 'minimal', name: 'Minimal' },
+  ];
+
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  const sqlSetup = `
+-- 1. Create Companies Table
+CREATE TABLE IF NOT EXISTS companies (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  address TEXT,
+  logo_url TEXT,
+  currency TEXT,
+  user_id TEXT,
+  user_email TEXT,
+  linked_emails TEXT[],
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
+);
+
+-- 2. Create Parties Table
+CREATE TABLE IF NOT EXISTS parties (
+  id UUID PRIMARY KEY,
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  phone TEXT,
+  email TEXT,
+  address TEXT,
+  type TEXT,
+  balance NUMERIC DEFAULT 0,
+  user_email TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
+);
+
+-- 3. Create Banks Table
+CREATE TABLE IF NOT EXISTS banks (
+  id UUID PRIMARY KEY,
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  account_number TEXT,
+  balance NUMERIC DEFAULT 0,
+  user_email TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
+);
+
+-- 4. Create Inventory Table
+CREATE TABLE IF NOT EXISTS inventory (
+  id UUID PRIMARY KEY,
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sku TEXT,
+  price NUMERIC DEFAULT 0,
+  stock NUMERIC DEFAULT 0,
+  low_stock_alert NUMERIC DEFAULT 0,
+  user_email TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
+);
+
+-- 5. Create Transactions Table
+CREATE TABLE IF NOT EXISTS transactions (
+  id UUID PRIMARY KEY,
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  date TIMESTAMPTZ NOT NULL,
+  type TEXT NOT NULL,
+  amount NUMERIC NOT NULL,
+  description TEXT,
+  party_id UUID REFERENCES parties(id) ON DELETE CASCADE,
+  bank_id UUID REFERENCES banks(id) ON DELETE CASCADE,
+  to_party_id UUID REFERENCES parties(id) ON DELETE CASCADE,
+  to_bank_id UUID REFERENCES banks(id) ON DELETE CASCADE,
+  item_id UUID REFERENCES inventory(id) ON DELETE CASCADE,
+  quantity NUMERIC,
+  user_email TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
+);
+
+-- 6. Create Expenses Table (Optional: App uses transactions table for expenses, but providing this for compatibility)
+CREATE TABLE IF NOT EXISTS expenses (
+  id UUID PRIMARY KEY,
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  date TIMESTAMPTZ DEFAULT NOW(),
+  amount NUMERIC NOT NULL,
+  description TEXT,
+  category TEXT,
+  bank_id UUID REFERENCES banks(id) ON DELETE SET NULL,
+  user_email TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
+);
+
+-- 7. Create Invoices Table
+CREATE TABLE IF NOT EXISTS invoices (
+  id UUID PRIMARY KEY,
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  invoice_number TEXT NOT NULL,
+  date TIMESTAMPTZ NOT NULL,
+  due_date TIMESTAMPTZ,
+  party_id UUID REFERENCES parties(id) ON DELETE CASCADE,
+  items JSONB NOT NULL,
+  subtotal NUMERIC NOT NULL,
+  tax NUMERIC NOT NULL,
+  total NUMERIC NOT NULL,
+  status TEXT NOT NULL,
+  user_email TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
+);
+
+-- 7. Enable RLS
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parties ENABLE ROW LEVEL SECURITY;
+ALTER TABLE banks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+
+-- 8. Create Public Access Policies
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'companies') THEN
+        CREATE POLICY "Public Access" ON companies FOR ALL USING (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'parties') THEN
+        CREATE POLICY "Public Access" ON parties FOR ALL USING (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'banks') THEN
+        CREATE POLICY "Public Access" ON banks FOR ALL USING (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'inventory') THEN
+        CREATE POLICY "Public Access" ON inventory FOR ALL USING (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'transactions') THEN
+        CREATE POLICY "Public Access" ON transactions FOR ALL USING (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'expenses') THEN
+        CREATE POLICY "Public Access" ON expenses FOR ALL USING (true);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'invoices') THEN
+        CREATE POLICY "Public Access" ON invoices FOR ALL USING (true);
+    END IF;
+END $$;
+
+-- 9. Setup updated_at trigger function
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- 10. Create triggers for all tables
+DROP TRIGGER IF EXISTS update_companies_updated_at ON companies;
+CREATE TRIGGER update_companies_updated_at BEFORE UPDATE ON companies FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_parties_updated_at ON parties;
+CREATE TRIGGER update_parties_updated_at BEFORE UPDATE ON parties FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_banks_updated_at ON banks;
+CREATE TRIGGER update_banks_updated_at BEFORE UPDATE ON banks FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_inventory_updated_at ON inventory;
+CREATE TRIGGER update_inventory_updated_at BEFORE UPDATE ON inventory FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_transactions_updated_at ON transactions;
+CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON transactions FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_invoices_updated_at ON invoices;
+CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON invoices FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_expenses_updated_at ON expenses;
+CREATE TRIGGER update_expenses_updated_at BEFORE UPDATE ON expenses FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+-- 11. Enable Realtime
+BEGIN;
+  DROP PUBLICATION IF EXISTS supabase_realtime;
+  CREATE PUBLICATION supabase_realtime FOR TABLE companies, parties, banks, inventory, transactions, invoices, expenses;
+COMMIT;
+
+-- 12. Set Replica Identity to FULL for better Realtime support
+ALTER TABLE companies REPLICA IDENTITY FULL;
+ALTER TABLE parties REPLICA IDENTITY FULL;
+ALTER TABLE banks REPLICA IDENTITY FULL;
+ALTER TABLE inventory REPLICA IDENTITY FULL;
+ALTER TABLE transactions REPLICA IDENTITY FULL;
+ALTER TABLE invoices REPLICA IDENTITY FULL;
+ALTER TABLE expenses REPLICA IDENTITY FULL;
+
+-- 13. Ensure columns exist (for existing tables)
+DO $$ 
+BEGIN
+    ALTER TABLE companies ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+    ALTER TABLE companies ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    
+    ALTER TABLE parties ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+    ALTER TABLE parties ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    
+    ALTER TABLE banks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+    ALTER TABLE banks ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    
+    ALTER TABLE inventory ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+    ALTER TABLE inventory ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    
+    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+END $$;
+
+NOTIFY pgrst, 'reload schema';
+`;
+
+  const handleAddCompany = async () => {
+    if (!newCompanyName) return;
+    await addCompany({
+      name: newCompanyName,
+      address: '',
+      currency: settings.currency,
+      user_id: settings.user_email || 'default',
+    });
+    setNewCompanyName('');
+    setIsAddCompanyModalOpen(false);
+  };
+
+  const handleEnableSync = async () => {
+    if (!emailInput) return;
+    updateSettings({ 
+      user_email: emailInput, 
+      is_verified: true, // Auto-verify since we're using email-only system
+      sync_enabled: true 
+    });
+    refreshData(emailInput);
+  };
+
+  const handleLinkDevice = async () => {
+    if (!linkEmailInput) return;
+    await linkDevice(linkEmailInput);
+    setLinkEmailInput('');
+  };
+
+  const handleResetApp = () => {
+    localStorage.clear();
+    window.location.reload();
+  };
+
+  const handleDeleteCompany = async (id: string) => {
+    await deleteCompany(id);
+    setIsDeleteCompanyModalOpen(null);
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-12">
+      {/* Company Section */}
+      <section>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold flex items-center gap-2">
+            <Building2 size={24} className="text-indigo-600" />
+            Company Management
+          </h3>
+          <button 
+            onClick={() => setIsAddCompanyModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+          >
+            <Plus size={18} />
+            Add Company
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {isDeleteCompanyModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsDeleteCompanyModalOpen(null)}
+                className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center"
+              >
+                <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
+                  <Trash2 size={32} />
+                </div>
+                <h3 className="text-xl font-bold mb-2">Delete Company?</h3>
+                <p className="text-slate-500 mb-8 text-sm">This will soft-delete the company. You can still access its data if you know the ID, but it won't show in your list.</p>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setIsDeleteCompanyModalOpen(null)}
+                    className="flex-1 px-4 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteCompany(isDeleteCompanyModalOpen)}
+                    className="flex-1 px-4 py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+          {isAddCompanyModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsAddCompanyModalOpen(false)}
+                className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <h2 className="text-xl font-bold">Add New Company</h2>
+                  <button onClick={() => setIsAddCompanyModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="p-8 space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Company Name</label>
+                    <input 
+                      type="text" 
+                      value={newCompanyName}
+                      onChange={(e) => setNewCompanyName(e.target.value)}
+                      placeholder="e.g. My Business"
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => setIsAddCompanyModalOpen(false)}
+                      className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={handleAddCompany}
+                      className="flex-1 px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+                    >
+                      Create
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+          {isResetConfirmOpen && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsResetConfirmOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center">
+                <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
+                  <Trash2 size={32} />
+                </div>
+                <h3 className="text-xl font-bold mb-2 text-rose-600">Reset Application?</h3>
+                <p className="text-slate-500 mb-8 text-sm">CRITICAL: This will delete ALL your local data permanently. This action cannot be undone.</p>
+                <div className="flex gap-3">
+                  <button onClick={() => setIsResetConfirmOpen(false)} className="flex-1 px-4 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                  <button onClick={handleResetApp} className="flex-1 px-4 py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">Reset All</button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {companies.map(company => (
+            <div 
+              key={company.id}
+              onClick={() => setCurrentCompany(company)}
+              className={cn(
+                "p-6 rounded-3xl border transition-all cursor-pointer group",
+                currentCompany?.id === company.id 
+                  ? "bg-indigo-600 text-white border-indigo-600 shadow-xl shadow-indigo-500/20" 
+                  : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-indigo-200"
+              )}
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className={cn(
+                  "w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl",
+                  currentCompany?.id === company.id ? "bg-white/20" : "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600"
+                )}>
+                  {company.name.charAt(0)}
+                </div>
+                <div className="flex items-center gap-2">
+                  {currentCompany?.id === company.id && (
+                    <span className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">Active</span>
+                  )}
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsDeleteCompanyModalOpen(company.id);
+                    }}
+                    className={cn(
+                      "p-2 rounded-xl transition-all",
+                      currentCompany?.id === company.id 
+                        ? "hover:bg-white/20 text-white/60 hover:text-white" 
+                        : "hover:bg-rose-50 text-slate-400 hover:text-rose-600"
+                    )}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              <h4 className="font-bold text-lg">{company.name}</h4>
+              <p className={cn(
+                "text-sm mt-1",
+                currentCompany?.id === company.id ? "text-indigo-100" : "text-slate-500"
+              )}>{company.currency}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Preferences Section */}
+      <section>
+        <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
+          <SettingsIcon size={24} className="text-indigo-600" />
+          General Preferences
+        </h3>
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="divide-y divide-slate-50 dark:divide-slate-800">
+            {/* Theme */}
+            <div className="p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-600 flex items-center justify-center">
+                  {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
+                </div>
+                <div>
+                  <p className="font-bold">Appearance</p>
+                  <p className="text-xs text-slate-500">Toggle between light and dark mode</p>
+                </div>
+              </div>
+              <button 
+                onClick={toggleTheme}
+                className="w-14 h-8 bg-slate-100 dark:bg-slate-800 rounded-full p-1 relative transition-all"
+              >
+                <div className={cn(
+                  "w-6 h-6 bg-white dark:bg-indigo-600 rounded-full shadow-sm transition-all",
+                  theme === 'dark' ? "translate-x-6" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+
+            {/* Currency */}
+            <div className="p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center">
+                  <Globe size={20} />
+                </div>
+                <div>
+                  <p className="font-bold">Currency</p>
+                  <p className="text-xs text-slate-500">Default currency for transactions</p>
+                </div>
+              </div>
+              <select 
+                value={settings.currency}
+                onChange={(e) => updateSettings({ currency: e.target.value })}
+                className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm font-bold outline-none"
+              >
+                {currencies.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </select>
+            </div>
+
+            {/* PDF Theme */}
+            <div className="p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 flex items-center justify-center">
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <p className="font-bold">PDF Theme</p>
+                  <p className="text-xs text-slate-500">Choose layout for your invoices</p>
+                </div>
+              </div>
+              <select 
+                value={settings.pdf_theme}
+                onChange={(e) => updateSettings({ pdf_theme: e.target.value })}
+                className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm font-bold outline-none"
+              >
+                {pdfThemes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+
+            {/* Cloud Sync */}
+            <div className="p-6 space-y-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 flex items-center justify-center">
+                    <Cloud size={20} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold">Cloud Sync</p>
+                      {settings.is_verified && <CheckCircle2 size={14} className="text-emerald-500" />}
+                    </div>
+                    <p className="text-xs text-slate-500">Enable real-time sync with Supabase</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => updateSettings({ sync_enabled: !settings.sync_enabled })}
+                  className={cn(
+                    "w-14 h-8 rounded-full p-1 relative transition-all",
+                    settings.sync_enabled ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-800"
+                  )}
+                >
+                  <div className={cn(
+                    "w-6 h-6 bg-white rounded-full shadow-sm transition-all",
+                    settings.sync_enabled ? "translate-x-6" : "translate-x-0"
+                  )} />
+                </button>
+              </div>
+              
+              {settings.sync_enabled && (
+                <div className="space-y-6 pt-2">
+                  {!settings.is_verified ? (
+                    <div className="space-y-4">
+                      <div className="flex gap-3">
+                        <input 
+                          type="email" 
+                          placeholder="Enter email to sync"
+                          value={emailInput}
+                          onChange={(e) => setEmailInput(e.target.value)}
+                          className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button 
+                          onClick={handleEnableSync}
+                          className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+                        >
+                          Enable Sync
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-800/50">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                            <CheckCircle2 size={18} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-emerald-900 dark:text-emerald-100">{settings.user_email}</p>
+                            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase font-bold tracking-wider">Sync Active</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => refreshData()}
+                            disabled={syncStatus.loading}
+                            className="px-4 py-2 bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold border border-emerald-100 dark:border-emerald-800 hover:bg-emerald-50 transition-all disabled:opacity-50"
+                          >
+                            {syncStatus.loading ? 'Syncing...' : 'Sync Now'}
+                          </button>
+                          <button 
+                            onClick={() => updateSettings({ is_verified: false, user_email: '' })}
+                            className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                          >
+                            <LogOut size={18} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Device Linking */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                          <Link2 size={16} className="text-indigo-600" />
+                          Link Another Device
+                        </div>
+                        <div className="flex gap-3">
+                          <input 
+                            type="email" 
+                            placeholder="Enter second device's email"
+                            value={linkEmailInput}
+                            onChange={(e) => setLinkEmailInput(e.target.value)}
+                            className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <button 
+                            onClick={handleLinkDevice}
+                            className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all"
+                          >
+                            Link
+                          </button>
+                        </div>
+                        {currentCompany?.linked_emails && currentCompany.linked_emails.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {currentCompany.linked_emails.map(email => (
+                              <span key={email} className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                {email}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800/50">
+                        <div>
+                          <p className="text-sm font-bold text-indigo-900 dark:text-indigo-100">Mobile Sync</p>
+                          <p className="text-xs text-indigo-600 dark:text-indigo-400">Pull your companies from another device</p>
+                        </div>
+                        <button 
+                          onClick={() => pullCompanies(settings.user_email || '')}
+                          disabled={syncStatus.loading}
+                          className="px-4 py-2 bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold border border-indigo-100 dark:border-indigo-800 hover:bg-indigo-50 transition-all disabled:opacity-50"
+                        >
+                          Pull Companies
+                        </button>
+                      </div>
+
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                        <button 
+                          onClick={() => setShowSqlSetup(!showSqlSetup)}
+                          className="flex items-center justify-between w-full text-left"
+                        >
+                          <div>
+                            <p className="text-sm font-bold">Database Setup</p>
+                            <p className="text-[10px] text-slate-500">Run SQL to fix sync errors</p>
+                          </div>
+                          <ChevronRight size={16} className={cn("transition-transform", showSqlSetup && "rotate-90")} />
+                        </button>
+                        {showSqlSetup && (
+                          <div className="mt-4 space-y-3">
+                            <p className="text-[10px] text-slate-500">If you see "table not found" errors, copy this SQL and run it in your Supabase SQL Editor:</p>
+                            <div className="relative">
+                              <pre className="bg-slate-950 text-slate-300 p-3 rounded-xl text-[8px] overflow-x-auto max-h-40">
+                                {sqlSetup}
+                              </pre>
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(sqlSetup);
+                                  setToast({ message: 'SQL copied to clipboard!', type: 'success' });
+                                }}
+                                className="absolute top-2 right-2 p-1 bg-white/10 hover:bg-white/20 rounded text-[8px] text-white"
+                              >
+                                Copy
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {syncStatus.error && (
+                    <div className="px-2 space-y-2">
+                      <p className="text-xs text-rose-600 font-medium">{syncStatus.error}</p>
+                      {syncStatus.error.includes('not found') && (
+                        <button 
+                          onClick={() => {
+                            setShowSqlSetup(true);
+                            navigator.clipboard.writeText(sqlSetup);
+                            setToast({ message: 'SQL copied to clipboard! Please run it in your Supabase SQL Editor.', type: 'success' });
+                          }}
+                          className="w-full py-2 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl text-[10px] font-bold border border-rose-100 dark:border-rose-800 hover:bg-rose-100 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Database size={12} />
+                          Copy Fix SQL & Show Instructions
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {syncStatus.success && (
+                    <p className="text-xs text-emerald-600 font-medium px-2">{syncStatus.success}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Danger Zone */}
+      <section>
+        <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-rose-600">
+          <Shield size={24} />
+          Danger Zone
+        </h3>
+        <div className="bg-rose-50 dark:bg-rose-900/10 rounded-3xl border border-rose-100 dark:border-rose-900/30 p-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-bold text-rose-900 dark:text-rose-100">Delete All Data</p>
+              <p className="text-sm text-rose-600 dark:text-rose-400">Permanently remove all companies, parties, and transactions.</p>
+            </div>
+            <button 
+              onClick={handleResetApp}
+              className="px-6 py-3 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 flex items-center gap-2"
+            >
+              <Trash2 size={18} />
+              Reset App
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div className="text-center pt-8">
+        <button className="text-slate-400 hover:text-rose-600 flex items-center gap-2 mx-auto transition-colors">
+          <LogOut size={18} />
+          Sign Out
+        </button>
+        <p className="text-xs text-slate-400 mt-4">Bugzy Business Pro v1.0.0 • Made with ❤️ for Business</p>
+      </div>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={cn(
+              "fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl shadow-2xl z-[100] font-bold text-white",
+              toast.type === 'success' ? "bg-emerald-600" : "bg-rose-600"
+            )}
+          >
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
