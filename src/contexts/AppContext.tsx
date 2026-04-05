@@ -39,6 +39,51 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+const mergeData = <T extends { id: string; updated_at?: string; created_at?: string }>(
+  local: T[],
+  cloud: T[]
+): { merged: T[]; toUpload: T[] } => {
+  const mergedMap = new Map<string, T>();
+  const toUploadMap = new Map<string, T>();
+
+  // Start with local data
+  local.forEach(item => mergedMap.set(item.id, item));
+
+  // Merge cloud data
+  cloud.forEach(cloudItem => {
+    const localItem = mergedMap.get(cloudItem.id);
+    if (!localItem) {
+      // Only in cloud, add to merged
+      mergedMap.set(cloudItem.id, cloudItem);
+    } else {
+      // In both, resolve conflict
+      const localTime = new Date(localItem.updated_at || localItem.created_at || 0).getTime();
+      const cloudTime = new Date(cloudItem.updated_at || cloudItem.created_at || 0).getTime();
+
+      if (cloudTime > localTime) {
+        // Cloud is newer
+        mergedMap.set(cloudItem.id, cloudItem);
+      } else if (localTime > cloudTime) {
+        // Local is newer, mark for upload
+        toUploadMap.set(localItem.id, localItem);
+      }
+    }
+  });
+
+  // Local items not in cloud should also be uploaded
+  const cloudIds = new Set(cloud.map(c => c.id));
+  local.forEach(localItem => {
+    if (!cloudIds.has(localItem.id)) {
+      toUploadMap.set(localItem.id, localItem);
+    }
+  });
+
+  return {
+    merged: Array.from(mergedMap.values()),
+    toUpload: Array.from(toUploadMap.values())
+  };
+};
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>(() => {
     try {
@@ -113,13 +158,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const email = emailOverride || settings.user_email;
     
     // Load local data first for immediate UI response
+    let localParties: Party[] = [];
+    let localBanks: BankAccount[] = [];
+    let localItems: Item[] = [];
+    let localTransactions: Transaction[] = [];
+    let localInvoices: Invoice[] = [];
+
     if (currentCompany) {
         const companyId = currentCompany.id;
-        setParties(JSON.parse(localStorage.getItem(`parties_${companyId}`) || '[]'));
-        setBanks(JSON.parse(localStorage.getItem(`banks_${companyId}`) || '[]'));
-        setItems(JSON.parse(localStorage.getItem(`items_${companyId}`) || '[]'));
-        setTransactions(JSON.parse(localStorage.getItem(`transactions_${companyId}`) || '[]'));
-        setInvoices(JSON.parse(localStorage.getItem(`invoices_${companyId}`) || '[]'));
+        localParties = JSON.parse(localStorage.getItem(`parties_${companyId}`) || '[]');
+        localBanks = JSON.parse(localStorage.getItem(`banks_${companyId}`) || '[]');
+        localItems = JSON.parse(localStorage.getItem(`items_${companyId}`) || '[]');
+        localTransactions = JSON.parse(localStorage.getItem(`transactions_${companyId}`) || '[]');
+        localInvoices = JSON.parse(localStorage.getItem(`invoices_${companyId}`) || '[]');
+        
+        setParties(localParties);
+        setBanks(localBanks);
+        setItems(localItems);
+        setTransactions(localTransactions);
+        setInvoices(localInvoices);
     }
 
     if (!settings.sync_enabled || !email) return;
@@ -130,16 +187,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const { data: cloudCompanies, error: compError } = await supabase
         .from('companies')
         .select('*')
-        .or(`user_email.eq.${email},linked_emails.cs.{${email}}`)
-        .is('deleted_at', null);
+        .or(`user_email.eq.${email},linked_emails.cs.{${email}}`);
       
       if (compError) throw compError;
       
-      setCompanies(cloudCompanies || []);
+      const { merged: mergedCompanies, toUpload: companiesToUpload } = mergeData(companies, cloudCompanies || []);
+      setCompanies(mergedCompanies.filter(c => !c.deleted_at));
+      if (companiesToUpload.length > 0) {
+        await syncToCloud('companies', companiesToUpload);
+      }
       
       let activeCompany = currentCompany;
-      if (!activeCompany && cloudCompanies && cloudCompanies.length > 0) {
-        activeCompany = cloudCompanies[0];
+      const nonDeletedCompanies = mergedCompanies.filter(c => !c.deleted_at);
+      if (!activeCompany && nonDeletedCompanies.length > 0) {
+        activeCompany = nonDeletedCompanies[0];
         setCurrentCompany(activeCompany);
       }
 
@@ -149,25 +210,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 2. Pull Data for activeCompany
-      const fetchData = async (table: string, setter: (data: any[]) => void) => {
+      const fetchAndMerge = async (table: string, localData: any[], setter: (data: any[]) => void) => {
         const dbTable = table === 'items' ? 'inventory' : table;
-        const { data, error } = await supabase
+        const { data: cloudData, error } = await supabase
           .from(dbTable)
           .select('*')
-          .eq('company_id', activeCompany!.id)
-          .is('deleted_at', null);
+          .eq('company_id', activeCompany!.id);
         
         if (error) throw error;
-        setter(data || []);
-        localStorage.setItem(`${table}_${activeCompany!.id}`, JSON.stringify(data || []));
+        
+        const { merged, toUpload } = mergeData(localData, cloudData || []);
+        setter(merged.filter((i: any) => !i.deleted_at));
+        localStorage.setItem(`${table}_${activeCompany!.id}`, JSON.stringify(merged));
+        
+        if (toUpload.length > 0) {
+          await syncToCloud(table, toUpload);
+        }
       };
 
       await Promise.all([
-        fetchData('parties', setParties),
-        fetchData('banks', setBanks),
-        fetchData('items', setItems),
-        fetchData('transactions', setTransactions),
-        fetchData('invoices', setInvoices),
+        fetchAndMerge('parties', localParties, setParties),
+        fetchAndMerge('banks', localBanks, setBanks),
+        fetchAndMerge('items', localItems, setItems),
+        fetchAndMerge('transactions', localTransactions, setTransactions),
+        fetchAndMerge('invoices', localInvoices, setInvoices),
       ]);
       
       setSyncStatus({ loading: false, error: null, success: 'Synced' });
@@ -198,24 +264,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .or(`user_email.eq.${email},linked_emails.cs.{${email}}`)
-        .is('deleted_at', null); // Only fetch non-deleted companies
+        .or(`user_email.eq.${email},linked_emails.cs.{${email}}`);
       
       if (error) throw error;
       
       if (data && data.length > 0) {
-        setCompanies(prev => {
-          const merged = [...prev];
-          data.forEach((cloudComp: Company) => {
-            if (!merged.find(c => c.id === cloudComp.id)) {
-              merged.push(cloudComp);
-            }
-          });
-          return merged;
-        });
+        const { merged, toUpload } = mergeData(companies, data);
+        const nonDeleted = merged.filter(c => !c.deleted_at);
+        // Actually, companies state should probably only have non-deleted ones for UI
+        setCompanies(nonDeleted);
         
-        if (!currentCompany) {
-          setCurrentCompany(data[0]);
+        if (toUpload.length > 0) {
+          await syncToCloud('companies', toUpload);
+        }
+        
+        if (!currentCompany && nonDeleted.length > 0) {
+          setCurrentCompany(nonDeleted[0]);
         }
         
         setSyncStatus({ loading: false, error: null, success: `Successfully pulled ${data.length} companies` });
@@ -526,10 +590,12 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   const addTransaction = async (tx: Omit<Transaction, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
+    const now = new Date().toISOString();
     const newTx: Transaction = {
       ...tx,
       id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     };
     const updated = [newTx, ...transactions];
     
@@ -548,7 +614,8 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   const updateTransaction = async (id: string, tx: Partial<Transaction>) => {
     if (!currentCompany) return;
-    const updated = transactions.map(t => t.id === id ? { ...t, ...tx } : t);
+    const now = new Date().toISOString();
+    const updated = transactions.map(t => t.id === id ? { ...t, ...tx, updated_at: now } : t);
     setTransactions(updated);
     localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
     
@@ -560,10 +627,12 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   const addParty = async (party: Omit<Party, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
+    const now = new Date().toISOString();
     const newParty: Party = {
       ...party,
       id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     };
     const updated = [...parties, newParty];
     
@@ -579,7 +648,8 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   const updateParty = async (id: string, party: Partial<Party>) => {
     if (!currentCompany) return;
-    const updated = parties.map(p => p.id === id ? { ...p, ...party } : p);
+    const now = new Date().toISOString();
+    const updated = parties.map(p => p.id === id ? { ...p, ...party, updated_at: now } : p);
     setParties(updated);
     localStorage.setItem(`parties_${currentCompany.id}`, JSON.stringify(updated));
     
@@ -593,6 +663,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     const party = parties.find(p => p.id === id);
     if (!party) return;
     
+    const now = new Date().toISOString();
     const updated = parties.filter(p => p.id !== id);
     setParties(updated);
     localStorage.setItem(`parties_${currentCompany.id}`, JSON.stringify(updated));
@@ -601,17 +672,19 @@ const deleteFromCloud = async (table: string, id: string) => {
       if (hard) {
         await deleteFromCloud('parties', id);
       } else {
-        await syncToCloud('parties', { ...party, deleted_at: new Date().toISOString() });
+        await syncToCloud('parties', { ...party, deleted_at: now, updated_at: now });
       }
     }
   };
 
   const addBank = async (bank: Omit<BankAccount, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
+    const now = new Date().toISOString();
     const newBank: BankAccount = {
       ...bank,
       id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     };
     const updated = [...banks, newBank];
     
@@ -627,7 +700,8 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   const updateBank = async (id: string, bank: Partial<BankAccount>) => {
     if (!currentCompany) return;
-    const updated = banks.map(b => b.id === id ? { ...b, ...bank } : b);
+    const now = new Date().toISOString();
+    const updated = banks.map(b => b.id === id ? { ...b, ...bank, updated_at: now } : b);
     setBanks(updated);
     localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(updated));
     
@@ -641,6 +715,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     const bank = banks.find(b => b.id === id);
     if (!bank) return;
 
+    const now = new Date().toISOString();
     const updated = banks.filter(b => b.id !== id);
     setBanks(updated);
     localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(updated));
@@ -649,17 +724,19 @@ const deleteFromCloud = async (table: string, id: string) => {
       if (hard) {
         await deleteFromCloud('banks', id);
       } else {
-        await syncToCloud('banks', { ...bank, deleted_at: new Date().toISOString() });
+        await syncToCloud('banks', { ...bank, deleted_at: now, updated_at: now });
       }
     }
   };
 
   const addItem = async (item: Omit<Item, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
+    const now = new Date().toISOString();
     const newItem: Item = {
       ...item,
       id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     };
     const updated = [...items, newItem];
     
@@ -675,7 +752,8 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   const updateItem = async (id: string, item: Partial<Item>) => {
     if (!currentCompany) return;
-    const updated = items.map(i => i.id === id ? { ...i, ...item } : i);
+    const now = new Date().toISOString();
+    const updated = items.map(i => i.id === id ? { ...i, ...item, updated_at: now } : i);
     setItems(updated);
     localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(updated));
     
@@ -689,6 +767,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     const item = items.find(i => i.id === id);
     if (!item) return;
 
+    const now = new Date().toISOString();
     const updated = items.filter(i => i.id !== id);
     setItems(updated);
     localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(updated));
@@ -697,7 +776,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       if (hard) {
         await deleteFromCloud('items', id);
       } else {
-        await syncToCloud('items', { ...item, deleted_at: new Date().toISOString() });
+        await syncToCloud('items', { ...item, deleted_at: now, updated_at: now });
       }
     }
   };
@@ -707,6 +786,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       const tx = transactions.find(t => t.id === id);
       if (!tx) return;
 
+      const now = new Date().toISOString();
       const updated = transactions.filter(t => t.id !== id);
       setTransactions(updated);
       localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
@@ -715,18 +795,20 @@ const deleteFromCloud = async (table: string, id: string) => {
           if (hard) {
             await deleteFromCloud('transactions', id);
           } else {
-            await syncToCloud('transactions', { ...tx, deleted_at: new Date().toISOString() });
+            await syncToCloud('transactions', { ...tx, deleted_at: now, updated_at: now });
           }
       }
       await recalculateBalances(updated, parties, banks, items);
   };
 
   const addCompany = async (company: Omit<Company, 'id' | 'created_at'>) => {
+    const now = new Date().toISOString();
     const newCompany: Company = {
       ...company,
       id: crypto.randomUUID(),
       user_email: settings.user_email || '',
-      created_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
       linked_emails: [],
     };
     
@@ -739,10 +821,11 @@ const deleteFromCloud = async (table: string, id: string) => {
   };
 
   const updateCompany = async (id: string, company: Partial<Company>) => {
-    const updated = companies.map(c => c.id === id ? { ...c, ...company } : c);
+    const now = new Date().toISOString();
+    const updated = companies.map(c => c.id === id ? { ...c, ...company, updated_at: now } : c);
     setCompanies(updated);
     if (currentCompany?.id === id) {
-      setCurrentCompany({ ...currentCompany, ...company });
+      setCurrentCompany({ ...currentCompany, ...company, updated_at: now });
     }
     await syncToCloud('companies', updated.find(c => c.id === id));
   };
@@ -751,6 +834,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     const companyToDelete = companies.find(c => c.id === id);
     if (!companyToDelete) return;
 
+    const now = new Date().toISOString();
     const updated = companies.filter(c => c.id !== id);
     setCompanies(updated);
     
@@ -760,16 +844,18 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
 
     if (settings.sync_enabled) {
-      await syncToCloud('companies', { ...companyToDelete, deleted_at: new Date().toISOString() });
+      await syncToCloud('companies', { ...companyToDelete, deleted_at: now, updated_at: now });
     }
   };
 
   const addInvoice = async (invoice: Omit<Invoice, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
+    const now = new Date().toISOString();
     const newInvoice: Invoice = {
       ...invoice,
       id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     };
     const updated = [newInvoice, ...invoices];
     
@@ -785,7 +871,8 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   const updateInvoice = async (id: string, invoice: Partial<Invoice>) => {
     if (!currentCompany) return;
-    const updated = invoices.map(i => i.id === id ? { ...i, ...invoice } : i);
+    const now = new Date().toISOString();
+    const updated = invoices.map(i => i.id === id ? { ...i, ...invoice, updated_at: now } : i);
     setInvoices(updated);
     localStorage.setItem(`invoices_${currentCompany.id}`, JSON.stringify(updated));
     
@@ -799,6 +886,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     const invoice = invoices.find(i => i.id === id);
     if (!invoice) return;
 
+    const now = new Date().toISOString();
     const updated = invoices.filter(i => i.id !== id);
     setInvoices(updated);
     localStorage.setItem(`invoices_${currentCompany.id}`, JSON.stringify(updated));
@@ -807,7 +895,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       if (hard) {
         await deleteFromCloud('invoices', id);
       } else {
-        await syncToCloud('invoices', { ...invoice, deleted_at: new Date().toISOString() });
+        await syncToCloud('invoices', { ...invoice, deleted_at: now, updated_at: now });
       }
     }
   };
