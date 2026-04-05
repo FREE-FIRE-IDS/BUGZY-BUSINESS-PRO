@@ -28,7 +28,7 @@ export default function Settings() {
   const { 
     settings, updateSettings, companies, currentCompany, setCurrentCompany, 
     refreshData, addCompany, deleteCompany, pullCompanies, syncStatus,
-    linkDevice
+    linkDevice, signOut
   } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [emailInput, setEmailInput] = React.useState(settings.user_email || '');
@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS companies (
   user_id TEXT,
   user_email TEXT,
   linked_emails TEXT[],
+  recovery_code TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   deleted_at TIMESTAMPTZ
@@ -260,6 +261,7 @@ DO $$
 BEGIN
     ALTER TABLE companies ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
     ALTER TABLE companies ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    ALTER TABLE companies ADD COLUMN IF NOT EXISTS recovery_code TEXT;
     
     ALTER TABLE parties ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
     ALTER TABLE parties ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
@@ -282,11 +284,15 @@ NOTIFY pgrst, 'reload schema';
 
   const handleAddCompany = async () => {
     if (!newCompanyName) return;
+    const words = ['blue', 'fast', 'smart', 'gold', 'cool', 'bold', 'safe', 'rich', 'pure', 'kind'];
+    const code = Array.from({ length: 4 }, () => words[Math.floor(Math.random() * words.length)]).join('-');
+    
     await addCompany({
       name: newCompanyName,
       address: '',
       currency: settings.currency,
       user_id: settings.user_email || 'default',
+      recovery_code: code,
     });
     setNewCompanyName('');
     setIsAddCompanyModalOpen(false);
@@ -489,6 +495,40 @@ NOTIFY pgrst, 'reload schema';
           ))}
         </div>
       </section>
+
+      {/* Recovery Code Section */}
+      {currentCompany && (
+        <section>
+          <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
+            <Shield size={24} className="text-indigo-600" />
+            Security & Recovery
+          </h3>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div>
+                <p className="font-bold mb-1">Recovery Code</p>
+                <p className="text-xs text-slate-500">Use this code to restore your company data on any device.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="px-6 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                  {currentCompany.recovery_code || 'No code set'}
+                </div>
+                <button 
+                  onClick={() => {
+                    if (currentCompany.recovery_code) {
+                      navigator.clipboard.writeText(currentCompany.recovery_code);
+                      setToast({ message: 'Recovery code copied!', type: 'success' });
+                    }
+                  }}
+                  className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all text-slate-400 hover:text-indigo-600"
+                >
+                  <Link2 size={20} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Preferences Section */}
       <section>
@@ -770,7 +810,10 @@ NOTIFY pgrst, 'reload schema';
       </section>
 
       <div className="text-center pt-8">
-        <button className="text-slate-400 hover:text-rose-600 flex items-center gap-2 mx-auto transition-colors">
+        <button 
+          onClick={signOut}
+          className="text-slate-400 hover:text-rose-600 flex items-center gap-2 mx-auto transition-colors"
+        >
           <LogOut size={18} />
           Sign Out
         </button>

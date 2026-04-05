@@ -50,18 +50,23 @@ export default function App() {
   }, []);
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'parties', label: 'Parties', icon: Users },
     { id: 'banks', label: 'Banks', icon: Building2 },
+    { id: 'invoices', label: 'Invoices', icon: FileText },
+    { id: 'more', label: 'More', icon: Menu },
+  ];
+
+  const moreItems = [
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'expenses', label: 'Expenses', icon: Receipt },
-    { id: 'invoices', label: 'Invoices', icon: FileText },
     { id: 'reports', label: 'Reports', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
 
   const renderPage = () => {
-    switch (activeTab) {
+    const tab = activeTab === 'more' ? 'settings' : activeTab;
+    switch (tab) {
       case 'dashboard': return <Dashboard />;
       case 'parties': return <Parties />;
       case 'banks': return <Banks />;
@@ -114,9 +119,9 @@ export default function App() {
     )}>
       {/* Sidebar */}
       <aside className={cn(
-        "fixed left-0 top-0 h-full z-40 transition-all duration-300 border-r",
+        "fixed left-0 top-0 h-full z-40 transition-all duration-300 border-r hidden md:block",
         theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200",
-        isSidebarOpen ? "w-64 translate-x-0" : "w-20 -translate-x-full md:translate-x-0"
+        isSidebarOpen ? "w-64 translate-x-0" : "w-20"
       )}>
         <div className="p-6 flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">
@@ -126,7 +131,7 @@ export default function App() {
             <motion.span 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="font-bold text-lg tracking-tight text-black dark:text-white"
+              className="font-bold text-lg tracking-tight text-slate-900 dark:text-white"
             >
               Bugzy Pro
             </motion.span>
@@ -134,12 +139,11 @@ export default function App() {
         </div>
 
         <nav className="mt-6 px-3 space-y-1 overflow-y-auto max-h-[calc(100vh-120px)]">
-          {menuItems.map((item) => (
+          {[...menuItems.slice(0, 4), ...moreItems].map((item) => (
             <button
               key={item.id}
               onClick={() => {
                 setActiveTab(item.id);
-                if (window.innerWidth < 768) setIsSidebarOpen(false);
               }}
               className={cn(
                 "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative",
@@ -162,36 +166,39 @@ export default function App() {
 
       {/* Main Content */}
       <main className={cn(
-        "transition-all duration-300 min-h-screen",
+        "transition-all duration-300 min-h-screen pb-20 md:pb-0",
         isSidebarOpen ? "md:pl-64" : "md:pl-20"
       )}>
         {/* Topbar */}
         <header className={cn(
-          "h-16 border-b flex items-center justify-between px-8 sticky top-0 z-30 backdrop-blur-md",
+          "h-16 border-b flex items-center justify-between px-4 md:px-8 sticky top-0 z-30 backdrop-blur-md",
           theme === 'dark' ? "bg-slate-950/80 border-slate-800" : "bg-white/80 border-slate-200"
         )}>
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors hidden md:block"
             >
               <Menu size={20} />
             </button>
-            <h2 className="text-lg font-semibold capitalize">{activeTab}</h2>
+            <h2 className="text-lg font-semibold capitalize">{activeTab === 'more' ? 'Menu' : activeTab}</h2>
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
-              <Building2 size={16} />
-              <span className="text-sm font-medium">{currentCompany?.name}</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 max-w-[150px] md:max-w-none">
+              <Building2 size={16} className="shrink-0" />
+              <span className="text-sm font-medium truncate">{currentCompany?.name}</span>
             </div>
-            <button className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-              <Plus size={20} />
+            <button 
+              onClick={toggleTheme}
+              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
           </div>
         </header>
 
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="p-4 md:p-8 max-w-7xl mx-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -200,7 +207,25 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              {renderPage()}
+              {activeTab === 'more' ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {moreItems.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id)}
+                      className={cn(
+                        "flex flex-col items-center justify-center p-6 rounded-2xl border transition-all gap-3",
+                        theme === 'dark' ? "bg-slate-900 border-slate-800 hover:bg-slate-800" : "bg-white border-slate-200 hover:bg-slate-50"
+                      )}
+                    >
+                      <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                        <item.icon size={24} />
+                      </div>
+                      <span className="font-medium">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : renderPage()}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -245,17 +270,18 @@ export default function App() {
       </AnimatePresence>
 
       {/* Mobile Bottom Nav */}
-      <div className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex justify-around p-3 z-50">
-        {menuItems.slice(0, 5).map((item) => (
+      <div className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex justify-around p-2 z-50">
+        {menuItems.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "p-2 rounded-lg transition-colors",
+              "flex flex-col items-center gap-1 p-2 rounded-lg transition-colors min-w-[64px]",
               activeTab === item.id ? "text-indigo-600" : "text-slate-400"
             )}
           >
-            <item.icon size={24} />
+            <item.icon size={20} />
+            <span className="text-[10px] font-medium">{item.label}</span>
           </button>
         ))}
       </div>
@@ -264,9 +290,20 @@ export default function App() {
 }
 
 function SetupCompany() {
-  const { addCompany } = useApp();
+  const { addCompany, restoreCompany, syncStatus } = useApp();
+  const [mode, setMode] = useState<'create' | 'restore'>('create');
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('PKR');
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [generatedCode, setGeneratedCode] = useState('');
+
+  useEffect(() => {
+    if (mode === 'create') {
+      const words = ['blue', 'fast', 'smart', 'gold', 'cool', 'bold', 'safe', 'rich', 'pure', 'kind'];
+      const code = Array.from({ length: 4 }, () => words[Math.floor(Math.random() * words.length)]).join('-');
+      setGeneratedCode(code);
+    }
+  }, [mode]);
 
   const handleCreate = async () => {
     if (!name.trim()) return;
@@ -275,49 +312,105 @@ function SetupCompany() {
       address: '',
       currency,
       user_id: 'default',
+      recovery_code: generatedCode,
     });
-    // No reload needed if context state updates correctly
+  };
+
+  const handleRestore = async () => {
+    if (!recoveryCode.trim()) return;
+    await restoreCompany(recoveryCode);
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 border border-slate-100">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8 border border-slate-100 dark:border-slate-800">
         <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-bold text-3xl mx-auto mb-6">
           B
         </div>
-        <h1 className="text-2xl font-bold text-center mb-2">Welcome to Bugzy Pro</h1>
-        <p className="text-slate-500 text-center mb-8">Let's set up your first company to get started.</p>
+        <h1 className="text-2xl font-bold text-center mb-2 dark:text-white">Bugzy Pro</h1>
         
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Company Name</label>
-            <input 
-              type="text" 
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-              placeholder="e.g. Acme Corp"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Currency</label>
-            <select 
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-            >
-              <option value="PKR">Pakistan Rupee (PKR)</option>
-              <option value="USD">US Dollar (USD)</option>
-              <option value="None">None</option>
-            </select>
-          </div>
+        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-8">
           <button 
-            onClick={handleCreate}
-            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+            onClick={() => setMode('create')}
+            className={cn(
+              "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
+              mode === 'create' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
+            )}
           >
-            Create Company
+            Create New
+          </button>
+          <button 
+            onClick={() => setMode('restore')}
+            className={cn(
+              "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
+              mode === 'restore' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
+            )}
+          >
+            Restore
           </button>
         </div>
+
+        {mode === 'create' ? (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Company Name</label>
+              <input 
+                type="text" 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
+                placeholder="e.g. Acme Corp"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Currency</label>
+              <select 
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
+              >
+                <option value="PKR">Pakistan Rupee (PKR)</option>
+                <option value="USD">US Dollar (USD)</option>
+                <option value="None">None</option>
+              </select>
+            </div>
+            <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800">
+              <label className="block text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">Your Recovery Code</label>
+              <p className="text-lg font-mono font-bold text-indigo-900 dark:text-indigo-200">{generatedCode}</p>
+              <p className="text-[10px] text-indigo-600/60 dark:text-indigo-400/60 mt-2 italic">Save this code! You'll need it to restore your data if you sign out.</p>
+            </div>
+            <button 
+              onClick={handleCreate}
+              disabled={syncStatus.loading}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+            >
+              {syncStatus.loading ? 'Creating...' : 'Create Company'}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Recovery Code</label>
+              <input 
+                type="text" 
+                value={recoveryCode}
+                onChange={(e) => setRecoveryCode(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white font-mono"
+                placeholder="word-word-word-word"
+              />
+            </div>
+            {syncStatus.error && (
+              <p className="text-red-500 text-xs bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-800">{syncStatus.error}</p>
+            )}
+            <button 
+              onClick={handleRestore}
+              disabled={syncStatus.loading}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+            >
+              {syncStatus.loading ? 'Restoring...' : 'Restore Company'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -25,6 +25,7 @@ export interface Company {
   created_at: string;
   updated_at?: string;
   deleted_at?: string;
+  recovery_code?: string; // 4-word recovery code
   linked_emails?: string[]; // Emails of other accounts linked to this company
 }
 
@@ -42,7 +43,7 @@ export interface Party {
   deleted_at?: string;
 }
 
-export interface BankAccount {
+export interface Bank {
   id: string;
   company_id: string;
   name: string;

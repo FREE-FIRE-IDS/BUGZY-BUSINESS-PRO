@@ -14,16 +14,15 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { BankAccount, Transaction, TransactionType } from '../types';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { Bank, Transaction, TransactionType } from '../types';
+import { generateBankStatement } from '../lib/pdfGenerator';
 
 export default function Banks() {
   const { banks, transactions, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, parties, currentCompany } = useApp();
-  const [selectedBank, setSelectedBank] = useState<BankAccount | null>(null);
+  const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingBank, setEditingBank] = useState<BankAccount | null>(null);
+  const [editingBank, setEditingBank] = useState<Bank | null>(null);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [transferType, setTransferType] = useState<TransactionType>('Bank To Bank');
   const [isEditTxModalOpen, setIsEditTxModalOpen] = useState(false);
@@ -41,50 +40,13 @@ export default function Banks() {
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
 
-  const exportBankPDF = (bank: BankAccount, ledger: Transaction[]) => {
-    const doc = new jsPDF();
-    const companyName = currentCompany?.name || settings.companyName || 'My Business';
-    
-    doc.setFontSize(22);
-    doc.setTextColor(30, 41, 59);
-    doc.text(companyName, 14, 20);
-    
-    doc.setFontSize(16);
-    doc.setTextColor(99, 102, 241);
-    doc.text('Bank Statement', 14, 30);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Bank: ${bank.name}`, 14, 38);
-    doc.text(`Account: ${bank.account_number || 'N/A'}`, 14, 44);
-    doc.text(`Current Balance: ${formatCurrency(bank.balance, settings.currency)}`, 14, 50);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 56);
-    
-    const tableData = ledger.map(t => [
-      formatDate(t.date),
-      t.type,
-      t.description || '-',
-      t.bank_id === bank.id ? formatCurrency(t.amount, settings.currency) : '-',
-      t.to_bank_id === bank.id ? formatCurrency(t.amount, settings.currency) : '-',
-    ]);
-
-    autoTable(doc, {
-      head: [['Date', 'Type', 'Description', 'Withdrawal', 'Deposit']],
-      body: tableData,
-      startY: 62,
-      theme: 'grid',
-      headStyles: { fillColor: [99, 102, 241] },
-      styles: { fontSize: 9 },
-      foot: [[
-        '', '', 'Total Balance', '', formatCurrency(bank.balance, settings.currency)
-      ]],
-      footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
-    });
-
-    doc.save(`${bank.name.replace(/\s+/g, '_')}_Statement_${new Date().getTime()}.pdf`);
+  const handleExportPDF = () => {
+    if (currentCompany && selectedBank) {
+      generateBankStatement(currentCompany, selectedBank, bankLedger);
+    }
   };
 
-  const handleEditBank = (bank: BankAccount) => {
+  const handleEditBank = (bank: Bank) => {
     setEditingBank(bank);
     setIsEditModalOpen(true);
   };
@@ -243,7 +205,7 @@ export default function Banks() {
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-black">Bank Ledger</h3>
               <button 
-                onClick={() => exportBankPDF(selectedBank, bankLedger)}
+                onClick={handleExportPDF}
                 className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
               >
                 <Download size={18} />

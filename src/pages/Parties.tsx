@@ -20,8 +20,7 @@ import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { Party, Transaction, TransactionType } from '../types';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { generatePartyStatement } from '../lib/pdfGenerator';
 
 export default function Parties() {
   const { parties, transactions, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany } = useApp();
@@ -64,43 +63,10 @@ export default function Parties() {
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [txType, setTxType] = useState<TransactionType>('Payment In');
 
-  const exportPartyPDF = (party: Party, ledger: Transaction[]) => {
-    const doc = new jsPDF();
-    const companyName = settings.companyName || 'My Business';
-    
-    doc.setFontSize(22);
-    doc.setTextColor(30, 41, 59);
-    doc.text(companyName, 14, 20);
-    
-    doc.setFontSize(16);
-    doc.setTextColor(99, 102, 241);
-    doc.text('Party Statement', 14, 30);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Party: ${party.name}`, 14, 38);
-    doc.text(`Phone: ${party.phone || 'N/A'}`, 14, 44);
-    doc.text(`Balance: ${formatCurrency(party.balance, settings.currency)}`, 14, 50);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 56);
-    
-    const tableData = ledger.map(t => [
-      formatDate(t.date),
-      t.type,
-      t.description || '-',
-      (t.party_id === party.id && (t.type === 'Payment In' || t.type === 'Sale' || t.type === 'Bank To Party')) || (t.to_party_id === party.id) ? formatCurrency(t.amount, settings.currency) : '-',
-      (t.party_id === party.id && (t.type === 'Payment Out' || t.type === 'Purchase' || t.type === 'Expense' || t.type === 'Party To Bank' || t.type === 'Party To Party')) ? formatCurrency(t.amount, settings.currency) : '-',
-    ]);
-
-    autoTable(doc, {
-      head: [['Date', 'Type', 'Description', 'Debit (In)', 'Credit (Out)']],
-      body: tableData,
-      startY: 62,
-      theme: 'grid',
-      headStyles: { fillColor: [99, 102, 241] },
-      styles: { fontSize: 9 }
-    });
-
-    doc.save(`${party.name.replace(/\s+/g, '_')}_Statement_${new Date().getTime()}.pdf`);
+  const handleExportPDF = () => {
+    if (currentCompany && currentSelectedParty) {
+      generatePartyStatement(currentCompany, currentSelectedParty, partyLedger);
+    }
   };
 
   return (
@@ -275,7 +241,7 @@ export default function Parties() {
               <h3 className="font-bold text-black">Transaction Ledger</h3>
               <div className="flex gap-2">
                 <button 
-                  onClick={() => exportPartyPDF(currentSelectedParty, partyLedger)}
+                  onClick={handleExportPDF}
                   className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
                 >
                   <Download size={18} />
