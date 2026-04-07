@@ -204,13 +204,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // 2. Pull Data for activeCompany
       const fetchAndMerge = async (table: string, setter: (data: any[]) => void) => {
-        const dbTable = table === 'items' ? 'inventory' : table;
+        let dbTable = table === 'items' ? 'inventory' : table;
+        
         const { data: cloudData, error } = await supabase
           .from(dbTable)
           .select('*')
           .eq('company_id', companyId);
         
-        if (error) throw error;
+        if (error) {
+            console.error(`Fetch error for ${dbTable}:`, error);
+            // If table doesn't exist, skip but don't crash
+            if (error.code === 'PGRST116' || error.message.includes('relation')) return;
+            throw error;
+        }
         
         const localData = JSON.parse(localStorage.getItem(`${table}_${companyId}`) || '[]');
         const { merged, toUpload } = mergeData(localData, cloudData || []);
@@ -230,6 +236,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         fetchAndMerge('items', setItems),
         fetchAndMerge('transactions', setTransactions),
         fetchAndMerge('invoices', setInvoices),
+        // Add expenses mapping just in case user has a separate table
+        fetchAndMerge('expenses', (data) => {
+            // Merge into transactions if they are separate
+            if (data.length > 0) {
+                setTransactions(prev => {
+                    const { merged } = mergeData(prev, data);
+                    return merged.filter(t => !t.deleted_at);
+                });
+            }
+        })
       ]);
       
       setSyncStatus({ loading: false, error: null, success: 'Synced' });
@@ -356,6 +372,8 @@ const deleteFromCloud = async (table: string, id: string) => {
         const { error } = await supabase.from(dbTable).delete().eq('id', id);
         if (error) {
             console.error(`[Delete Error] ${dbTable}:`, error);
+            // If table doesn't exist, ignore for now
+            if (error.code === 'PGRST116' || error.message.includes('relation')) return;
             throw error;
         }
         console.log(`[Delete Success] ${dbTable} record deleted from cloud`);
@@ -416,7 +434,7 @@ const deleteFromCloud = async (table: string, id: string) => {
                         });
                     };
 
-                    if (table === 'transactions') updateState('transactions', setTransactions);
+                    if (table === 'transactions' || table === 'expenses') updateState('transactions', setTransactions);
                     else if (table === 'parties') updateState('parties', setParties);
                     else if (table === 'banks') updateState('banks', setBanks);
                     else if (table === 'inventory') updateState('items', setItems);
