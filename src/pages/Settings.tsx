@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   deleted_at TIMESTAMPTZ
 );
 
--- 6. Create Expenses Table (Optional: App uses transactions table for expenses, but providing this for compatibility)
+-- 6. Create Expenses Table
 CREATE TABLE IF NOT EXISTS expenses (
   id UUID PRIMARY KEY,
   company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
@@ -184,7 +184,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   deleted_at TIMESTAMPTZ
 );
 
--- 7. Enable RLS
+-- 8. Enable RLS
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE banks ENABLE ROW LEVEL SECURITY;
@@ -193,7 +193,7 @@ ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 
--- 8. Create Public Access Policies
+-- 9. Create Public Access Policies
 DO $$ 
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'companies') THEN
@@ -219,7 +219,7 @@ BEGIN
     END IF;
 END $$;
 
--- 9. Setup updated_at trigger function
+-- 10. Setup updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -228,7 +228,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- 10. Create triggers for all tables
+-- 11. Create triggers for all tables
 DROP TRIGGER IF EXISTS update_companies_updated_at ON companies;
 CREATE TRIGGER update_companies_updated_at BEFORE UPDATE ON companies FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
@@ -250,13 +250,13 @@ CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON invoices FOR EACH ROW
 DROP TRIGGER IF EXISTS update_expenses_updated_at ON expenses;
 CREATE TRIGGER update_expenses_updated_at BEFORE UPDATE ON expenses FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
--- 11. Enable Realtime
+-- 12. Enable Realtime
 BEGIN;
   DROP PUBLICATION IF EXISTS supabase_realtime;
   CREATE PUBLICATION supabase_realtime FOR TABLE companies, parties, banks, inventory, transactions, invoices, expenses;
 COMMIT;
 
--- 12. Set Replica Identity to FULL for better Realtime support
+-- 13. Set Replica Identity to FULL for better Realtime support
 ALTER TABLE companies REPLICA IDENTITY FULL;
 ALTER TABLE parties REPLICA IDENTITY FULL;
 ALTER TABLE banks REPLICA IDENTITY FULL;
@@ -264,29 +264,6 @@ ALTER TABLE inventory REPLICA IDENTITY FULL;
 ALTER TABLE transactions REPLICA IDENTITY FULL;
 ALTER TABLE invoices REPLICA IDENTITY FULL;
 ALTER TABLE expenses REPLICA IDENTITY FULL;
-
--- 13. Ensure columns exist (for existing tables)
-DO $$ 
-BEGIN
-    ALTER TABLE companies ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
-    ALTER TABLE companies ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-    ALTER TABLE companies ADD COLUMN IF NOT EXISTS recovery_code TEXT;
-    
-    ALTER TABLE parties ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
-    ALTER TABLE parties ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-    
-    ALTER TABLE banks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
-    ALTER TABLE banks ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-    
-    ALTER TABLE inventory ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
-    ALTER TABLE inventory ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-    
-    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
-    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-    
-    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
-    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-END $$;
 
 NOTIFY pgrst, 'reload schema';
 `;
@@ -328,7 +305,7 @@ NOTIFY pgrst, 'reload schema';
   };
 
   const handleDeleteCompany = async (id: string) => {
-    await deleteCompany(id);
+    await deleteCompany(id, true); // Permanent delete by default as requested
     setIsDeleteCompanyModalOpen(null);
   };
 
@@ -369,8 +346,8 @@ NOTIFY pgrst, 'reload schema';
                 <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
                   <Trash2 size={32} />
                 </div>
-                <h3 className="text-xl font-bold mb-2">Delete Company?</h3>
-                <p className="text-slate-500 mb-8 text-sm">This will soft-delete the company. You can still access its data if you know the ID, but it won't show in your list.</p>
+                <h3 className="text-xl font-bold mb-2 text-rose-600">Delete Company?</h3>
+                <p className="text-slate-500 mb-8 text-sm">This will permanently delete the company and all its data from the cloud and this device. This action cannot be undone.</p>
                 <div className="flex gap-3">
                   <button 
                     onClick={() => setIsDeleteCompanyModalOpen(null)}

@@ -829,7 +829,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     await syncToCloud('companies', updated.find(c => c.id === id));
   };
 
-  const deleteCompany = async (id: string) => {
+  const deleteCompany = async (id: string, hard = true) => {
     const companyToDelete = companies.find(c => c.id === id);
     if (!companyToDelete) return;
 
@@ -838,16 +838,24 @@ const deleteFromCloud = async (table: string, id: string) => {
     setCompanies(updatedCompanies);
     
     const localAll = JSON.parse(localStorage.getItem('companies') || '[]');
-    const updatedAll = localAll.map((c: any) => c.id === id ? { ...c, deleted_at: now, updated_at: now } : c);
-    localStorage.setItem('companies', JSON.stringify(updatedAll));
+    
+    if (hard) {
+      const filteredAll = localAll.filter((c: any) => c.id !== id);
+      localStorage.setItem('companies', JSON.stringify(filteredAll));
+      if (settings.sync_enabled) {
+        await deleteFromCloud('companies', id);
+      }
+    } else {
+      const updatedAll = localAll.map((c: any) => c.id === id ? { ...c, deleted_at: now, updated_at: now } : c);
+      localStorage.setItem('companies', JSON.stringify(updatedAll));
+      if (settings.sync_enabled) {
+        await syncToCloud('companies', { ...companyToDelete, deleted_at: now, updated_at: now });
+      }
+    }
 
     if (currentCompany?.id === id) {
       const nextCompany = updatedCompanies.length > 0 ? updatedCompanies[0] : null;
       setCurrentCompany(nextCompany);
-    }
-
-    if (settings.sync_enabled) {
-      await syncToCloud('companies', { ...companyToDelete, deleted_at: now, updated_at: now });
     }
   };
 
