@@ -40,7 +40,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const mergeData = <T extends { id: string; updated_at?: string; created_at?: string }>(
+const mergeData = <T extends { id: string; updated_at?: string; created_at?: string; deleted_at?: string | null }>(
   local: T[],
   cloud: T[]
 ): { merged: T[]; toUpload: T[] } => {
@@ -57,7 +57,7 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
       // Only in cloud, add to merged
       mergedMap.set(cloudItem.id, cloudItem);
     } else {
-      // In both, resolve conflict
+      // In both, resolve conflict based on updated_at
       const localTime = new Date(localItem.updated_at || localItem.created_at || 0).getTime();
       const cloudTime = new Date(cloudItem.updated_at || cloudItem.created_at || 0).getTime();
 
@@ -71,7 +71,7 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
     }
   });
 
-  // Local items not in cloud should also be uploaded
+  // Local items not in cloud should also be uploaded (if they are new)
   const cloudIds = new Set(cloud.map(c => c.id));
   local.forEach(localItem => {
     if (!cloudIds.has(localItem.id)) {
@@ -135,14 +135,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       // Load company-specific data
       const companyId = currentCompany.id;
-      setParties(JSON.parse(localStorage.getItem(`parties_${companyId}`) || '[]'));
-      setBanks(JSON.parse(localStorage.getItem(`banks_${companyId}`) || '[]'));
-      setItems(JSON.parse(localStorage.getItem(`items_${companyId}`) || '[]'));
-      setTransactions(JSON.parse(localStorage.getItem(`transactions_${companyId}`) || '[]'));
-      setInvoices(JSON.parse(localStorage.getItem(`invoices_${companyId}`) || '[]'));
+      const loadLocal = (key: string) => {
+        try {
+          const data = JSON.parse(localStorage.getItem(`${key}_${companyId}`) || '[]');
+          return Array.isArray(data) ? data.filter(i => !i.deleted_at) : [];
+        } catch (e) {
+          console.error(`Failed to load ${key}:`, e);
+          return [];
+        }
+      };
+
+      setParties(loadLocal('parties'));
+      setBanks(loadLocal('banks'));
+      setItems(loadLocal('items'));
+      setTransactions(loadLocal('transactions'));
+      setInvoices(loadLocal('invoices'));
     } else {
       localStorage.removeItem('currentCompany');
-      // Clear data if no company selected
       setParties([]);
       setBanks([]);
       setItems([]);
@@ -157,29 +166,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshData = async (emailOverride?: string) => {
     const email = emailOverride || settings.user_email;
-    
-    // Load local data first for immediate UI response
-    let localParties: Party[] = [];
-    let localBanks: BankAccount[] = [];
-    let localItems: Item[] = [];
-    let localTransactions: Transaction[] = [];
-    let localInvoices: Invoice[] = [];
-
-    if (currentCompany) {
-        const companyId = currentCompany.id;
-        localParties = JSON.parse(localStorage.getItem(`parties_${companyId}`) || '[]');
-        localBanks = JSON.parse(localStorage.getItem(`banks_${companyId}`) || '[]');
-        localItems = JSON.parse(localStorage.getItem(`items_${companyId}`) || '[]');
-        localTransactions = JSON.parse(localStorage.getItem(`transactions_${companyId}`) || '[]');
-        localInvoices = JSON.parse(localStorage.getItem(`invoices_${companyId}`) || '[]');
-        
-        setParties(localParties);
-        setBanks(localBanks);
-        setItems(localItems);
-        setTransactions(localTransactions);
-        setInvoices(localInvoices);
-    }
-
     if (!settings.sync_enabled || !email) return;
 
     setSyncStatus({ loading: true, error: null, success: null });
@@ -192,14 +178,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       if (compError) throw compError;
       
-      const { merged: mergedCompanies, toUpload: companiesToUpload } = mergeData(companies, cloudCompanies || []);
-      setCompanies(mergedCompanies.filter(c => !c.deleted_at));
+      const localCompanies = JSON.parse(localStorage.getItem('companies') || '[]');
+      const { merged: mergedCompanies, toUpload: companiesToUpload } = mergeData(localCompanies, cloudCompanies || []);
+      
+      const nonDeletedCompanies = mergedCompanies.filter(c => !c.deleted_at);
+      setCompanies(nonDeletedCompanies);
+      localStorage.setItem('companies', JSON.stringify(mergedCompanies));
+
       if (companiesToUpload.length > 0) {
         await syncToCloud('companies', companiesToUpload);
       }
       
       let activeCompany = currentCompany;
-      const nonDeletedCompanies = mergedCompanies.filter(c => !c.deleted_at);
       if (!activeCompany && nonDeletedCompanies.length > 0) {
         activeCompany = nonDeletedCompanies[0];
         setCurrentCompany(activeCompany);
@@ -210,19 +200,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return;
       }
 
+      const companyId = activeCompany.id;
+
       // 2. Pull Data for activeCompany
-      const fetchAndMerge = async (table: string, localData: any[], setter: (data: any[]) => void) => {
+      const fetchAndMerge = async (table: string, setter: (data: any[]) => void) => {
         const dbTable = table === 'items' ? 'inventory' : table;
         const { data: cloudData, error } = await supabase
           .from(dbTable)
           .select('*')
-          .eq('company_id', activeCompany!.id);
+          .eq('company_id', companyId);
         
         if (error) throw error;
         
+        const localData = JSON.parse(localStorage.getItem(`${table}_${companyId}`) || '[]');
         const { merged, toUpload } = mergeData(localData, cloudData || []);
-        setter(merged.filter((i: any) => !i.deleted_at));
-        localStorage.setItem(`${table}_${activeCompany!.id}`, JSON.stringify(merged));
+        
+        const nonDeleted = merged.filter((i: any) => !i.deleted_at);
+        setter(nonDeleted);
+        localStorage.setItem(`${table}_${companyId}`, JSON.stringify(merged));
         
         if (toUpload.length > 0) {
           await syncToCloud(table, toUpload);
@@ -230,11 +225,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
 
       await Promise.all([
-        fetchAndMerge('parties', localParties, setParties),
-        fetchAndMerge('banks', localBanks, setBanks),
-        fetchAndMerge('items', localItems, setItems),
-        fetchAndMerge('transactions', localTransactions, setTransactions),
-        fetchAndMerge('invoices', localInvoices, setInvoices),
+        fetchAndMerge('parties', setParties),
+        fetchAndMerge('banks', setBanks),
+        fetchAndMerge('items', setItems),
+        fetchAndMerge('transactions', setTransactions),
+        fetchAndMerge('invoices', setInvoices),
       ]);
       
       setSyncStatus({ loading: false, error: null, success: 'Synced' });
@@ -378,134 +373,67 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   useEffect(() => {
     refreshData();
-    
-    if (settings.sync_enabled && settings.user_email) {
+  }, [settings.sync_enabled, settings.user_email]);
+
+  useEffect(() => {
+    if (settings.sync_enabled && settings.user_email && currentCompany) {
+        refreshData();
         console.log('[Realtime] Setting up subscription...');
-        const channel = supabase.channel('db-changes')
+        const channel = supabase.channel(`company-${currentCompany.id}`)
             .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
                 const { table, new: newRecord, old: oldRecord, eventType } = payload;
                 const record = (newRecord || oldRecord) as any;
                 
                 // Robust relevance check
                 const recordCompanyId = record?.company_id;
-                const isRelevant = table === 'companies' || (recordCompanyId && recordCompanyId === currentCompany?.id);
+                const isRelevant = table === 'companies' || (recordCompanyId && recordCompanyId === currentCompany.id);
                 
                 if (isRelevant) {
                     console.log(`[Realtime] ${eventType} on ${table}:`, record);
-                    // Surgical updates for instant UI feedback
-                    if (table === 'transactions') {
-                        setTransactions(prev => {
+                    
+                    const updateState = (key: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => {
+                        setter(prev => {
                             let updated = [...prev];
+                            const localAll = JSON.parse(localStorage.getItem(`${key}_${currentCompany.id}`) || '[]');
+                            let updatedAll = [...localAll];
+
                             if (eventType === 'INSERT') {
-                                if (!updated.find(t => t.id === newRecord.id)) {
-                                    updated = [newRecord as Transaction, ...updated];
+                                if (!updatedAll.find(i => i.id === record.id)) {
+                                    updatedAll = [record, ...updatedAll];
                                 }
                             } else if (eventType === 'UPDATE') {
-                                if (newRecord.deleted_at) {
-                                    updated = updated.filter(t => t.id !== newRecord.id);
-                                } else {
-                                    updated = updated.map(t => t.id === newRecord.id ? (newRecord as Transaction) : t);
+                                updatedAll = updatedAll.map(i => i.id === record.id ? record : i);
+                                // If not found locally but updated in cloud, add it
+                                if (!updatedAll.find(i => i.id === record.id)) {
+                                    updatedAll = [record, ...updatedAll];
                                 }
                             } else if (eventType === 'DELETE') {
-                                updated = updated.filter(t => t.id !== oldRecord.id);
+                                updatedAll = updatedAll.filter(i => i.id !== record.id);
                             }
-                            localStorage.setItem(`transactions_${currentCompany?.id}`, JSON.stringify(updated));
-                            return updated;
+
+                            localStorage.setItem(`${key}_${currentCompany.id}`, JSON.stringify(updatedAll));
+                            return updatedAll.filter(i => !i.deleted_at);
                         });
-                    } else if (table === 'parties') {
-                        setParties(prev => {
-                            let updated = [...prev];
-                            if (eventType === 'INSERT') {
-                                if (!updated.find(p => p.id === newRecord.id)) {
-                                    updated = [...updated, newRecord as Party];
-                                }
-                            } else if (eventType === 'UPDATE') {
-                                if (newRecord.deleted_at) {
-                                    updated = updated.filter(p => p.id !== newRecord.id);
-                                } else {
-                                    updated = updated.map(p => p.id === newRecord.id ? (newRecord as Party) : p);
-                                }
-                            } else if (eventType === 'DELETE') {
-                                updated = updated.filter(p => p.id !== oldRecord.id);
-                            }
-                            localStorage.setItem(`parties_${currentCompany?.id}`, JSON.stringify(updated));
-                            return updated;
-                        });
-                    } else if (table === 'banks') {
-                        setBanks(prev => {
-                            let updated = [...prev];
-                            if (eventType === 'INSERT') {
-                                if (!updated.find(b => b.id === newRecord.id)) {
-                                    updated = [...updated, newRecord as BankAccount];
-                                }
-                            } else if (eventType === 'UPDATE') {
-                                if (newRecord.deleted_at) {
-                                    updated = updated.filter(b => b.id !== newRecord.id);
-                                } else {
-                                    updated = updated.map(b => b.id === newRecord.id ? (newRecord as BankAccount) : b);
-                                }
-                            } else if (eventType === 'DELETE') {
-                                updated = updated.filter(b => b.id !== oldRecord.id);
-                            }
-                            localStorage.setItem(`banks_${currentCompany?.id}`, JSON.stringify(updated));
-                            return updated;
-                        });
-                    } else if (table === 'inventory') {
-                        setItems(prev => {
-                            let updated = [...prev];
-                            if (eventType === 'INSERT') {
-                                if (!updated.find(i => i.id === newRecord.id)) {
-                                    updated = [...updated, newRecord as Item];
-                                }
-                            } else if (eventType === 'UPDATE') {
-                                if (newRecord.deleted_at) {
-                                    updated = updated.filter(i => i.id !== newRecord.id);
-                                } else {
-                                    updated = updated.map(i => i.id === newRecord.id ? (newRecord as Item) : i);
-                                }
-                            } else if (eventType === 'DELETE') {
-                                updated = updated.filter(i => i.id !== oldRecord.id);
-                            }
-                            localStorage.setItem(`items_${currentCompany?.id}`, JSON.stringify(updated));
-                            return updated;
-                        });
-                    } else if (table === 'invoices') {
-                        setInvoices(prev => {
-                            let updated = [...prev];
-                            if (eventType === 'INSERT') {
-                                if (!updated.find(i => i.id === newRecord.id)) {
-                                    updated = [newRecord as Invoice, ...updated];
-                                }
-                            } else if (eventType === 'UPDATE') {
-                                if (newRecord.deleted_at) {
-                                    updated = updated.filter(i => i.id !== newRecord.id);
-                                } else {
-                                    updated = updated.map(i => i.id === newRecord.id ? (newRecord as Invoice) : i);
-                                }
-                            } else if (eventType === 'DELETE') {
-                                updated = updated.filter(i => i.id !== oldRecord.id);
-                            }
-                            localStorage.setItem(`invoices_${currentCompany?.id}`, JSON.stringify(updated));
-                            return updated;
-                        });
-                    } else if (table === 'companies') {
+                    };
+
+                    if (table === 'transactions') updateState('transactions', setTransactions);
+                    else if (table === 'parties') updateState('parties', setParties);
+                    else if (table === 'banks') updateState('banks', setBanks);
+                    else if (table === 'inventory') updateState('items', setItems);
+                    else if (table === 'invoices') updateState('invoices', setInvoices);
+                    else if (table === 'companies') {
                         setCompanies(prev => {
-                            let updated = [...prev];
+                            const localAll = JSON.parse(localStorage.getItem('companies') || '[]');
+                            let updatedAll = [...localAll];
                             if (eventType === 'INSERT') {
-                                if (!updated.find(c => c.id === newRecord.id)) {
-                                    updated = [...updated, newRecord as Company];
-                                }
+                                if (!updatedAll.find(c => c.id === record.id)) updatedAll = [...updatedAll, record];
                             } else if (eventType === 'UPDATE') {
-                                if (newRecord.deleted_at) {
-                                    updated = updated.filter(c => c.id !== newRecord.id);
-                                } else {
-                                    updated = updated.map(c => c.id === newRecord.id ? (newRecord as Company) : c);
-                                }
+                                updatedAll = updatedAll.map(c => c.id === record.id ? record : c);
                             } else if (eventType === 'DELETE') {
-                                updated = updated.filter(c => c.id !== oldRecord.id);
+                                updatedAll = updatedAll.filter(c => c.id !== record.id);
                             }
-                            localStorage.setItem('companies', JSON.stringify(updated));
-                            return updated;
+                            localStorage.setItem('companies', JSON.stringify(updatedAll));
+                            return updatedAll.filter(c => !c.deleted_at);
                         });
                     }
                 }
@@ -665,13 +593,18 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (!party) return;
     
     const now = new Date().toISOString();
-    const updated = parties.filter(p => p.id !== id);
-    setParties(updated);
-    localStorage.setItem(`parties_${currentCompany.id}`, JSON.stringify(updated));
+    const updatedParties = parties.filter(p => p.id !== id);
+    setParties(updatedParties);
+
+    const localAll = JSON.parse(localStorage.getItem(`parties_${currentCompany.id}`) || '[]');
+    const updatedAll = localAll.map((p: any) => p.id === id ? { ...p, deleted_at: now, updated_at: now } : p);
+    localStorage.setItem(`parties_${currentCompany.id}`, JSON.stringify(updatedAll));
     
     if (settings.sync_enabled) {
       if (hard) {
         await deleteFromCloud('parties', id);
+        const filteredAll = updatedAll.filter((p: any) => p.id !== id);
+        localStorage.setItem(`parties_${currentCompany.id}`, JSON.stringify(filteredAll));
       } else {
         await syncToCloud('parties', { ...party, deleted_at: now, updated_at: now });
       }
@@ -717,13 +650,18 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (!bank) return;
 
     const now = new Date().toISOString();
-    const updated = banks.filter(b => b.id !== id);
-    setBanks(updated);
-    localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(updated));
+    const updatedBanks = banks.filter(b => b.id !== id);
+    setBanks(updatedBanks);
+
+    const localAll = JSON.parse(localStorage.getItem(`banks_${currentCompany.id}`) || '[]');
+    const updatedAll = localAll.map((b: any) => b.id === id ? { ...b, deleted_at: now, updated_at: now } : b);
+    localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(updatedAll));
     
     if (settings.sync_enabled) {
       if (hard) {
         await deleteFromCloud('banks', id);
+        const filteredAll = updatedAll.filter((b: any) => b.id !== id);
+        localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(filteredAll));
       } else {
         await syncToCloud('banks', { ...bank, deleted_at: now, updated_at: now });
       }
@@ -769,13 +707,18 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (!item) return;
 
     const now = new Date().toISOString();
-    const updated = items.filter(i => i.id !== id);
-    setItems(updated);
-    localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(updated));
+    const updatedItems = items.filter(i => i.id !== id);
+    setItems(updatedItems);
+
+    const localAll = JSON.parse(localStorage.getItem(`items_${currentCompany.id}`) || '[]');
+    const updatedAll = localAll.map((i: any) => i.id === id ? { ...i, deleted_at: now, updated_at: now } : i);
+    localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(updatedAll));
     
     if (settings.sync_enabled) {
       if (hard) {
         await deleteFromCloud('items', id);
+        const filteredAll = updatedAll.filter((i: any) => i.id !== id);
+        localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(filteredAll));
       } else {
         await syncToCloud('items', { ...item, deleted_at: now, updated_at: now });
       }
@@ -788,18 +731,23 @@ const deleteFromCloud = async (table: string, id: string) => {
       if (!tx) return;
 
       const now = new Date().toISOString();
-      const updated = transactions.filter(t => t.id !== id);
-      setTransactions(updated);
-      localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
+      const updatedTransactions = transactions.filter(t => t.id !== id);
+      setTransactions(updatedTransactions);
+
+      const localAll = JSON.parse(localStorage.getItem(`transactions_${currentCompany.id}`) || '[]');
+      const updatedAll = localAll.map((t: any) => t.id === id ? { ...t, deleted_at: now, updated_at: now } : t);
+      localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updatedAll));
       
       if (settings.sync_enabled) {
           if (hard) {
             await deleteFromCloud('transactions', id);
+            const filteredAll = updatedAll.filter((t: any) => t.id !== id);
+            localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(filteredAll));
           } else {
             await syncToCloud('transactions', { ...tx, deleted_at: now, updated_at: now });
           }
       }
-      await recalculateBalances(updated, parties, banks, items);
+      await recalculateBalances(updatedTransactions, parties, banks, items);
   };
 
   const addCompany = async (company: Omit<Company, 'id' | 'created_at'>) => {
@@ -836,11 +784,15 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (!companyToDelete) return;
 
     const now = new Date().toISOString();
-    const updated = companies.filter(c => c.id !== id);
-    setCompanies(updated);
+    const updatedCompanies = companies.filter(c => c.id !== id);
+    setCompanies(updatedCompanies);
     
+    const localAll = JSON.parse(localStorage.getItem('companies') || '[]');
+    const updatedAll = localAll.map((c: any) => c.id === id ? { ...c, deleted_at: now, updated_at: now } : c);
+    localStorage.setItem('companies', JSON.stringify(updatedAll));
+
     if (currentCompany?.id === id) {
-      const nextCompany = updated.length > 0 ? updated[0] : null;
+      const nextCompany = updatedCompanies.length > 0 ? updatedCompanies[0] : null;
       setCurrentCompany(nextCompany);
     }
 
@@ -888,13 +840,18 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (!invoice) return;
 
     const now = new Date().toISOString();
-    const updated = invoices.filter(i => i.id !== id);
-    setInvoices(updated);
-    localStorage.setItem(`invoices_${currentCompany.id}`, JSON.stringify(updated));
+    const updatedInvoices = invoices.filter(i => i.id !== id);
+    setInvoices(updatedInvoices);
+
+    const localAll = JSON.parse(localStorage.getItem(`invoices_${currentCompany.id}`) || '[]');
+    const updatedAll = localAll.map((i: any) => i.id === id ? { ...i, deleted_at: now, updated_at: now } : i);
+    localStorage.setItem(`invoices_${currentCompany.id}`, JSON.stringify(updatedAll));
     
     if (settings.sync_enabled) {
       if (hard) {
         await deleteFromCloud('invoices', id);
+        const filteredAll = updatedAll.filter((i: any) => i.id !== id);
+        localStorage.setItem(`invoices_${currentCompany.id}`, JSON.stringify(filteredAll));
       } else {
         await syncToCloud('invoices', { ...invoice, deleted_at: now, updated_at: now });
       }

@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { format } from 'date-fns';
-import { Party, Bank, Transaction, Company } from '../types';
+import { Party, BankAccount as Bank, Transaction, Company } from '../types';
 
 // Extend jsPDF with autotable
 interface jsPDFWithAutoTable extends jsPDF {

@@ -14,7 +14,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bank, Transaction, TransactionType } from '../types';
+import { BankAccount as Bank, Transaction, TransactionType } from '../types';
 import { generateBankStatement } from '../lib/pdfGenerator';
 
 export default function Banks() {

@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Transaction, Party, Bank } from "../types";
+import { Transaction, Party, BankAccount as Bank } from "../types";
 
 export async function getBusinessInsights(transactions: Transaction[], parties: Party[], banks: Bank[]) {
   const ai = new GoogleGenAI({ apiKey: (process.env as any).GEMINI_API_KEY });
