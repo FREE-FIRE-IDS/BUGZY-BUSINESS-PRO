@@ -341,10 +341,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
     }
     
-    // Map 'items' to 'inventory' and 'expenses' to 'transactions' for Supabase
+    // Map 'items' to 'inventory' for Supabase
     let dbTable = table;
     if (table === 'items') dbTable = 'inventory';
-    if (table === 'expenses') dbTable = 'transactions';
+    // If table is 'expenses', use 'expenses' table
+    // If table is 'transactions', use 'transactions' table
     
     try {
         // Sanitize data: replace empty strings with null for date fields
@@ -438,31 +439,39 @@ const deleteFromCloud = async (table: string, id: string) => {
                 const { table, new: newRecord, old: oldRecord, eventType } = payload;
                 const record = (newRecord || oldRecord) as any;
                 
-                // Robust relevance check
+                // Robust relevance check:
+                // For DELETE, record only has the ID. We check if it exists in our current state.
                 const recordCompanyId = record?.company_id;
-                const isRelevant = table === 'companies' || (recordCompanyId && recordCompanyId === currentCompany.id);
+                let isRelevant = table === 'companies' || (recordCompanyId && recordCompanyId === currentCompany.id);
+                
+                // If company_id is missing (common in DELETE), check if the ID exists in our local state
+                if (!isRelevant && eventType === 'DELETE' && record.id) {
+                    const id = record.id;
+                    const existsLocally = 
+                        parties.some(p => p.id === id) || 
+                        banks.some(b => b.id === id) || 
+                        items.some(i => i.id === id) || 
+                        transactions.some(t => t.id === id) || 
+                        invoices.some(i => i.id === id);
+                    if (existsLocally) isRelevant = true;
+                }
                 
                 if (isRelevant) {
                     console.log(`[Realtime] ${eventType} on ${table}:`, record);
                     
                     const updateState = (key: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => {
                         setter(prev => {
-                            let updated = [...prev];
                             const localAll = JSON.parse(localStorage.getItem(`${key}_${currentCompany.id}`) || '[]');
                             let updatedAll = [...localAll];
 
-                            if (eventType === 'INSERT') {
-                                if (!updatedAll.find(i => i.id === record.id)) {
-                                    updatedAll = [{ ...record, _synced: true }, ...updatedAll];
-                                }
-                            } else if (eventType === 'UPDATE') {
-                                updatedAll = updatedAll.map(i => i.id === record.id ? { ...record, _synced: true } : i);
-                                // If not found locally but updated in cloud, add it
-                                if (!updatedAll.find(i => i.id === record.id)) {
+                            if (eventType === 'INSERT' || eventType === 'UPDATE') {
+                                const index = updatedAll.findIndex(i => i.id === record.id);
+                                if (index !== -1) {
+                                    updatedAll[index] = { ...record, _synced: true };
+                                } else {
                                     updatedAll = [{ ...record, _synced: true }, ...updatedAll];
                                 }
                             } else if (eventType === 'DELETE') {
-                                // record only contains the id in DELETE events
                                 const id = record.id || payload.old?.id;
                                 updatedAll = updatedAll.filter(i => i.id !== id);
                             }
@@ -507,10 +516,14 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   // Automatically recalculate balances when transactions change (e.g. via Realtime)
   useEffect(() => {
-    if (currentCompany && transactions.length > 0) {
+    if (!currentCompany) return;
+
+    const timer = setTimeout(() => {
       recalculateBalances(transactions, parties, banks, items);
-    }
-  }, [transactions.length]);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [transactions, parties, banks, items, currentCompany?.id]);
 
   const recalculateBalances = async (allTransactions: Transaction[], allParties: Party[], allBanks: BankAccount[], allItems: Item[]) => {
     if (!currentCompany) return;
@@ -590,7 +603,8 @@ const deleteFromCloud = async (table: string, id: string) => {
     
     // Background Sync
     if (settings.sync_enabled) {
-      syncToCloud('transactions', newTx, true).catch(err => console.error('Add Transaction Sync Error:', err));
+      const table = tx.type === 'Expense' ? 'expenses' : 'transactions';
+      syncToCloud(table, newTx, true).catch(err => console.error('Add Transaction Sync Error:', err));
     }
     
     // Recalculate balances (also optimistic)
@@ -605,7 +619,8 @@ const deleteFromCloud = async (table: string, id: string) => {
     localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
     
     if (settings.sync_enabled) {
-      await syncToCloud('transactions', updated.find(t => t.id === id));
+      const table = (tx.type === 'Expense' || updated.find(t => t.id === id)?.type === 'Expense') ? 'expenses' : 'transactions';
+      await syncToCloud(table, updated.find(t => t.id === id));
     }
     await recalculateBalances(updated, parties, banks, items);
   };
@@ -802,13 +817,15 @@ const deleteFromCloud = async (table: string, id: string) => {
         const filteredAll = localAll.filter((t: any) => t.id !== id);
         localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(filteredAll));
         if (settings.sync_enabled) {
-            await deleteFromCloud('transactions', id);
+            const table = tx.type === 'Expense' ? 'expenses' : 'transactions';
+            await deleteFromCloud(table, id);
         }
       } else {
         const updatedAll = localAll.map((t: any) => t.id === id ? { ...t, deleted_at: now, updated_at: now } : t);
         localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updatedAll));
         if (settings.sync_enabled) {
-            await syncToCloud('transactions', { ...tx, deleted_at: now, updated_at: now });
+            const table = tx.type === 'Expense' ? 'expenses' : 'transactions';
+            await syncToCloud(table, { ...tx, deleted_at: now, updated_at: now });
         }
       }
       await recalculateBalances(updatedTransactions, parties, banks, items);

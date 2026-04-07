@@ -159,6 +159,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   description TEXT,
   category TEXT,
   bank_id UUID REFERENCES banks(id) ON DELETE SET NULL,
+  payment_type TEXT DEFAULT 'Cash',
   user_email TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),

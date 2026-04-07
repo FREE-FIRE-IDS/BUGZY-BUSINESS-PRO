@@ -36,16 +36,45 @@ export default function Dashboard() {
   const { transactions, parties, banks, settings, items } = useApp();
   const { theme } = useTheme();
   const [aiInsights, setAiInsights] = useState<string[]>([]);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchInsights = async () => {
       if (transactions.length > 0) {
-        const insights = await getBusinessInsights(transactions, parties, banks);
-        setAiInsights(insights);
+        try {
+          const insights = await getBusinessInsights(transactions, parties, banks);
+          setAiInsights(insights);
+          setAiError(null);
+        } catch (error: any) {
+          const msg = error.message || '';
+          if (msg === 'RATE_LIMIT_EXCEEDED' || msg.toLowerCase().includes('quota')) {
+            setAiError('AI quota exceeded. Please select your own API key to continue using business insights.');
+          } else {
+            setAiError('AI insights are currently unavailable.');
+            console.error('Gemini Error:', error);
+          }
+        }
       }
     };
     fetchInsights();
   }, [transactions, parties, banks]);
+
+  const handleSelectKey = async () => {
+    const aiStudio = (window as any).aistudio;
+    if (aiStudio && typeof aiStudio.openSelectKey === 'function') {
+      await aiStudio.openSelectKey();
+      // After selecting a key, try fetching insights again
+      if (transactions.length > 0) {
+        try {
+          const insights = await getBusinessInsights(transactions, parties, banks);
+          setAiInsights(insights);
+          setAiError(null);
+        } catch (e) {
+          console.error('Retry after key selection failed:', e);
+        }
+      }
+    }
+  };
 
   const stats = useMemo(() => {
     const totalSales = transactions.filter(t => t.type === 'Sale').reduce((sum, t) => sum + t.amount, 0);
@@ -292,16 +321,56 @@ export default function Dashboard() {
 
           {/* AI Insights Section */}
           <div className="bg-indigo-600 p-6 rounded-3xl shadow-xl shadow-indigo-500/20 text-white">
-            <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-              <History size={16} />
-              AI Insights
+            <h3 className="text-sm font-bold mb-4 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <History size={16} />
+                AI Insights
+              </div>
+              {aiError && (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      setAiError(null);
+                      // Trigger a re-fetch by toggling a dummy state or just calling the function
+                      // For simplicity, we'll just wait for the next effect trigger or manually call it
+                      const fetchInsights = async () => {
+                        if (transactions.length > 0) {
+                          try {
+                            const insights = await getBusinessInsights(transactions, parties, banks);
+                            setAiInsights(insights);
+                            setAiError(null);
+                          } catch (error: any) {
+                            setAiError(error.message === 'RATE_LIMIT_EXCEEDED' ? 'AI quota exceeded. Please select your own API key.' : 'Failed to fetch insights.');
+                          }
+                        }
+                      };
+                      fetchInsights();
+                    }}
+                    className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
+                  >
+                    Retry
+                  </button>
+                  <button 
+                    onClick={handleSelectKey}
+                    className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
+                  >
+                    Select API Key
+                  </button>
+                </div>
+              )}
             </h3>
             <div className="space-y-3">
-              {aiInsights.slice(0, 2).map((insight, i) => (
-                <div key={i} className="bg-white/10 p-3 rounded-2xl text-[10px] leading-relaxed">
-                  {insight}
+              {aiError ? (
+                <div className="bg-white/10 p-3 rounded-2xl text-[10px] leading-relaxed italic">
+                  {aiError}
                 </div>
-              ))}
+              ) : (
+                aiInsights.slice(0, 2).map((insight, i) => (
+                  <div key={i} className="bg-white/10 p-3 rounded-2xl text-[10px] leading-relaxed">
+                    {insight}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
