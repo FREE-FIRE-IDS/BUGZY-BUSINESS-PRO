@@ -170,7 +170,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   id UUID PRIMARY KEY,
   company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
   invoice_number TEXT NOT NULL,
-  date TIMESTAMPTZ NOT NULL,
+  date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   due_date TIMESTAMPTZ,
   party_id UUID REFERENCES parties(id) ON DELETE CASCADE,
   items JSONB NOT NULL,
@@ -178,6 +178,9 @@ CREATE TABLE IF NOT EXISTS invoices (
   tax NUMERIC NOT NULL,
   total NUMERIC NOT NULL,
   status TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'Sale',
+  payment_type TEXT NOT NULL DEFAULT 'Cash',
+  bank_id UUID REFERENCES banks(id) ON DELETE SET NULL,
   user_email TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -264,6 +267,19 @@ ALTER TABLE inventory REPLICA IDENTITY FULL;
 ALTER TABLE transactions REPLICA IDENTITY FULL;
 ALTER TABLE invoices REPLICA IDENTITY FULL;
 ALTER TABLE expenses REPLICA IDENTITY FULL;
+
+-- 14. Ensure columns and defaults exist (for existing tables)
+DO $$ 
+BEGIN
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'Sale';
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_type TEXT NOT NULL DEFAULT 'Cash';
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS bank_id UUID REFERENCES banks(id) ON DELETE SET NULL;
+    
+    -- Set defaults for existing tables
+    ALTER TABLE invoices ALTER COLUMN date SET DEFAULT NOW();
+    ALTER TABLE expenses ALTER COLUMN date SET DEFAULT NOW();
+    ALTER TABLE transactions ALTER COLUMN date SET DEFAULT NOW();
+END $$;
 
 NOTIFY pgrst, 'reload schema';
 `;

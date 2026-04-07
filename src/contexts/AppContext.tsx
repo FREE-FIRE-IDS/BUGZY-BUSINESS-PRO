@@ -347,9 +347,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (table === 'expenses') dbTable = 'transactions';
     
     try {
+        // Sanitize data: replace empty strings with null for date fields
+        const sanitize = (obj: any) => {
+          const sanitized = { ...obj };
+          Object.keys(sanitized).forEach(key => {
+            if (sanitized[key] === "") {
+              // If it looks like a date field or is a known optional field, set to null
+              if (key.includes('date') || key.includes('_at') || key === 'bank_id' || key === 'party_id' || key === 'to_party_id' || key === 'to_bank_id') {
+                sanitized[key] = null;
+              }
+            }
+          });
+          return sanitized;
+        };
+
         const dataWithEmail = Array.isArray(data) 
-          ? data.map(d => ({ ...d, user_email: email }))
-          : { ...data, user_email: email };
+          ? data.map(d => sanitize({ ...d, user_email: email }))
+          : sanitize({ ...data, user_email: email });
         
         console.log(`[Sync Start] Table: ${dbTable} (${isNew ? 'INSERT' : 'UPSERT'})`, dataWithEmail);
         

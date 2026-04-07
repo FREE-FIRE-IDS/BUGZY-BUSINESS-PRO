@@ -628,10 +628,11 @@ export default function Banks() {
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
+                const dateStr = formData.get('date') as string;
                 updateTransaction(editingTx.id, {
                   amount: Number(formData.get('amount')),
                   description: formData.get('description') as string,
-                  date: formData.get('date') as string,
+                  date: dateStr ? new Date(dateStr).toISOString() : editingTx.date,
                 });
                 setIsEditTxModalOpen(false);
               }}>

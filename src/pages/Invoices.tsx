@@ -291,11 +291,14 @@ export default function Invoices() {
                 const tax = subtotal * 0.17; // 17% tax example
                 const total = subtotal + tax;
 
+                const dateStr = formData.get('date') as string;
+                const dueDateStr = formData.get('due_date') as string;
+
                 addInvoice({
                   company_id: currentCompany?.id,
                   invoice_number: `INV-${Date.now().toString().slice(-6)}`,
-                  date: formData.get('date') as string,
-                  due_date: formData.get('due_date') as string,
+                  date: dateStr ? new Date(dateStr).toISOString() : new Date().toISOString(),
+                  due_date: dueDateStr ? new Date(dueDateStr).toISOString() : undefined,
                   party_id: formData.get('party_id') as string,
                   type: formData.get('type') as 'Sale' | 'Purchase',
                   payment_type: formData.get('payment_type') as 'Cash' | 'Bank',
@@ -451,9 +454,12 @@ export default function Invoices() {
                 const tax = subtotal * 0.17;
                 const total = subtotal + tax;
 
+                const dateStr = formData.get('date') as string;
+                const dueDateStr = formData.get('due_date') as string;
+
                 updateInvoice(editingInvoice.id, {
-                  date: formData.get('date') as string,
-                  due_date: formData.get('due_date') as string,
+                  date: dateStr ? new Date(dateStr).toISOString() : editingInvoice.date,
+                  due_date: dueDateStr ? new Date(dueDateStr).toISOString() : undefined,
                   party_id: formData.get('party_id') as string,
                   type: formData.get('type') as 'Sale' | 'Purchase',
                   payment_type: formData.get('payment_type') as 'Cash' | 'Bank',

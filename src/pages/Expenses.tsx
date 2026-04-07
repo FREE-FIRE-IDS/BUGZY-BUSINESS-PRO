@@ -238,9 +238,10 @@ export default function Expenses() {
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
+                const dateStr = formData.get('date') as string;
                 addTransaction({
                   company_id: currentCompany?.id,
-                  date: formData.get('date') as string || new Date().toISOString(),
+                  date: dateStr ? new Date(dateStr).toISOString() : new Date().toISOString(),
                   type: 'Expense',
                   amount: Number(formData.get('amount')),
                   description: formData.get('description') as string,
@@ -316,8 +317,9 @@ export default function Expenses() {
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
+                const dateStr = formData.get('date') as string;
                 updateTransaction(editingExpense.id, {
-                  date: formData.get('date') as string,
+                  date: dateStr ? new Date(dateStr).toISOString() : editingExpense.date,
                   amount: Number(formData.get('amount')),
                   description: formData.get('description') as string,
                   payment_type: paymentType,
