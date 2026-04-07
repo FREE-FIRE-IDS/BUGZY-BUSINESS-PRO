@@ -40,18 +40,22 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const mergeData = <T extends { id: string; updated_at?: string; created_at?: string; deleted_at?: string | null }>(
+const mergeData = <T extends { id: string; updated_at?: string; created_at?: string; deleted_at?: string | null; _synced?: boolean }>(
   local: T[],
   cloud: T[]
 ): { merged: T[]; toUpload: T[] } => {
   const mergedMap = new Map<string, T>();
   const toUploadMap = new Map<string, T>();
 
+  // Mark all cloud items as synced
+  const cloudItems = cloud.map(item => ({ ...item, _synced: true }));
+  const cloudIds = new Set(cloudItems.map(c => c.id));
+
   // Start with local data
   local.forEach(item => mergedMap.set(item.id, item));
 
   // Merge cloud data
-  cloud.forEach(cloudItem => {
+  cloudItems.forEach(cloudItem => {
     const localItem = mergedMap.get(cloudItem.id);
     if (!localItem) {
       // Only in cloud, add to merged
@@ -67,15 +71,24 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
       } else if (localTime > cloudTime) {
         // Local is newer, mark for upload
         toUploadMap.set(localItem.id, localItem);
+      } else {
+        // Same time, ensure local is marked as synced
+        mergedMap.set(cloudItem.id, { ...localItem, _synced: true });
       }
     }
   });
 
-  // Local items not in cloud should also be uploaded (if they are new)
-  const cloudIds = new Set(cloud.map(c => c.id));
+  // Local items not in cloud
   local.forEach(localItem => {
     if (!cloudIds.has(localItem.id)) {
-      toUploadMap.set(localItem.id, localItem);
+      if (localItem._synced) {
+        // Was previously synced but now missing from cloud -> it was deleted in cloud
+        // We should remove it from mergedMap (it will be filtered out by deleted_at check later if we keep it, but better to remove)
+        mergedMap.delete(localItem.id);
+      } else {
+        // Never synced -> it's a new local item, needs upload
+        toUploadMap.set(localItem.id, localItem);
+      }
     }
   });
 
@@ -353,6 +366,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
             throw error;
         }
+
+        // Mark as synced locally
+        if (currentCompany) {
+            const localAll = JSON.parse(localStorage.getItem(`${table}_${currentCompany.id}`) || '[]');
+            const ids = Array.isArray(data) ? data.map(d => d.id) : [data.id];
+            const updatedAll = localAll.map((item: any) => ids.includes(item.id) ? { ...item, _synced: true } : item);
+            localStorage.setItem(`${table}_${currentCompany.id}`, JSON.stringify(updatedAll));
+        }
+
         console.log(`[Sync Success] ${dbTable} synced successfully`);
     } catch (error) {
         console.error(`[Sync Exception] ${dbTable}:`, error);
@@ -417,16 +439,18 @@ const deleteFromCloud = async (table: string, id: string) => {
 
                             if (eventType === 'INSERT') {
                                 if (!updatedAll.find(i => i.id === record.id)) {
-                                    updatedAll = [record, ...updatedAll];
+                                    updatedAll = [{ ...record, _synced: true }, ...updatedAll];
                                 }
                             } else if (eventType === 'UPDATE') {
-                                updatedAll = updatedAll.map(i => i.id === record.id ? record : i);
+                                updatedAll = updatedAll.map(i => i.id === record.id ? { ...record, _synced: true } : i);
                                 // If not found locally but updated in cloud, add it
                                 if (!updatedAll.find(i => i.id === record.id)) {
-                                    updatedAll = [record, ...updatedAll];
+                                    updatedAll = [{ ...record, _synced: true }, ...updatedAll];
                                 }
                             } else if (eventType === 'DELETE') {
-                                updatedAll = updatedAll.filter(i => i.id !== record.id);
+                                // record only contains the id in DELETE events
+                                const id = record.id || payload.old?.id;
+                                updatedAll = updatedAll.filter(i => i.id !== id);
                             }
 
                             localStorage.setItem(`${key}_${currentCompany.id}`, JSON.stringify(updatedAll));
@@ -605,7 +629,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
   };
 
-  const deleteParty = async (id: string, hard = false) => {
+  const deleteParty = async (id: string, hard = true) => {
     if (!currentCompany) return;
     const party = parties.find(p => p.id === id);
     if (!party) return;
@@ -615,15 +639,17 @@ const deleteFromCloud = async (table: string, id: string) => {
     setParties(updatedParties);
 
     const localAll = JSON.parse(localStorage.getItem(`parties_${currentCompany.id}`) || '[]');
-    const updatedAll = localAll.map((p: any) => p.id === id ? { ...p, deleted_at: now, updated_at: now } : p);
-    localStorage.setItem(`parties_${currentCompany.id}`, JSON.stringify(updatedAll));
     
-    if (settings.sync_enabled) {
-      if (hard) {
+    if (hard) {
+      const filteredAll = localAll.filter((p: any) => p.id !== id);
+      localStorage.setItem(`parties_${currentCompany.id}`, JSON.stringify(filteredAll));
+      if (settings.sync_enabled) {
         await deleteFromCloud('parties', id);
-        const filteredAll = updatedAll.filter((p: any) => p.id !== id);
-        localStorage.setItem(`parties_${currentCompany.id}`, JSON.stringify(filteredAll));
-      } else {
+      }
+    } else {
+      const updatedAll = localAll.map((p: any) => p.id === id ? { ...p, deleted_at: now, updated_at: now } : p);
+      localStorage.setItem(`parties_${currentCompany.id}`, JSON.stringify(updatedAll));
+      if (settings.sync_enabled) {
         await syncToCloud('parties', { ...party, deleted_at: now, updated_at: now });
       }
     }
@@ -662,7 +688,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
   };
 
-  const deleteBank = async (id: string, hard = false) => {
+  const deleteBank = async (id: string, hard = true) => {
     if (!currentCompany) return;
     const bank = banks.find(b => b.id === id);
     if (!bank) return;
@@ -672,15 +698,17 @@ const deleteFromCloud = async (table: string, id: string) => {
     setBanks(updatedBanks);
 
     const localAll = JSON.parse(localStorage.getItem(`banks_${currentCompany.id}`) || '[]');
-    const updatedAll = localAll.map((b: any) => b.id === id ? { ...b, deleted_at: now, updated_at: now } : b);
-    localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(updatedAll));
     
-    if (settings.sync_enabled) {
-      if (hard) {
+    if (hard) {
+      const filteredAll = localAll.filter((b: any) => b.id !== id);
+      localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(filteredAll));
+      if (settings.sync_enabled) {
         await deleteFromCloud('banks', id);
-        const filteredAll = updatedAll.filter((b: any) => b.id !== id);
-        localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(filteredAll));
-      } else {
+      }
+    } else {
+      const updatedAll = localAll.map((b: any) => b.id === id ? { ...b, deleted_at: now, updated_at: now } : b);
+      localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(updatedAll));
+      if (settings.sync_enabled) {
         await syncToCloud('banks', { ...bank, deleted_at: now, updated_at: now });
       }
     }
@@ -719,7 +747,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
   };
 
-  const deleteItem = async (id: string, hard = false) => {
+  const deleteItem = async (id: string, hard = true) => {
     if (!currentCompany) return;
     const item = items.find(i => i.id === id);
     if (!item) return;
@@ -729,21 +757,23 @@ const deleteFromCloud = async (table: string, id: string) => {
     setItems(updatedItems);
 
     const localAll = JSON.parse(localStorage.getItem(`items_${currentCompany.id}`) || '[]');
-    const updatedAll = localAll.map((i: any) => i.id === id ? { ...i, deleted_at: now, updated_at: now } : i);
-    localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(updatedAll));
     
-    if (settings.sync_enabled) {
-      if (hard) {
+    if (hard) {
+      const filteredAll = localAll.filter((i: any) => i.id !== id);
+      localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(filteredAll));
+      if (settings.sync_enabled) {
         await deleteFromCloud('items', id);
-        const filteredAll = updatedAll.filter((i: any) => i.id !== id);
-        localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(filteredAll));
-      } else {
+      }
+    } else {
+      const updatedAll = localAll.map((i: any) => i.id === id ? { ...i, deleted_at: now, updated_at: now } : i);
+      localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(updatedAll));
+      if (settings.sync_enabled) {
         await syncToCloud('items', { ...item, deleted_at: now, updated_at: now });
       }
     }
   };
 
-  const deleteTransaction = async (id: string, hard = false) => {
+  const deleteTransaction = async (id: string, hard = true) => {
       if (!currentCompany) return;
       const tx = transactions.find(t => t.id === id);
       if (!tx) return;
@@ -753,17 +783,19 @@ const deleteFromCloud = async (table: string, id: string) => {
       setTransactions(updatedTransactions);
 
       const localAll = JSON.parse(localStorage.getItem(`transactions_${currentCompany.id}`) || '[]');
-      const updatedAll = localAll.map((t: any) => t.id === id ? { ...t, deleted_at: now, updated_at: now } : t);
-      localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updatedAll));
       
-      if (settings.sync_enabled) {
-          if (hard) {
+      if (hard) {
+        const filteredAll = localAll.filter((t: any) => t.id !== id);
+        localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(filteredAll));
+        if (settings.sync_enabled) {
             await deleteFromCloud('transactions', id);
-            const filteredAll = updatedAll.filter((t: any) => t.id !== id);
-            localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(filteredAll));
-          } else {
+        }
+      } else {
+        const updatedAll = localAll.map((t: any) => t.id === id ? { ...t, deleted_at: now, updated_at: now } : t);
+        localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updatedAll));
+        if (settings.sync_enabled) {
             await syncToCloud('transactions', { ...tx, deleted_at: now, updated_at: now });
-          }
+        }
       }
       await recalculateBalances(updatedTransactions, parties, banks, items);
   };
@@ -852,7 +884,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
   };
 
-  const deleteInvoice = async (id: string, hard = false) => {
+  const deleteInvoice = async (id: string, hard = true) => {
     if (!currentCompany) return;
     const invoice = invoices.find(i => i.id === id);
     if (!invoice) return;
@@ -862,15 +894,17 @@ const deleteFromCloud = async (table: string, id: string) => {
     setInvoices(updatedInvoices);
 
     const localAll = JSON.parse(localStorage.getItem(`invoices_${currentCompany.id}`) || '[]');
-    const updatedAll = localAll.map((i: any) => i.id === id ? { ...i, deleted_at: now, updated_at: now } : i);
-    localStorage.setItem(`invoices_${currentCompany.id}`, JSON.stringify(updatedAll));
     
-    if (settings.sync_enabled) {
-      if (hard) {
+    if (hard) {
+      const filteredAll = localAll.filter((i: any) => i.id !== id);
+      localStorage.setItem(`invoices_${currentCompany.id}`, JSON.stringify(filteredAll));
+      if (settings.sync_enabled) {
         await deleteFromCloud('invoices', id);
-        const filteredAll = updatedAll.filter((i: any) => i.id !== id);
-        localStorage.setItem(`invoices_${currentCompany.id}`, JSON.stringify(filteredAll));
-      } else {
+      }
+    } else {
+      const updatedAll = localAll.map((i: any) => i.id === id ? { ...i, deleted_at: now, updated_at: now } : i);
+      localStorage.setItem(`invoices_${currentCompany.id}`, JSON.stringify(updatedAll));
+      if (settings.sync_enabled) {
         await syncToCloud('invoices', { ...invoice, deleted_at: now, updated_at: now });
       }
     }
