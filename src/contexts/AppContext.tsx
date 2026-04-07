@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Company, Party, Bank, InventoryItem as Item, Transaction, AppSettings, Invoice } from '../types';
+import { Company, Party, BankAccount, InventoryItem as Item, Transaction, AppSettings, Invoice } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface AppContextType {
@@ -7,7 +7,7 @@ interface AppContextType {
   currentCompany: Company | null;
   setCurrentCompany: (company: Company) => void;
   parties: Party[];
-  banks: Bank[];
+  banks: BankAccount[];
   items: Item[];
   transactions: Transaction[];
   invoices: Invoice[];
@@ -24,8 +24,8 @@ interface AppContextType {
   addParty: (party: Omit<Party, 'id' | 'created_at'>) => Promise<void>;
   updateParty: (id: string, party: Partial<Party>) => Promise<void>;
   deleteParty: (id: string, hard?: boolean) => Promise<void>;
-  addBank: (bank: Omit<Bank, 'id' | 'created_at'>) => Promise<void>;
-  updateBank: (id: string, bank: Partial<Bank>) => Promise<void>;
+  addBank: (bank: Omit<BankAccount, 'id' | 'created_at'>) => Promise<void>;
+  updateBank: (id: string, bank: Partial<BankAccount>) => Promise<void>;
   deleteBank: (id: string, hard?: boolean) => Promise<void>;
   addItem: (item: Omit<Item, 'id' | 'created_at'>) => Promise<void>;
   updateItem: (id: string, item: Partial<Item>) => Promise<void>;
@@ -33,10 +33,8 @@ interface AppContextType {
   deleteTransaction: (id: string, hard?: boolean) => Promise<void>;
   addCompany: (company: Omit<Company, 'id' | 'created_at'>) => Promise<void>;
   updateCompany: (id: string, company: Partial<Company>) => Promise<void>;
-  deleteCompany: (id: string) => Promise<void>;
-  restoreCompany: (recoveryCode: string) => Promise<boolean>;
-  signOut: () => void;
   addInvoice: (invoice: Omit<Invoice, 'id' | 'created_at'>) => Promise<void>;
+  updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
 }
 
@@ -107,7 +105,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   });
   const [parties, setParties] = useState<Party[]>([]);
-  const [banks, setBanks] = useState<Bank[]>([]);
+  const [banks, setBanks] = useState<BankAccount[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -162,7 +160,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     
     // Load local data first for immediate UI response
     let localParties: Party[] = [];
-    let localBanks: Bank[] = [];
+    let localBanks: BankAccount[] = [];
     let localItems: Item[] = [];
     let localTransactions: Transaction[] = [];
     let localInvoices: Invoice[] = [];
@@ -438,13 +436,13 @@ const deleteFromCloud = async (table: string, id: string) => {
                             let updated = [...prev];
                             if (eventType === 'INSERT') {
                                 if (!updated.find(b => b.id === newRecord.id)) {
-                                    updated = [...updated, newRecord as Bank];
+                                    updated = [...updated, newRecord as BankAccount];
                                 }
                             } else if (eventType === 'UPDATE') {
                                 if (newRecord.deleted_at) {
                                     updated = updated.filter(b => b.id !== newRecord.id);
                                 } else {
-                                    updated = updated.map(b => b.id === newRecord.id ? (newRecord as Bank) : b);
+                                    updated = updated.map(b => b.id === newRecord.id ? (newRecord as BankAccount) : b);
                                 }
                             } else if (eventType === 'DELETE') {
                                 updated = updated.filter(b => b.id !== oldRecord.id);
@@ -530,7 +528,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
   }, [transactions.length]);
 
-  const recalculateBalances = async (allTransactions: Transaction[], allParties: Party[], allBanks: Bank[], allItems: Item[]) => {
+  const recalculateBalances = async (allTransactions: Transaction[], allParties: Party[], allBanks: BankAccount[], allItems: Item[]) => {
     if (!currentCompany) return;
 
     const partyBalances: Record<string, number> = {};
@@ -680,10 +678,10 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
   };
 
-  const addBank = async (bank: Omit<Bank, 'id' | 'created_at'>) => {
+  const addBank = async (bank: Omit<BankAccount, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
     const now = new Date().toISOString();
-    const newBank: Bank = {
+    const newBank: BankAccount = {
       ...bank,
       id: crypto.randomUUID(),
       created_at: now,
@@ -701,7 +699,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
   };
 
-  const updateBank = async (id: string, bank: Partial<Bank>) => {
+  const updateBank = async (id: string, bank: Partial<BankAccount>) => {
     if (!currentCompany) return;
     const now = new Date().toISOString();
     const updated = banks.map(b => b.id === id ? { ...b, ...bank, updated_at: now } : b);
@@ -823,55 +821,6 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
   };
 
-  const restoreCompany = async (recoveryCode: string) => {
-    if (!recoveryCode.trim()) return false;
-    setSyncStatus({ loading: true, error: null, success: null });
-    try {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('recovery_code', recoveryCode.trim().toLowerCase())
-        .is('deleted_at', null);
-      
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        const company = data[0];
-        setCompanies(prev => {
-          if (prev.find(c => c.id === company.id)) return prev;
-          return [...prev, company];
-        });
-        setCurrentCompany(company);
-        setSyncStatus({ loading: false, error: null, success: 'Company restored successfully!' });
-        return true;
-      } else {
-        setSyncStatus({ loading: false, error: 'Invalid recovery code. No company found.', success: null });
-        return false;
-      }
-    } catch (error: any) {
-      console.error('Error restoring company:', error);
-      setSyncStatus({ loading: false, error: error.message, success: null });
-      return false;
-    }
-  };
-
-  const signOut = () => {
-    localStorage.clear();
-    setCompanies([]);
-    setCurrentCompany(null);
-    setParties([]);
-    setBanks([]);
-    setItems([]);
-    setTransactions([]);
-    setInvoices([]);
-    setSettings({
-      theme: 'light',
-      currency: 'PKR',
-      pdf_theme: 'standard',
-      sync_enabled: true,
-    });
-  };
-
   const updateCompany = async (id: string, company: Partial<Company>) => {
     const now = new Date().toISOString();
     const updated = companies.map(c => c.id === id ? { ...c, ...company, updated_at: now } : c);
@@ -966,7 +915,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       addTransaction, updateTransaction,
       addParty, updateParty, deleteParty, addBank, updateBank, deleteBank,
       addItem, updateItem, deleteItem, deleteTransaction,
-      addCompany, updateCompany, deleteCompany, restoreCompany, signOut, addInvoice, updateInvoice, deleteInvoice
+      addCompany, updateCompany, deleteCompany, addInvoice, updateInvoice, deleteInvoice
     }}>
       {children}
     </AppContext.Provider>

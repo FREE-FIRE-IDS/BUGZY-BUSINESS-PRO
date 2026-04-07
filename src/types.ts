@@ -25,7 +25,6 @@ export interface Company {
   created_at: string;
   updated_at?: string;
   deleted_at?: string;
-  recovery_code?: string; // 4-word recovery code
   linked_emails?: string[]; // Emails of other accounts linked to this company
 }
 
@@ -43,7 +42,7 @@ export interface Party {
   deleted_at?: string;
 }
 
-export interface Bank {
+export interface BankAccount {
   id: string;
   company_id: string;
   name: string;
@@ -103,6 +102,9 @@ export interface Invoice {
   tax: number;
   total: number;
   status: 'Paid' | 'Unpaid' | 'Partial';
+  type: 'Sale' | 'Purchase';
+  payment_type: 'Cash' | 'Bank';
+  bank_id?: string;
   created_at: string;
   updated_at?: string;
   deleted_at?: string;

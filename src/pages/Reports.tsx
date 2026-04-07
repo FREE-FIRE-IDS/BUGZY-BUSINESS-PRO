@@ -28,6 +28,7 @@ type ReportType =
   | 'All Banks' 
   | 'Stock' 
   | 'Purchase' 
+  | 'Sale'
   | 'Expense' 
   | 'Invoice';
 
@@ -44,6 +45,7 @@ export default function Reports() {
     { id: 'Single Bank', label: 'Bank Statement', icon: Building2 },
     { id: 'Stock', label: 'Stock Report', icon: Package },
     { id: 'Purchase', label: 'Purchase Report', icon: Receipt },
+    { id: 'Sale', label: 'Sale Report', icon: ArrowUpRight },
     { id: 'Expense', label: 'Expense Report', icon: Receipt },
     { id: 'Invoice', label: 'Invoice Report', icon: FileText },
   ];
@@ -69,19 +71,60 @@ export default function Reports() {
         data = companyParties.map(p => ({ name: p.name, balance: p.balance, type: p.type }));
         break;
       case 'Single Party':
-        data = filterByDate(companyTransactions.filter(t => t.party_id === selectedEntity || t.to_party_id === selectedEntity));
+        const partyTxs = companyTransactions.filter(t => t.party_id === selectedEntity || t.to_party_id === selectedEntity);
+        const partyInvoices = companyInvoices.filter(i => i.party_id === selectedEntity).map(i => ({
+          id: i.id,
+          date: i.date,
+          type: i.type,
+          description: `Invoice ${i.invoice_number}`,
+          amount: i.total,
+          party_id: i.party_id
+        }));
+        data = filterByDate([...partyTxs, ...partyInvoices]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
       case 'All Banks':
         data = companyBanks.map(b => ({ name: b.name, balance: b.balance, account: b.account_number }));
         break;
       case 'Single Bank':
-        data = filterByDate(companyTransactions.filter(t => t.bank_id === selectedEntity || t.to_bank_id === selectedEntity));
+        const bankTxs = companyTransactions.filter(t => t.bank_id === selectedEntity || t.to_bank_id === selectedEntity);
+        const bankInvoices = companyInvoices.filter(i => i.bank_id === selectedEntity).map(i => ({
+          id: i.id,
+          date: i.date,
+          type: i.type,
+          description: `Invoice ${i.invoice_number}`,
+          amount: i.total,
+          bank_id: i.bank_id
+        }));
+        data = filterByDate([...bankTxs, ...bankInvoices]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
       case 'Stock':
         data = companyItems.map(i => ({ name: i.name, sku: i.sku, stock: i.stock, value: i.stock * i.price }));
         break;
       case 'Purchase':
-        data = filterByDate(companyTransactions.filter(t => t.type === 'Purchase'));
+        data = filterByDate([
+          ...companyTransactions.filter(t => t.type === 'Purchase'),
+          ...companyInvoices.filter(i => i.type === 'Purchase').map(i => ({
+            id: i.id,
+            date: i.date,
+            type: 'Purchase',
+            description: `Invoice ${i.invoice_number}`,
+            amount: i.total,
+            party_id: i.party_id
+          }))
+        ]);
+        break;
+      case 'Sale':
+        data = filterByDate([
+          ...companyTransactions.filter(t => t.type === 'Sale'),
+          ...companyInvoices.filter(i => i.type === 'Sale').map(i => ({
+            id: i.id,
+            date: i.date,
+            type: 'Sale',
+            description: `Invoice ${i.invoice_number}`,
+            amount: i.total,
+            party_id: i.party_id
+          }))
+        ]);
         break;
       case 'Expense':
         data = filterByDate(companyTransactions.filter(t => t.type === 'Expense'));
@@ -124,9 +167,23 @@ export default function Reports() {
       body = filteredData.map(d => [d.name, d.type, formatCurrency(d.balance, settings.currency)]);
       total = filteredData.reduce((sum, d) => sum + d.balance, 0);
     } else if (activeReport === 'Single Party' || activeReport === 'Single Bank') {
-      head = [['Date', 'Type', 'Description', 'Amount']];
-      body = filteredData.map(d => [formatDate(d.date), d.type, d.description || '-', formatCurrency(d.amount, settings.currency)]);
-      total = filteredData.reduce((sum, d) => sum + d.amount, 0);
+      head = [['Date', 'Description', 'Debit', 'Credit', 'Balance']];
+      let runningBalance = 0;
+      body = filteredData.map(d => {
+        const isDebit = d.type === 'Sale' || d.type === 'Payment In' || d.type === 'Deposit' || d.type === 'Party To Bank' || d.type === 'Bank To Party';
+        const amount = d.amount;
+        if (isDebit) runningBalance += amount;
+        else runningBalance -= amount;
+        
+        return [
+          formatDate(d.date),
+          d.description || d.type,
+          isDebit ? formatCurrency(amount, settings.currency) : '-',
+          !isDebit ? formatCurrency(amount, settings.currency) : '-',
+          `${formatCurrency(Math.abs(runningBalance), settings.currency)} ${runningBalance >= 0 ? 'DR' : 'CR'}`
+        ];
+      });
+      total = runningBalance;
     } else if (activeReport === 'All Banks') {
       head = [['Bank Name', 'Account #', 'Balance']];
       body = filteredData.map(d => [d.name, d.account || '-', formatCurrency(d.balance, settings.currency)]);
@@ -135,7 +192,7 @@ export default function Reports() {
       head = [['Item Name', 'SKU', 'Stock', 'Value']];
       body = filteredData.map(d => [d.name, d.sku || '-', d.stock, formatCurrency(d.value, settings.currency)]);
       total = filteredData.reduce((sum, d) => sum + d.value, 0);
-    } else if (activeReport === 'Purchase' || activeReport === 'Expense') {
+    } else if (activeReport === 'Purchase' || activeReport === 'Expense' || activeReport === 'Sale') {
       head = [['Date', 'Description', 'Amount']];
       body = filteredData.map(d => [formatDate(d.date), d.description || '-', formatCurrency(d.amount, settings.currency)]);
       total = filteredData.reduce((sum, d) => sum + d.amount, 0);
@@ -163,7 +220,15 @@ export default function Reports() {
       alternateRowStyles: {
         fillColor: [248, 250, 252]
       },
-      foot: [['', '', 'Total', formatCurrency(total, settings.currency)]],
+      foot: (() => {
+        if (activeReport === 'Single Party' || activeReport === 'Single Bank') {
+          return [['', '', '', 'Total Balance', `${formatCurrency(Math.abs(total), settings.currency)} ${total >= 0 ? 'DR' : 'CR'}`]];
+        }
+        if (activeReport === 'All Parties' || activeReport === 'All Banks' || activeReport === 'Purchase' || activeReport === 'Expense' || activeReport === 'Sale') {
+          return [['', 'Total', formatCurrency(total, settings.currency)]];
+        }
+        return [['', '', 'Total', formatCurrency(total, settings.currency)]];
+      })(),
       footStyles: {
         fillColor: [241, 245, 249],
         textColor: [30, 41, 59],
@@ -269,9 +334,10 @@ export default function Reports() {
                   {(activeReport === 'Single Party' || activeReport === 'Single Bank') && (
                     <>
                       <th className="px-6 py-4 font-semibold">Date</th>
-                      <th className="px-6 py-4 font-semibold">Type</th>
                       <th className="px-6 py-4 font-semibold">Description</th>
-                      <th className="px-6 py-4 font-semibold text-right">Amount</th>
+                      <th className="px-6 py-4 font-semibold text-right">Debit</th>
+                      <th className="px-6 py-4 font-semibold text-right">Credit</th>
+                      <th className="px-6 py-4 font-semibold text-right">Balance</th>
                     </>
                   )}
                   {activeReport === 'All Banks' && (
@@ -289,7 +355,7 @@ export default function Reports() {
                       <th className="px-6 py-4 font-semibold text-right">Value</th>
                     </>
                   )}
-                  {(activeReport === 'Purchase' || activeReport === 'Expense') && (
+                  {(activeReport === 'Purchase' || activeReport === 'Expense' || activeReport === 'Sale') && (
                     <>
                       <th className="px-6 py-4 font-semibold">Date</th>
                       <th className="px-6 py-4 font-semibold">Description</th>
@@ -318,16 +384,33 @@ export default function Reports() {
                         </td>
                       </>
                     )}
-                    {(activeReport === 'Single Party' || activeReport === 'Single Bank') && (
-                      <>
-                        <td className="px-6 py-4 text-sm text-black">{formatDate(row.date)}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-black">{row.type}</td>
-                        <td className="px-6 py-4 text-sm text-slate-500">{row.description || '-'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-right text-black">
-                          {formatCurrency(row.amount, settings.currency)}
-                        </td>
-                      </>
-                    )}
+                    {(activeReport === 'Single Party' || activeReport === 'Single Bank') && (() => {
+                      const isDebit = row.type === 'Sale' || row.type === 'Payment In' || row.type === 'Deposit' || row.type === 'Party To Bank' || row.type === 'Bank To Party';
+                      // Calculate running balance for UI (this is a bit tricky in a map, but we can do it)
+                      let currentBalance = 0;
+                      for (let j = 0; j <= i; j++) {
+                        const item = filteredData[j];
+                        const itemIsDebit = item.type === 'Sale' || item.type === 'Payment In' || item.type === 'Deposit' || item.type === 'Party To Bank' || item.type === 'Bank To Party';
+                        if (itemIsDebit) currentBalance += item.amount;
+                        else currentBalance -= item.amount;
+                      }
+
+                      return (
+                        <>
+                          <td className="px-6 py-4 text-sm text-black">{formatDate(row.date)}</td>
+                          <td className="px-6 py-4 text-sm text-slate-500">{row.description || row.type}</td>
+                          <td className="px-6 py-4 text-sm font-bold text-right text-emerald-600">
+                            {isDebit ? formatCurrency(row.amount, settings.currency) : '-'}
+                          </td>
+                          <td className="px-6 py-4 text-sm font-bold text-right text-rose-600">
+                            {!isDebit ? formatCurrency(row.amount, settings.currency) : '-'}
+                          </td>
+                          <td className="px-6 py-4 text-sm font-bold text-right text-black">
+                            {formatCurrency(Math.abs(currentBalance), settings.currency)} {currentBalance >= 0 ? 'DR' : 'CR'}
+                          </td>
+                        </>
+                      );
+                    })()}
                     {activeReport === 'All Banks' && (
                       <>
                         <td className="px-6 py-4 text-sm font-bold text-black">{row.name}</td>
@@ -347,11 +430,11 @@ export default function Reports() {
                         </td>
                       </>
                     )}
-                    {(activeReport === 'Purchase' || activeReport === 'Expense') && (
+                    {(activeReport === 'Purchase' || activeReport === 'Expense' || activeReport === 'Sale') && (
                       <>
                         <td className="px-6 py-4 text-sm text-black">{formatDate(row.date)}</td>
                         <td className="px-6 py-4 text-sm text-slate-500">{row.description || '-'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-right text-rose-600">
+                        <td className={cn("px-6 py-4 text-sm font-bold text-right", activeReport === 'Sale' ? "text-emerald-600" : "text-rose-600")}>
                           {formatCurrency(row.amount, settings.currency)}
                         </td>
                       </>

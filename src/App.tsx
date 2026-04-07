@@ -376,8 +376,14 @@ function SetupCompany() {
             </div>
             <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800">
               <label className="block text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">Your Recovery Code</label>
-              <p className="text-lg font-mono font-bold text-indigo-900 dark:text-indigo-200">{generatedCode}</p>
-              <p className="text-[10px] text-indigo-600/60 dark:text-indigo-400/60 mt-2 italic">Save this code! You'll need it to restore your data if you sign out.</p>
+              <input 
+                type="text" 
+                value={generatedCode}
+                onChange={(e) => setGeneratedCode(e.target.value.toLowerCase())}
+                className="w-full bg-transparent text-lg font-mono font-bold text-indigo-900 dark:text-indigo-200 border-b border-indigo-200 dark:border-indigo-700 outline-none focus:border-indigo-500"
+                placeholder="word-word-word-word"
+              />
+              <p className="text-[10px] text-indigo-600/60 dark:text-indigo-400/60 mt-2 italic">Set any 4-word code! You'll need it to restore your data if you sign out.</p>
             </div>
             <button 
               onClick={handleCreate}

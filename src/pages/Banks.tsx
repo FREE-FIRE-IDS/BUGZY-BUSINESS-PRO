@@ -212,9 +212,9 @@ export default function Banks() {
                 PDF
               </button>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto hidden md:block">
               <table className="w-full text-left">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase tracking-wider">
                   <tr>
                     <th className="px-6 py-4 font-semibold">Date</th>
                     <th className="px-6 py-4 font-semibold">Type</th>
@@ -224,26 +224,26 @@ export default function Banks() {
                     <th className="px-6 py-4 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {bankLedger.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 text-sm text-black">{formatDate(tx.date)}</td>
+                    <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-100">{formatDate(tx.date)}</td>
                       <td className="px-6 py-4">
                         <span className={cn(
                           "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
-                          tx.to_bank_id === selectedBank.id ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                          tx.to_bank_id === selectedBank.id ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                         )}>
                           {tx.type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500">{tx.description || '-'}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-right text-rose-600">
+                      <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{tx.description || '-'}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-right text-rose-600 dark:text-rose-400">
                         {tx.bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm font-bold text-right text-emerald-600">
+                      <td className="px-6 py-4 text-sm font-bold text-right text-emerald-600 dark:text-emerald-400">
                         {tx.to_bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
-                                            <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
                           <button 
                             onClick={() => handleEditTx(tx)}
@@ -261,15 +261,63 @@ export default function Banks() {
                       </td>
                     </tr>
                   ))}
-                  {bankLedger.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                        No transactions found for this bank.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card View for Bank Ledger */}
+            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+              {bankLedger.map((tx) => (
+                <div key={tx.id} className="p-4 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs text-slate-400">{formatDate(tx.date)}</p>
+                      <p className="font-bold text-slate-900 dark:text-slate-100">{tx.description || tx.type}</p>
+                    </div>
+                    <span className={cn(
+                      "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
+                      tx.to_bank_id === selectedBank.id ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                    )}>
+                      {tx.type}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex gap-4">
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-bold">Withdrawal</p>
+                        <p className="text-sm font-bold text-rose-600 dark:text-rose-400">
+                          {tx.bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-bold">Deposit</p>
+                        <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                          {tx.to_bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleEditTx(tx)}
+                        className="p-2 text-slate-400 hover:text-indigo-600"
+                      >
+                        <Plus size={16} className="rotate-45" />
+                      </button>
+                      <button 
+                        onClick={() => deleteTransaction(tx.id)}
+                        className="p-2 text-slate-400 hover:text-rose-600"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {bankLedger.length === 0 && (
+                <div className="p-8 text-center text-slate-400">
+                  No transactions found.
+                </div>
+              )}
             </div>
           </div>
         </motion.div>

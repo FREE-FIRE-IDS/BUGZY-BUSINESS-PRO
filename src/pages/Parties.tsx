@@ -23,7 +23,7 @@ import { Party, Transaction, TransactionType } from '../types';
 import { generatePartyStatement } from '../lib/pdfGenerator';
 
 export default function Parties() {
-  const { parties, transactions, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany } = useApp();
+  const { parties, transactions, invoices, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   
@@ -55,10 +55,24 @@ export default function Parties() {
 
   const partyLedger = useMemo(() => {
     if (!currentSelectedParty) return [];
-    return transactions
+    const partyTransactions = transactions
       .filter(t => t.party_id === currentSelectedParty.id || t.to_party_id === currentSelectedParty.id)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [currentSelectedParty, transactions]);
+      .map(t => ({ ...t, source: 'transaction' }));
+    
+    const partyInvoices = invoices
+      .filter(i => i.party_id === currentSelectedParty.id)
+      .map(i => ({
+        id: i.id,
+        date: i.date,
+        type: i.type as any, // 'Sale' or 'Purchase'
+        amount: i.total,
+        description: `Invoice #${i.invoice_number}`,
+        source: 'invoice'
+      }));
+
+    return [...partyTransactions, ...partyInvoices]
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [currentSelectedParty, transactions, invoices]);
 
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [txType, setTxType] = useState<TransactionType>('Payment In');
@@ -226,19 +240,19 @@ export default function Parties() {
                       >
                         <FileText size={16} />
                       </button>
-                      <h3 className="text-slate-500 text-sm mb-1">Party Type</h3>
-                      <p className="text-xl font-bold text-black">{currentSelectedParty.type}</p>
+                      <h3 className="text-slate-500 dark:text-slate-400 text-sm mb-1">Party Type</h3>
+                      <p className="text-xl font-bold text-slate-900 dark:text-white">{currentSelectedParty.type}</p>
                     </div>
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-slate-500 text-sm mb-1">Contact Info</h3>
-              <p className="text-sm font-medium text-black">{currentSelectedParty.phone || 'No phone'}</p>
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+              <h3 className="text-slate-500 dark:text-slate-400 text-sm mb-1">Contact Info</h3>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">{currentSelectedParty.phone || 'No phone'}</p>
               <p className="text-sm text-slate-400">{currentSelectedParty.email || 'No email'}</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-bold text-black">Transaction Ledger</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 dark:text-white">Transaction Ledger</h3>
               <div className="flex gap-2">
                 <button 
                   onClick={handleExportPDF}
@@ -251,9 +265,9 @@ export default function Parties() {
                 <button className="p-2 hover:bg-slate-100 rounded-lg"><Search size={18} /></button>
               </div>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto hidden md:block">
               <table className="w-full text-left">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase tracking-wider">
                   <tr>
                     <th className="px-6 py-4 font-semibold">Date</th>
                     <th className="px-6 py-4 font-semibold">Type</th>
@@ -263,30 +277,30 @@ export default function Parties() {
                     <th className="px-6 py-4 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {partyLedger.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 text-sm text-black">{formatDate(tx.date)}</td>
+                    <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-100">{formatDate(tx.date)}</td>
                       <td className="px-6 py-4">
                         <span className={cn(
                           "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
-                          tx.type === 'Sale' || tx.type === 'Payment In' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                          tx.type === 'Sale' || tx.type === 'Payment In' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                         )}>
                           {tx.type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500">{tx.description || '-'}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-right text-black">
+                      <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{tx.description || '-'}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-100">
                         {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party')) || (tx.to_party_id === currentSelectedParty.id) ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm font-bold text-right text-black">
+                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-100">
                         {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party')) ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
                           <button 
                             onClick={() => { setEditingTransaction(tx); setTxType(tx.type); }}
-                            className="flex items-center gap-1 px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors text-xs font-bold"
+                            className="flex items-center gap-1 px-2 py-1 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors text-xs font-bold"
                           >
                             <FileText size={14} />
                             Edit
@@ -301,15 +315,63 @@ export default function Parties() {
                       </td>
                     </tr>
                   ))}
-                  {partyLedger.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                        No transactions found for this party.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card View for Ledger */}
+            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+              {partyLedger.map((tx) => (
+                <div key={tx.id} className="p-4 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs text-slate-400">{formatDate(tx.date)}</p>
+                      <p className="font-bold text-slate-900 dark:text-slate-100">{tx.description || tx.type}</p>
+                    </div>
+                    <span className={cn(
+                      "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
+                      tx.type === 'Sale' || tx.type === 'Payment In' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                    )}>
+                      {tx.type}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex gap-4">
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-bold">Debit</p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                          {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party')) || (tx.to_party_id === currentSelectedParty.id) ? formatCurrency(tx.amount, settings.currency) : '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-bold">Credit</p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                          {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party')) ? formatCurrency(tx.amount, settings.currency) : '-'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => { setEditingTransaction(tx); setTxType(tx.type); }}
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg"
+                      >
+                        <FileText size={16} />
+                      </button>
+                      <button 
+                        onClick={() => deleteTransaction(tx.id)}
+                        className="p-2 text-slate-400 hover:text-rose-600"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {partyLedger.length === 0 && (
+                <div className="p-8 text-center text-slate-400">
+                  No transactions found.
+                </div>
+              )}
             </div>
           </div>
         </motion.div>

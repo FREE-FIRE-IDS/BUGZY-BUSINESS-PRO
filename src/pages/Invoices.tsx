@@ -18,7 +18,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function Invoices() {
-  const { invoices, addInvoice, updateInvoice, deleteInvoice, settings, parties, items, currentCompany } = useApp();
+  const { invoices, addInvoice, updateInvoice, deleteInvoice, settings, parties, items, currentCompany, banks } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -26,6 +26,7 @@ export default function Invoices() {
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<any | null>(null);
   const [selectedItems, setSelectedItems] = useState<{ item_id: string, quantity: number, price: number }[]>([]);
+  const [paymentType, setPaymentType] = useState<'Cash' | 'Bank'>('Cash');
 
   const filteredInvoices = invoices.filter(i => 
     i.invoice_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -198,8 +199,16 @@ export default function Invoices() {
               className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all group"
             >
               <div className="flex justify-between items-start mb-4">
-                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
-                  <FileText size={24} />
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+                    <FileText size={24} />
+                  </div>
+                  <span className={cn(
+                    "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                    invoice.type === 'Sale' ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+                  )}>
+                    {invoice.type}
+                  </span>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => exportInvoicePDF(invoice)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors">
@@ -288,6 +297,9 @@ export default function Invoices() {
                   date: formData.get('date') as string,
                   due_date: formData.get('due_date') as string,
                   party_id: formData.get('party_id') as string,
+                  type: formData.get('type') as 'Sale' | 'Purchase',
+                  payment_type: formData.get('payment_type') as 'Cash' | 'Bank',
+                  bank_id: (formData.get('bank_id') as string) || undefined,
                   items: selectedItems.map(si => ({
                     item_id: si.item_id,
                     name: items.find(i => i.id === si.item_id)?.name || 'Unknown',
@@ -302,6 +314,37 @@ export default function Invoices() {
                 });
                 setIsAddModalOpen(false);
               }}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Invoice Type</label>
+                    <select name="type" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="Sale">Sale</option>
+                      <option value="Purchase">Purchase</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Payment Type</label>
+                    <select 
+                      name="payment_type" 
+                      required 
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                      onChange={(e) => setPaymentType(e.target.value as 'Cash' | 'Bank')}
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="Bank">Bank</option>
+                    </select>
+                  </div>
+                  {paymentType === 'Bank' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-500 mb-1">Bank</label>
+                      <select name="bank_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Select Bank</option>
+                        {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Party</label>
@@ -412,6 +455,9 @@ export default function Invoices() {
                   date: formData.get('date') as string,
                   due_date: formData.get('due_date') as string,
                   party_id: formData.get('party_id') as string,
+                  type: formData.get('type') as 'Sale' | 'Purchase',
+                  payment_type: formData.get('payment_type') as 'Cash' | 'Bank',
+                  bank_id: (formData.get('bank_id') as string) || undefined,
                   items: selectedItems.map(si => ({
                     item_id: si.item_id,
                     name: items.find(i => i.id === si.item_id)?.name || 'Unknown',
@@ -426,6 +472,38 @@ export default function Invoices() {
                 });
                 setIsEditModalOpen(false);
               }}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Invoice Type</label>
+                    <select name="type" defaultValue={editingInvoice.type} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="Sale">Sale</option>
+                      <option value="Purchase">Purchase</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Payment Type</label>
+                    <select 
+                      name="payment_type" 
+                      defaultValue={editingInvoice.payment_type}
+                      required 
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                      onChange={(e) => setPaymentType(e.target.value as 'Cash' | 'Bank')}
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="Bank">Bank</option>
+                    </select>
+                  </div>
+                  {(paymentType === 'Bank' || editingInvoice.payment_type === 'Bank') && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-500 mb-1">Bank</label>
+                      <select name="bank_id" defaultValue={editingInvoice.bank_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Select Bank</option>
+                        {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Party</label>

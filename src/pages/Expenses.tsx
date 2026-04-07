@@ -23,6 +23,7 @@ export default function Expenses() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any | null>(null);
+  const [paymentType, setPaymentType] = useState<'Cash' | 'Bank'>('Cash');
 
   const expenses = transactions.filter(t => t.type === 'Expense');
   const filteredExpenses = expenses.filter(e => 
@@ -73,6 +74,7 @@ export default function Expenses() {
 
   const handleEditExpense = (expense: any) => {
     setEditingExpense(expense);
+    setPaymentType(expense.payment_type || (expense.bank_id ? 'Bank' : 'Cash'));
     setIsEditModalOpen(true);
   };
 
@@ -242,7 +244,8 @@ export default function Expenses() {
                   type: 'Expense',
                   amount: Number(formData.get('amount')),
                   description: formData.get('description') as string,
-                  bank_id: formData.get('bank_id') as string,
+                  payment_type: paymentType,
+                  bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
                 });
                 setIsAddModalOpen(false);
               }}>
@@ -256,12 +259,39 @@ export default function Expenses() {
                     <input name="amount" type="number" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Paid From (Bank)</label>
-                    <select name="bank_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
-                      <option value="">Select Bank</option>
-                      {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                    </select>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Payment Type</label>
+                    <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                      <button 
+                        type="button"
+                        onClick={() => setPaymentType('Cash')}
+                        className={cn(
+                          "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
+                          paymentType === 'Cash' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
+                        )}
+                      >
+                        Cash
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setPaymentType('Bank')}
+                        className={cn(
+                          "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
+                          paymentType === 'Bank' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
+                        )}
+                      >
+                        Bank
+                      </button>
+                    </div>
                   </div>
+                  {paymentType === 'Bank' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-500 mb-1">Paid From (Bank)</label>
+                      <select name="bank_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Select Bank</option>
+                        {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
                     <textarea name="description" rows={3} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="What was this expense for?"></textarea>
@@ -290,7 +320,8 @@ export default function Expenses() {
                   date: formData.get('date') as string,
                   amount: Number(formData.get('amount')),
                   description: formData.get('description') as string,
-                  bank_id: formData.get('bank_id') as string,
+                  payment_type: paymentType,
+                  bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
                 });
                 setIsEditModalOpen(false);
               }}>
@@ -304,11 +335,38 @@ export default function Expenses() {
                     <input name="amount" type="number" defaultValue={editingExpense.amount} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Paid From (Bank)</label>
-                    <select name="bank_id" defaultValue={editingExpense.bank_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
-                      {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                    </select>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Payment Type</label>
+                    <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                      <button 
+                        type="button"
+                        onClick={() => setPaymentType('Cash')}
+                        className={cn(
+                          "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
+                          paymentType === 'Cash' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
+                        )}
+                      >
+                        Cash
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setPaymentType('Bank')}
+                        className={cn(
+                          "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
+                          paymentType === 'Bank' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
+                        )}
+                      >
+                        Bank
+                      </button>
+                    </div>
                   </div>
+                  {paymentType === 'Bank' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-500 mb-1">Paid From (Bank)</label>
+                      <select name="bank_id" defaultValue={editingExpense.bank_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                        {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
                     <textarea name="description" defaultValue={editingExpense.description} rows={3} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"></textarea>

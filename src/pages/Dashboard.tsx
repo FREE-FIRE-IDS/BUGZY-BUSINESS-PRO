@@ -106,8 +106,8 @@ export default function Dashboard() {
                   <h3 className="font-bold text-slate-700 dark:text-slate-300">Sale</h3>
                 </div>
               </div>
-              <div className="flex items-baseline gap-2 mb-4 bg-white p-2 rounded-xl border border-slate-50 shadow-inner">
-                <p className="text-3xl font-bold text-black">{formatCurrency(stats.totalSales, settings.currency)}</p>
+              <div className="flex items-baseline gap-2 mb-4 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 shadow-inner">
+                <p className="text-3xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.totalSales, settings.currency)}</p>
               </div>
               <div className="h-32 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -137,8 +137,8 @@ export default function Dashboard() {
                   <h3 className="font-bold text-slate-700 dark:text-slate-300">Expenses</h3>
                 </div>
               </div>
-              <div className="flex items-baseline gap-2 mb-4 bg-white p-2 rounded-xl border border-slate-50 shadow-inner">
-                <p className="text-3xl font-bold text-black">{formatCurrency(stats.totalExpenses, settings.currency)}</p>
+              <div className="flex items-baseline gap-2 mb-4 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 shadow-inner">
+                <p className="text-3xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.totalExpenses, settings.currency)}</p>
               </div>
               <div className="h-32 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -171,8 +171,8 @@ export default function Dashboard() {
                 </div>
                 <h3 className="font-bold text-slate-700 dark:text-slate-300">You'll Receive</h3>
               </div>
-              <div className="bg-white p-2 rounded-xl border border-slate-50 mb-4 shadow-inner">
-                <p className="text-2xl font-bold text-black">{formatCurrency(stats.toReceive, settings.currency)}</p>
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 mb-4 shadow-inner">
+                <p className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.toReceive, settings.currency)}</p>
               </div>
               <div className="space-y-2">
                 {parties.filter(p => p.balance > 0).slice(0, 3).map(p => (
@@ -197,8 +197,8 @@ export default function Dashboard() {
                 </div>
                 <h3 className="font-bold text-slate-700 dark:text-slate-300">You'll Pay</h3>
               </div>
-              <div className="bg-white p-2 rounded-xl border border-slate-50 mb-4 shadow-inner">
-                <p className="text-2xl font-bold text-black">{formatCurrency(stats.toPay, settings.currency)}</p>
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 mb-4 shadow-inner">
+                <p className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.toPay, settings.currency)}</p>
               </div>
               <div className="space-y-2">
                 {parties.filter(p => p.balance < 0).slice(0, 3).map(p => (
@@ -223,8 +223,8 @@ export default function Dashboard() {
                 </div>
                 <h3 className="font-bold text-slate-700 dark:text-slate-300">Purchase</h3>
               </div>
-              <div className="bg-white p-2 rounded-xl border border-slate-50 mb-4 shadow-inner">
-                <p className="text-2xl font-bold text-black">{formatCurrency(stats.totalPurchases, settings.currency)}</p>
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 mb-4 shadow-inner">
+                <p className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.totalPurchases, settings.currency)}</p>
               </div>
               <div className="flex flex-col items-center justify-center h-20 text-slate-400">
                 <p className="text-[10px] text-center">You have no purchased items entered for selected time.</p>
@@ -241,9 +241,9 @@ export default function Dashboard() {
             className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
           >
             <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-4">Stock Inventory</h3>
-            <div className="bg-white p-4 rounded-2xl border border-slate-50 shadow-inner">
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
               <p className="text-xs text-slate-500 mb-1">Stock Value</p>
-              <p className="text-xl font-bold text-black">{formatCurrency(stats.stockValue, settings.currency)}</p>
+              <p className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.stockValue, settings.currency)}</p>
             </div>
           </motion.div>
 
@@ -283,7 +283,7 @@ export default function Dashboard() {
                 {banks.slice(0, 3).map(bank => (
                   <div key={bank.id} className="flex justify-between items-center text-xs">
                     <span className="text-slate-500 dark:text-slate-400">{bank.name}</span>
-                    <span className="font-bold text-black dark:text-white">{formatCurrency(bank.balance, settings.currency)}</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(bank.balance, settings.currency)}</span>
                   </div>
                 ))}
               </div>

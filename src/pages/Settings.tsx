@@ -35,8 +35,17 @@ export default function Settings() {
   const [linkEmailInput, setLinkEmailInput] = React.useState('');
   const [isAddCompanyModalOpen, setIsAddCompanyModalOpen] = React.useState(false);
   const [newCompanyName, setNewCompanyName] = React.useState('');
+  const [newCompanyCode, setNewCompanyCode] = React.useState('');
   const [showSqlSetup, setShowSqlSetup] = React.useState(false);
   const [isDeleteCompanyModalOpen, setIsDeleteCompanyModalOpen] = React.useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAddCompanyModalOpen) {
+      const words = ['blue', 'fast', 'smart', 'gold', 'cool', 'bold', 'safe', 'rich', 'pure', 'kind'];
+      const code = Array.from({ length: 4 }, () => words[Math.floor(Math.random() * words.length)]).join('-');
+      setNewCompanyCode(code);
+    }
+  }, [isAddCompanyModalOpen]);
 
   const currencies = [
     { code: 'PKR', name: 'Pakistan Rupee' },
@@ -283,18 +292,17 @@ NOTIFY pgrst, 'reload schema';
 `;
 
   const handleAddCompany = async () => {
-    if (!newCompanyName) return;
-    const words = ['blue', 'fast', 'smart', 'gold', 'cool', 'bold', 'safe', 'rich', 'pure', 'kind'];
-    const code = Array.from({ length: 4 }, () => words[Math.floor(Math.random() * words.length)]).join('-');
+    if (!newCompanyName || !newCompanyCode) return;
     
     await addCompany({
       name: newCompanyName,
       address: '',
       currency: settings.currency,
       user_id: settings.user_email || 'default',
-      recovery_code: code,
+      recovery_code: newCompanyCode.toLowerCase(),
     });
     setNewCompanyName('');
+    setNewCompanyCode('');
     setIsAddCompanyModalOpen(false);
   };
 
@@ -411,6 +419,17 @@ NOTIFY pgrst, 'reload schema';
                       placeholder="e.g. My Business"
                       className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Recovery Code (4 words)</label>
+                    <input 
+                      type="text" 
+                      value={newCompanyCode}
+                      onChange={(e) => setNewCompanyCode(e.target.value.toLowerCase())}
+                      placeholder="word-word-word-word"
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1 italic">Set any 4-word code to restore this company later.</p>
                   </div>
                   <div className="flex gap-3">
                     <button 
@@ -792,31 +811,42 @@ NOTIFY pgrst, 'reload schema';
           <Shield size={24} />
           Danger Zone
         </h3>
-        <div className="bg-rose-50 dark:bg-rose-900/10 rounded-3xl border border-rose-100 dark:border-rose-900/30 p-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-bold text-rose-900 dark:text-rose-100">Delete All Data</p>
-              <p className="text-sm text-rose-600 dark:text-rose-400">Permanently remove all companies, parties, and transactions.</p>
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold">Sign Out</p>
+                <p className="text-sm text-slate-500">Sign out and clear local data. Use recovery code to restore.</p>
+              </div>
+              <button 
+                onClick={signOut}
+                className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-2"
+              >
+                <LogOut size={18} />
+                Sign Out
+              </button>
             </div>
-            <button 
-              onClick={handleResetApp}
-              className="px-6 py-3 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 flex items-center gap-2"
-            >
-              <Trash2 size={18} />
-              Reset App
-            </button>
+          </div>
+
+          <div className="bg-rose-50 dark:bg-rose-900/10 rounded-3xl border border-rose-100 dark:border-rose-900/30 p-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold text-rose-900 dark:text-rose-100">Delete All Data</p>
+                <p className="text-sm text-rose-600 dark:text-rose-400">Permanently remove all companies, parties, and transactions.</p>
+              </div>
+              <button 
+                onClick={handleResetApp}
+                className="px-6 py-3 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 flex items-center gap-2"
+              >
+                <Trash2 size={18} />
+                Reset App
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
       <div className="text-center pt-8">
-        <button 
-          onClick={signOut}
-          className="text-slate-400 hover:text-rose-600 flex items-center gap-2 mx-auto transition-colors"
-        >
-          <LogOut size={18} />
-          Sign Out
-        </button>
         <p className="text-xs text-slate-400 mt-4">Bugzy Business Pro v1.0.0 • Made with ❤️ for Business</p>
       </div>
 
