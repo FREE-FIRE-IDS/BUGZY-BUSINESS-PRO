@@ -2,16 +2,17 @@
   "id": "bugzy-business-pro",
   "name": "Bugzy Business Pro",
   "short_name": "Bugzy",
-  "description": "Business management app",
+  "description": "Professional Business Management & Accounting for small to medium enterprises.",
   "lang": "en",
   "dir": "ltr",
-  "categories": ["business", "finance"],
+  "categories": ["business", "finance", "productivity"],
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "window-controls-overlay"],
   "orientation": "portrait",
   "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "theme_color": "#4f46e5",
   "prefer_related_applications": false,
   "icons": [
     {
@@ -38,13 +39,27 @@
       "src": "https://picsum.photos/seed/bugzy1/1280/720",
       "sizes": "1280x720",
       "type": "image/jpeg",
-      "form_factor": "wide"
+      "form_factor": "wide",
+      "label": "Desktop Dashboard"
     },
     {
       "src": "https://picsum.photos/seed/bugzy2/720/1280",
       "sizes": "720x1280",
       "type": "image/jpeg",
-      "form_factor": "narrow"
+      "form_factor": "narrow",
+      "label": "Mobile View"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Invoices",
+      "url": "/invoices",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Parties",
+      "url": "/parties",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
     }
   ]
 }
