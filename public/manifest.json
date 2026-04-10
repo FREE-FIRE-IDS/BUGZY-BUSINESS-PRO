@@ -1,5 +1,5 @@
 {
-  "id": "/",
+  "id": "bugzy-business-pro",
   "name": "Bugzy Business Pro",
   "short_name": "Bugzy",
   "description": "Business management app",
@@ -9,7 +9,6 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "window-controls-overlay"],
   "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#000000",
@@ -39,15 +38,13 @@
       "src": "https://picsum.photos/seed/bugzy1/1280/720",
       "sizes": "1280x720",
       "type": "image/jpeg",
-      "form_factor": "wide",
-      "label": "Desktop Dashboard"
+      "form_factor": "wide"
     },
     {
       "src": "https://picsum.photos/seed/bugzy2/720/1280",
       "sizes": "720x1280",
       "type": "image/jpeg",
-      "form_factor": "narrow",
-      "label": "Mobile View"
+      "form_factor": "narrow"
     }
   ]
 }
