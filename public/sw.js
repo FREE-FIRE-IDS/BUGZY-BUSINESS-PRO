@@ -1,53 +1,46 @@
-const CACHE_NAME = 'bugzy-pro-v3';
-const OFFLINE_URL = '/';
+const CACHE_NAME = 'bugzy-v1';
+const ASSETS_TO_CACHE = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon.svg'
+];
 
+// Install: Cache essential assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // Cache the root page and essential assets
-      return cache.addAll([
-        OFFLINE_URL,
-        '/manifest.json',
-        '/icon.svg'
-      ]);
+      return cache.addAll(ASSETS_TO_CACHE);
     })
   );
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate: Clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
+    caches.keys().then((keys) => {
       return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
       );
-    }).then(() => self.clients.claim())
+    })
   );
+  self.clients.claim();
 });
 
-// Fetch event - Network first, fallback to cache for the root page
+// Fetch: Network-first with Cache fallback
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
     fetch(event.request)
       .catch(() => {
-        // If network fails, try to serve from cache
         return caches.match(event.request).then((response) => {
           if (response) return response;
-          
-          // Fallback to root for navigation requests
+          // If it's a navigation request, return the cached root
           if (event.request.mode === 'navigate') {
-            return caches.match(OFFLINE_URL);
+            return caches.match('/');
           }
-          
-          return null;
         });
       })
   );
