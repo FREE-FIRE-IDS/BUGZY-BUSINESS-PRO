@@ -1,9 +1,11 @@
-const CACHE_NAME = 'bugzy-pwa-v2';
+const CACHE_NAME = 'bugzy-pwa-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon.svg'
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable.png'
 ];
 
 // Install event - cache static assets
