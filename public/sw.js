@@ -1,11 +1,15 @@
-const CACHE_NAME = 'bugzy-pro-v2';
+const CACHE_NAME = 'bugzy-pro-v3';
 const OFFLINE_URL = '/';
 
-// Install event - skip waiting to activate immediately
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll([OFFLINE_URL]);
+      // Cache the root page and essential assets
+      return cache.addAll([
+        OFFLINE_URL,
+        '/manifest.json',
+        '/icon.svg'
+      ]);
     })
   );
   self.skipWaiting();
