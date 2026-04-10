@@ -2,32 +2,68 @@
   "id": "/",
   "name": "Bugzy Business Pro",
   "short_name": "Bugzy Pro",
-  "description": "Professional Business Management & Accounting",
+  "description": "Professional Business Management & Accounting for small to medium enterprises.",
+  "lang": "en-US",
+  "dir": "ltr",
+  "categories": ["finance", "business", "productivity"],
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "window-controls-overlay"],
   "orientation": "portrait",
   "background_color": "#0f172a",
   "theme_color": "#4f46e5",
+  "prefer_related_applications": false,
+  "iarc_rating_id": "",
   "icons": [
     {
       "src": "/icon.svg",
-      "sizes": "192x192 512x512 any",
+      "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
       "src": "/icon.svg",
-      "sizes": "192x192 512x512 any",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
       "type": "image/svg+xml",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://picsum.photos/seed/bugzy-desktop/1280/720",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Bugzy Business Pro Dashboard on Desktop"
+    },
+    {
+      "src": "https://picsum.photos/seed/bugzy-mobile/720/1280",
+      "sizes": "720x1280",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Bugzy Business Pro Mobile View"
     }
   ],
   "shortcuts": [
     {
       "name": "New Invoice",
       "short_name": "Invoice",
+      "description": "Create a new sales invoice",
       "url": "/invoices",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Parties List",
+      "short_name": "Parties",
+      "description": "View and manage your business contacts",
+      "url": "/parties",
       "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
     }
   ]
