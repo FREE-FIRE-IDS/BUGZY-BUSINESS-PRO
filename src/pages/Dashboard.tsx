@@ -11,7 +11,12 @@ import {
   ChevronRight,
   Plus,
   ArrowLeftRight,
-  History
+  History,
+  ShoppingCart,
+  Receipt,
+  Package,
+  Sparkles,
+  Search
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -20,21 +25,15 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell
+  ResponsiveContainer
 } from 'recharts';
 import { useApp } from '../contexts/AppContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { formatCurrency, cn } from '../lib/utils';
 import { motion } from 'motion/react';
-
 import { getBusinessInsights } from '../services/geminiService';
 
 export default function Dashboard() {
-  const { transactions, parties, banks, settings, items } = useApp();
-  const { theme } = useTheme();
+  const { transactions, parties, banks, settings, items, invoices, currentCompany } = useApp();
   const [aiInsights, setAiInsights] = useState<string[]>([]);
   const [aiError, setAiError] = useState<string | null>(null);
 
@@ -48,10 +47,9 @@ export default function Dashboard() {
         } catch (error: any) {
           const msg = error.message || '';
           if (msg === 'RATE_LIMIT_EXCEEDED' || msg.toLowerCase().includes('quota')) {
-            setAiError('AI quota exceeded. Please select your own API key to continue using business insights.');
+            setAiError('AI quota exceeded. Please select your own API key.');
           } else {
             setAiError('AI insights are currently unavailable.');
-            console.error('Gemini Error:', error);
           }
         }
       }
@@ -59,36 +57,32 @@ export default function Dashboard() {
     fetchInsights();
   }, [transactions, parties, banks]);
 
-  const handleSelectKey = async () => {
-    const aiStudio = (window as any).aistudio;
-    if (aiStudio && typeof aiStudio.openSelectKey === 'function') {
-      await aiStudio.openSelectKey();
-      // After selecting a key, try fetching insights again
-      if (transactions.length > 0) {
-        try {
-          const insights = await getBusinessInsights(transactions, parties, banks);
-          setAiInsights(insights);
-          setAiError(null);
-        } catch (e) {
-          console.error('Retry after key selection failed:', e);
-        }
-      }
-    }
-  };
-
   const stats = useMemo(() => {
-    const totalSales = transactions.filter(t => t.type === 'Sale').reduce((sum, t) => sum + t.amount, 0);
-    const totalExpenses = transactions.filter(t => t.type === 'Expense' || t.type === 'Payment Out').reduce((sum, t) => sum + t.amount, 0);
-    const totalPurchases = transactions.filter(t => t.type === 'Purchase').reduce((sum, t) => sum + t.amount, 0);
-    const profit = totalSales - totalExpenses;
-    const cashInHand = banks.reduce((sum, b) => sum + b.balance, 0);
-    const toReceive = parties.filter(p => p.balance > 0).reduce((sum, p) => sum + p.balance, 0);
-    const toPay = parties.filter(p => p.balance < 0).reduce((sum, p) => sum + Math.abs(p.balance), 0);
-    const stockValue = items.reduce((sum, i) => sum + (i.stock * i.price), 0);
-    const lowStocks = items.filter(i => i.stock < 10);
+    const sales = transactions.filter(t => t.type === 'Sale' || t.type === 'Income').reduce((sum, t) => sum + t.amount, 0);
+    const expenses = transactions.filter(t => t.type === 'Expense' || t.type === 'Payment Out').reduce((sum, t) => sum + t.amount, 0);
+    const toReceive = parties.reduce((sum, p) => sum + (p.balance > 0 ? p.balance : 0), 0);
+    const toPay = parties.reduce((sum, p) => sum + (p.balance < 0 ? Math.abs(p.balance) : 0), 0);
+    const cashInHand = transactions.filter(t => !t.bank_id).reduce((sum, t) => {
+      if (t.type === 'Sale' || t.type === 'Income') return sum + t.amount;
+      if (t.type === 'Expense' || t.type === 'Payment Out') return sum - t.amount;
+      return sum;
+    }, 0);
+    const bankBalance = banks.reduce((sum, b) => sum + b.balance, 0);
 
-    return { totalSales, totalExpenses, totalPurchases, profit, cashInHand, toReceive, toPay, stockValue, lowStocks };
-  }, [transactions, parties, banks, items]);
+    return {
+      sales,
+      expenses,
+      profit: sales - expenses,
+      toReceive,
+      toPay,
+      cashInHand,
+      bankBalance,
+      totalParties: parties.length,
+      totalItems: items.length,
+      totalSales: invoices.filter(i => i.type === 'Sale').length,
+      totalPurchases: invoices.filter(i => i.type === 'Purchase').length
+    };
+  }, [transactions, parties, banks, items, invoices]);
 
   const chartData = useMemo(() => {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -99,279 +93,224 @@ export default function Dashboard() {
 
     return last7Days.map(date => {
       const dayTxs = transactions.filter(t => t.date.startsWith(date));
-      const sales = dayTxs.filter(t => t.type === 'Sale').reduce((sum, t) => sum + t.amount, 0);
-      const expenses = dayTxs.filter(t => t.type === 'Expense').reduce((sum, t) => sum + t.amount, 0);
       return {
         name: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
-        sales,
-        expenses
+        sales: dayTxs.filter(t => t.type === 'Sale' || t.type === 'Income').reduce((sum, t) => sum + t.amount, 0),
+        expenses: dayTxs.filter(t => t.type === 'Expense' || t.type === 'Payment Out').reduce((sum, t) => sum + t.amount, 0)
       };
     });
   }, [transactions]);
 
   const navigateTo = (tab: string) => {
-    const event = new CustomEvent('navigate', { detail: tab });
-    window.dispatchEvent(event);
+    window.dispatchEvent(new CustomEvent('navigate', { detail: tab }));
   };
 
   return (
-    <div className={cn(
-      "space-y-8 min-h-screen -m-8 p-8 transition-colors duration-300",
-      theme === 'dark' ? "bg-slate-950" : "bg-slate-50"
-    )}>
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* Main Content Area */}
-        <div className="xl:col-span-3 space-y-6">
-          {/* Top Row: Sale & Expenses */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
+    <div className="space-y-8 pb-24 md:pb-8">
+      {/* Summary Cards (To Receive / To Pay) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-emerald-500 p-8 rounded-[2.5rem] text-white shadow-xl shadow-emerald-500/20 relative overflow-hidden group"
+        >
+          <div className="relative z-10">
+            <p className="text-emerald-100 text-sm font-medium mb-1">You'll Receive</p>
+            <h3 className="text-4xl font-black mb-4">{formatCurrency(stats.toReceive, settings.currency)}</h3>
+            <button 
+              onClick={() => navigateTo('parties')}
+              className="flex items-center gap-2 text-sm font-bold bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition-all"
             >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="text-emerald-600" size={20} />
-                  <h3 className="font-bold text-slate-700 dark:text-slate-300">Sale</h3>
-                </div>
-              </div>
-              <div className="flex items-baseline gap-2 mb-4 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 shadow-inner">
-                <p className="text-3xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.totalSales, settings.currency)}</p>
-              </div>
-              <div className="h-32 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <Area type="monotone" dataKey="sales" stroke="#10b981" fillOpacity={1} fill="url(#colorSales)" strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="text-[10px] text-slate-400 mt-4 text-center uppercase tracking-wider">Report: From 01 Apr to 30 Apr</p>
-            </motion.div>
-
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <TrendingDown className="text-rose-600" size={20} />
-                  <h3 className="font-bold text-slate-700 dark:text-slate-300">Expenses</h3>
-                </div>
-              </div>
-              <div className="flex items-baseline gap-2 mb-4 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 shadow-inner">
-                <p className="text-3xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.totalExpenses, settings.currency)}</p>
-              </div>
-              <div className="h-32 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <Area type="monotone" dataKey="expenses" stroke="#f43f5e" fillOpacity={1} fill="url(#colorExpenses)" strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="text-[10px] text-slate-400 mt-4 text-center uppercase tracking-wider">Report: From 01 Apr to 30 Apr</p>
-            </motion.div>
+              View Parties <ChevronRight size={16} />
+            </button>
           </div>
+          <ArrowDownLeft className="absolute -right-4 -bottom-4 text-white/10 w-40 h-40 group-hover:scale-110 transition-transform duration-500" />
+        </motion.div>
 
-          {/* Middle Row: Cash Flow & Purchase */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-rose-500 p-8 rounded-[2.5rem] text-white shadow-xl shadow-rose-500/20 relative overflow-hidden group"
+        >
+          <div className="relative z-10">
+            <p className="text-rose-100 text-sm font-medium mb-1">You'll Pay</p>
+            <h3 className="text-4xl font-black mb-4">{formatCurrency(stats.toPay, settings.currency)}</h3>
+            <button 
+              onClick={() => navigateTo('parties')}
+              className="flex items-center gap-2 text-sm font-bold bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition-all"
             >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-emerald-600">
-                  <ArrowDownLeft size={20} />
-                </div>
-                <h3 className="font-bold text-slate-700 dark:text-slate-300">You'll Receive</h3>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 mb-4 shadow-inner">
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.toReceive, settings.currency)}</p>
-              </div>
-              <div className="space-y-2">
-                {parties.filter(p => p.balance > 0).slice(0, 3).map(p => (
-                  <div key={p.id} className="flex justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">{p.name}</span>
-                    <span className="font-bold text-emerald-600">{formatCurrency(p.balance, settings.currency)}</span>
-                  </div>
-                ))}
-                {stats.toReceive > 0 && <button onClick={() => navigateTo('parties')} className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase mt-2 hover:underline">+ View More</button>}
-              </div>
-            </motion.div>
+              View Bills <ChevronRight size={16} />
+            </button>
+          </div>
+          <ArrowUpRight className="absolute -right-4 -bottom-4 text-white/10 w-40 h-40 group-hover:scale-110 transition-transform duration-500" />
+        </motion.div>
+      </div>
 
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.3 }}
-              className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-rose-50 dark:bg-rose-900/20 rounded-xl text-rose-600">
-                  <ArrowUpRight size={20} />
-                </div>
-                <h3 className="font-bold text-slate-700 dark:text-slate-300">You'll Pay</h3>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 mb-4 shadow-inner">
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.toPay, settings.currency)}</p>
-              </div>
-              <div className="space-y-2">
-                {parties.filter(p => p.balance < 0).slice(0, 3).map(p => (
-                  <div key={p.id} className="flex justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">{p.name}</span>
-                    <span className="font-bold text-rose-600">{formatCurrency(Math.abs(p.balance), settings.currency)}</span>
-                  </div>
-                ))}
-                {stats.toPay > 0 && <button onClick={() => navigateTo('parties')} className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase mt-2 hover:underline">+ View More</button>}
-              </div>
-            </motion.div>
+      {/* Grid Cards (Sale, Purchase, Stock, Parties) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+        {[
+          { id: 'invoices', label: 'Sale', icon: ShoppingCart, color: 'bg-blue-500', count: stats.totalSales },
+          { id: 'invoices', label: 'Purchase', icon: Receipt, color: 'bg-orange-500', count: stats.totalPurchases },
+          { id: 'inventory', label: 'Stock', icon: Package, color: 'bg-indigo-500', count: stats.totalItems },
+          { id: 'parties', label: 'Parties', icon: Users, color: 'bg-purple-500', count: stats.totalParties },
+        ].map((item, idx) => (
+          <motion.button
+            key={item.label}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: idx * 0.05 }}
+            onClick={() => navigateTo(item.id)}
+            className="flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group active:scale-95"
+          >
+            <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white mb-3 group-hover:scale-110 transition-transform", item.color)}>
+              <item.icon size={24} />
+            </div>
+            <span className="text-sm font-bold text-slate-900 dark:text-slate-50">{item.label}</span>
+            <span className="text-xs text-slate-500 mt-1">{item.count} Entries</span>
+          </motion.button>
+        ))}
+      </div>
 
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.4 }}
-              className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-blue-600">
-                  <Plus size={20} />
-                </div>
-                <h3 className="font-bold text-slate-700 dark:text-slate-300">Purchase</h3>
+      {/* Main Content Area */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Sales Overview Chart */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">Sales Overview</h3>
+              <p className="text-sm text-slate-500">Last 7 days performance</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-indigo-500" />
+                <span className="text-xs font-medium text-slate-500">Sales</span>
               </div>
-              <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 mb-4 shadow-inner">
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.totalPurchases, settings.currency)}</p>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-rose-500" />
+                <span className="text-xs font-medium text-slate-500">Expenses</span>
               </div>
-              <div className="flex flex-col items-center justify-center h-20 text-slate-400">
-                <p className="text-[10px] text-center">You have no purchased items entered for selected time.</p>
-              </div>
-            </motion.div>
+            </div>
+          </div>
+          
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 12 }}
+                  dy={10}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 12 }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#fff', 
+                    borderRadius: '16px', 
+                    border: 'none', 
+                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' 
+                  }} 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="sales" 
+                  stroke="#6366f1" 
+                  strokeWidth={3}
+                  fillOpacity={1} 
+                  fill="url(#colorSales)" 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="expenses" 
+                  stroke="#f43f5e" 
+                  strokeWidth={3}
+                  fill="none"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Right Sidebar Area */}
+        {/* Cash & Bank Status */}
         <div className="space-y-6">
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
-          >
-            <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-4">Stock Inventory</h3>
-            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
-              <p className="text-xs text-slate-500 mb-1">Stock Value</p>
-              <p className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(stats.stockValue, settings.currency)}</p>
-            </div>
-          </motion.div>
-
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
-          >
-            <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-4">Low Stocks</h3>
-            <div className="space-y-3">
-              {stats.lowStocks.length > 0 ? stats.lowStocks.slice(0, 5).map(item => (
-                <div key={item.id} className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 dark:text-slate-400">{item.name}</span>
-                  <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full font-bold">{item.stock}</span>
-                </div>
-              )) : (
-                <p className="text-[10px] text-slate-400 text-center py-4">None of your stocks has low value</p>
-              )}
-            </div>
-          </motion.div>
-
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm"
-          >
-            <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-4">Cash & Bank</h3>
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+            <h3 className="text-lg font-bold mb-6 text-slate-900 dark:text-slate-50">Cash & Bank</h3>
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-slate-500 dark:text-slate-400">Cash In hand</span>
-                <span className="text-sm font-bold text-emerald-600">{formatCurrency(stats.cashInHand, settings.currency)}</span>
-              </div>
-              <div className="pt-4 border-t border-slate-50 dark:border-slate-800 space-y-3">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Bank Accounts</p>
-                {banks.slice(0, 3).map(bank => (
-                  <div key={bank.id} className="flex justify-between items-center text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">{bank.name}</span>
-                    <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(bank.balance, settings.currency)}</span>
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center">
+                    <Wallet size={20} />
                   </div>
-                ))}
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Cash In Hand</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{formatCurrency(stats.cashInHand, settings.currency)}</p>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-slate-400" />
+              </div>
+              
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center">
+                    <Building2 size={20} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Bank Balance</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{formatCurrency(stats.bankBalance, settings.currency)}</p>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-slate-400" />
               </div>
             </div>
-          </motion.div>
+            
+            <button 
+              onClick={() => navigateTo('banks')}
+              className="w-full mt-6 py-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 text-sm font-bold hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all"
+            >
+              Manage Accounts
+            </button>
+          </div>
 
           {/* AI Insights Section */}
-          <div className="bg-indigo-600 p-6 rounded-3xl shadow-xl shadow-indigo-500/20 text-white">
-            <h3 className="text-sm font-bold mb-4 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <History size={16} />
-                AI Insights
+          <div className="bg-slate-900 dark:bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden group">
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles size={20} className="text-indigo-400 dark:text-indigo-200" />
+                <h3 className="text-lg font-bold">AI Insights</h3>
               </div>
-              {aiError && (
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => {
-                      setAiError(null);
-                      // Trigger a re-fetch by toggling a dummy state or just calling the function
-                      // For simplicity, we'll just wait for the next effect trigger or manually call it
-                      const fetchInsights = async () => {
-                        if (transactions.length > 0) {
-                          try {
-                            const insights = await getBusinessInsights(transactions, parties, banks);
-                            setAiInsights(insights);
-                            setAiError(null);
-                          } catch (error: any) {
-                            setAiError(error.message === 'RATE_LIMIT_EXCEEDED' ? 'AI quota exceeded. Please select your own API key.' : 'Failed to fetch insights.');
-                          }
-                        }
-                      };
-                      fetchInsights();
-                    }}
-                    className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
-                  >
-                    Retry
-                  </button>
-                  <button 
-                    onClick={handleSelectKey}
-                    className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
-                  >
-                    Select API Key
-                  </button>
-                </div>
-              )}
-            </h3>
-            <div className="space-y-3">
-              {aiError ? (
-                <div className="bg-white/10 p-3 rounded-2xl text-[10px] leading-relaxed italic">
-                  {aiError}
-                </div>
-              ) : (
-                aiInsights.slice(0, 2).map((insight, i) => (
-                  <div key={i} className="bg-white/10 p-3 rounded-2xl text-[10px] leading-relaxed">
-                    {insight}
-                  </div>
-                ))
-              )}
+              <div className="space-y-3">
+                {aiError ? (
+                  <p className="text-slate-400 dark:text-indigo-100 text-xs italic">{aiError}</p>
+                ) : aiInsights.length > 0 ? (
+                  aiInsights.slice(0, 2).map((insight, i) => (
+                    <p key={i} className="text-slate-300 dark:text-indigo-50 text-xs leading-relaxed">
+                      • {insight}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-slate-400 dark:text-indigo-100 text-xs italic">Analyzing your business data...</p>
+                )}
+              </div>
+              <button 
+                onClick={() => navigateTo('settings')}
+                className="w-full mt-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all"
+              >
+                Configure AI
+              </button>
             </div>
+            <Sparkles className="absolute -right-4 -bottom-4 text-white/5 w-32 h-32 group-hover:rotate-12 transition-transform duration-700" />
           </div>
         </div>
       </div>

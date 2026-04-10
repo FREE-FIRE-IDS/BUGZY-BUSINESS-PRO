@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -28,7 +29,7 @@ export default function Settings() {
   const { 
     settings, updateSettings, companies, currentCompany, setCurrentCompany, 
     refreshData, addCompany, deleteCompany, pullCompanies, syncStatus,
-    linkDevice, signOut
+    linkDevice, signOut, updateCompany
   } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [emailInput, setEmailInput] = React.useState(settings.user_email || '');
@@ -61,6 +62,71 @@ export default function Settings() {
 
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [companyName, setCompanyName] = useState(currentCompany?.name || '');
+  const [companyLogo, setCompanyLogo] = useState(currentCompany?.logo_url || '');
+  const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    if (currentCompany) {
+      setCompanyName(currentCompany.name);
+      setCompanyLogo(currentCompany.logo_url || '');
+    }
+  }, [currentCompany?.id]);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentCompany) return;
+
+    try {
+      setIsUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${currentCompany.id}-${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`; // Removed 'logos/' prefix to simplify path inside bucket
+
+      // Try to upload. If it fails with "Bucket not found", we'll catch it.
+      const { error: uploadError } = await supabase.storage
+        .from('business_assets')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) {
+        if (uploadError.message.includes('Bucket not found')) {
+          throw new Error('Storage bucket "business_assets" not found. Please create a public bucket named "business_assets" in your Supabase Storage dashboard.');
+        }
+        if (uploadError.message.includes('row-level security policy')) {
+          throw new Error('Upload blocked by RLS policy. Please go to Settings > Cloud Sync > Database Setup and run the updated SQL script in your Supabase SQL Editor to enable storage permissions.');
+        }
+        throw uploadError;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('business_assets')
+        .getPublicUrl(filePath);
+
+      setCompanyLogo(publicUrl);
+      setToast({ message: 'Logo uploaded! Click Save to apply.', type: 'success' });
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      setToast({ message: error.message || 'Upload failed', type: 'error' });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUpdateBranding = async () => {
+    if (!currentCompany) return;
+    try {
+      await updateCompany(currentCompany.id, {
+        name: companyName,
+        logo_url: companyLogo
+      });
+      setToast({ message: 'Branding updated successfully!', type: 'success' });
+    } catch (error: any) {
+      setToast({ message: 'Failed to update branding: ' + error.message, type: 'error' });
+    }
+  };
 
   useEffect(() => {
     if (toast) {
@@ -95,6 +161,7 @@ CREATE TABLE IF NOT EXISTS parties (
   email TEXT,
   address TEXT,
   type TEXT,
+  opening_balance NUMERIC DEFAULT 0,
   balance NUMERIC DEFAULT 0,
   user_email TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -102,18 +169,25 @@ CREATE TABLE IF NOT EXISTS parties (
   deleted_at TIMESTAMPTZ
 );
 
+-- Ensure opening_balance column exists for existing tables
+ALTER TABLE parties ADD COLUMN IF NOT EXISTS opening_balance NUMERIC DEFAULT 0;
+
 -- 3. Create Banks Table
 CREATE TABLE IF NOT EXISTS banks (
   id UUID PRIMARY KEY,
   company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   account_number TEXT,
+  opening_balance NUMERIC DEFAULT 0,
   balance NUMERIC DEFAULT 0,
   user_email TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   deleted_at TIMESTAMPTZ
 );
+
+-- Ensure opening_balance column exists for existing tables
+ALTER TABLE banks ADD COLUMN IF NOT EXISTS opening_balance NUMERIC DEFAULT 0;
 
 -- 4. Create Inventory Table
 CREATE TABLE IF NOT EXISTS inventory (
@@ -134,7 +208,7 @@ CREATE TABLE IF NOT EXISTS inventory (
 CREATE TABLE IF NOT EXISTS transactions (
   id UUID PRIMARY KEY,
   company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
-  date TIMESTAMPTZ NOT NULL,
+  date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   type TEXT NOT NULL,
   amount NUMERIC NOT NULL,
   description TEXT,
@@ -197,33 +271,32 @@ ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 
--- 9. Create Public Access Policies
+-- 9. Create Comprehensive Access Policies
+-- This allows authenticated users full access as requested
 DO $$ 
+DECLARE
+    t text;
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'companies') THEN
-        CREATE POLICY "Public Access" ON companies FOR ALL USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'parties') THEN
-        CREATE POLICY "Public Access" ON parties FOR ALL USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'banks') THEN
-        CREATE POLICY "Public Access" ON banks FOR ALL USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'inventory') THEN
-        CREATE POLICY "Public Access" ON inventory FOR ALL USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'transactions') THEN
-        CREATE POLICY "Public Access" ON transactions FOR ALL USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'expenses') THEN
-        CREATE POLICY "Public Access" ON expenses FOR ALL USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'invoices') THEN
-        CREATE POLICY "Public Access" ON invoices FOR ALL USING (true);
-    END IF;
+    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'expenses', 'invoices')
+    LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "Full Access" ON %I', t);
+        -- Allowing both authenticated and anon to ensure sync works even if session is pending, 
+        -- but focusing on authenticated as requested.
+        EXECUTE format('CREATE POLICY "Full Access" ON %I FOR ALL TO authenticated, anon USING (true) WITH CHECK (true)', t);
+    END LOOP;
 END $$;
 
--- 10. Setup updated_at trigger function
+-- 10. Setup Storage for Logos
+-- Create the bucket if it doesn't exist
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('business_assets', 'business_assets', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage Policies
+DROP POLICY IF EXISTS "Full Access" ON storage.objects;
+CREATE POLICY "Full Access" ON storage.objects FOR ALL TO authenticated, anon USING (bucket_id = 'business_assets') WITH CHECK (bucket_id = 'business_assets');
+
+-- 11. Setup updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -232,35 +305,49 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- 11. Create triggers for all tables
-DROP TRIGGER IF EXISTS update_companies_updated_at ON companies;
-CREATE TRIGGER update_companies_updated_at BEFORE UPDATE ON companies FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+-- 12. Create triggers for all tables
+DO $$ 
+DECLARE
+    t text;
+BEGIN
+    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'expenses', 'invoices')
+    LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS update_%I_updated_at ON %I', t, t);
+        EXECUTE format('CREATE TRIGGER update_%I_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column()', t, t);
+    END LOOP;
+END $$;
 
-DROP TRIGGER IF EXISTS update_parties_updated_at ON parties;
-CREATE TRIGGER update_parties_updated_at BEFORE UPDATE ON parties FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+-- 13. Enable Realtime
+-- Ensure the publication exists
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+END $$;
 
-DROP TRIGGER IF EXISTS update_banks_updated_at ON banks;
-CREATE TRIGGER update_banks_updated_at BEFORE UPDATE ON banks FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+-- Add tables to publication using correct syntax (no IF EXISTS)
+-- We use a DO block to safely add tables only if they are not already in the publication
+DO $$
+DECLARE
+    tbl text;
+    tables_to_add text[] := ARRAY['companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'expenses'];
+BEGIN
+    FOREACH tbl IN ARRAY tables_to_add
+    LOOP
+        -- Check if table is already in publication
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_publication_tables 
+            WHERE pubname = 'supabase_realtime' 
+            AND schemaname = 'public' 
+            AND tablename = tbl
+        ) THEN
+            EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %I', tbl);
+        END IF;
+    END LOOP;
+END $$;
 
-DROP TRIGGER IF EXISTS update_inventory_updated_at ON inventory;
-CREATE TRIGGER update_inventory_updated_at BEFORE UPDATE ON inventory FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-
-DROP TRIGGER IF EXISTS update_transactions_updated_at ON transactions;
-CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON transactions FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-
-DROP TRIGGER IF EXISTS update_invoices_updated_at ON invoices;
-CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON invoices FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-
-DROP TRIGGER IF EXISTS update_expenses_updated_at ON expenses;
-CREATE TRIGGER update_expenses_updated_at BEFORE UPDATE ON expenses FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-
--- 12. Enable Realtime
-BEGIN;
-  DROP PUBLICATION IF EXISTS supabase_realtime;
-  CREATE PUBLICATION supabase_realtime FOR TABLE companies, parties, banks, inventory, transactions, invoices, expenses;
-COMMIT;
-
--- 13. Set Replica Identity to FULL for better Realtime support
+-- 14. Set Replica Identity to FULL for better Realtime support
 ALTER TABLE companies REPLICA IDENTITY FULL;
 ALTER TABLE parties REPLICA IDENTITY FULL;
 ALTER TABLE banks REPLICA IDENTITY FULL;
@@ -269,19 +356,7 @@ ALTER TABLE transactions REPLICA IDENTITY FULL;
 ALTER TABLE invoices REPLICA IDENTITY FULL;
 ALTER TABLE expenses REPLICA IDENTITY FULL;
 
--- 14. Ensure columns and defaults exist (for existing tables)
-DO $$ 
-BEGIN
-    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'Sale';
-    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_type TEXT NOT NULL DEFAULT 'Cash';
-    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS bank_id UUID REFERENCES banks(id) ON DELETE SET NULL;
-    
-    -- Set defaults for existing tables
-    ALTER TABLE invoices ALTER COLUMN date SET DEFAULT NOW();
-    ALTER TABLE expenses ALTER COLUMN date SET DEFAULT NOW();
-    ALTER TABLE transactions ALTER COLUMN date SET DEFAULT NOW();
-END $$;
-
+-- 15. Final Schema Reload
 NOTIFY pgrst, 'reload schema';
 `;
 
@@ -358,7 +433,7 @@ NOTIFY pgrst, 'reload schema';
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center"
+                className="relative w-full max-w-sm bg-white dark:bg-white rounded-3xl shadow-2xl p-8 text-center"
               >
                 <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
                   <Trash2 size={32} />
@@ -395,7 +470,7 @@ NOTIFY pgrst, 'reload schema';
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden"
+                className="relative w-full max-w-md bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden"
               >
                 <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                   <h2 className="text-xl font-bold">Add New Company</h2>
@@ -411,7 +486,7 @@ NOTIFY pgrst, 'reload schema';
                       value={newCompanyName}
                       onChange={(e) => setNewCompanyName(e.target.value)}
                       placeholder="e.g. My Business"
-                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
                   <div>
@@ -421,7 +496,7 @@ NOTIFY pgrst, 'reload schema';
                       value={newCompanyCode}
                       onChange={(e) => setNewCompanyCode(e.target.value.toLowerCase())}
                       placeholder="word-word-word-word"
-                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                     />
                     <p className="text-[10px] text-slate-400 mt-1 italic">Set any 4-word code to restore this company later.</p>
                   </div>
@@ -446,7 +521,7 @@ NOTIFY pgrst, 'reload schema';
           {isResetConfirmOpen && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsResetConfirmOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center">
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-white rounded-3xl shadow-2xl p-8 text-center">
                 <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
                   <Trash2 size={32} />
                 </div>
@@ -469,7 +544,7 @@ NOTIFY pgrst, 'reload schema';
                 "p-6 rounded-3xl border transition-all cursor-pointer group",
                 currentCompany?.id === company.id 
                   ? "bg-indigo-600 text-white border-indigo-600 shadow-xl shadow-indigo-500/20" 
-                  : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-indigo-200"
+                  : "bg-white dark:bg-white border-slate-100 dark:border-slate-200 hover:border-indigo-200"
               )}
             >
               <div className="flex justify-between items-start mb-4">
@@ -516,14 +591,14 @@ NOTIFY pgrst, 'reload schema';
             <Shield size={24} className="text-indigo-600" />
             Security & Recovery
           </h3>
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
+          <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 p-8 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div>
                 <p className="font-bold mb-1">Recovery Code</p>
                 <p className="text-xs text-slate-500">Use this code to restore your company data on any device.</p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="px-6 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                <div className="px-6 py-3 bg-slate-50 dark:bg-slate-50 rounded-2xl border border-slate-100 dark:border-slate-200 font-mono font-bold text-indigo-600 dark:text-indigo-600">
                   {currentCompany.recovery_code || 'No code set'}
                 </div>
                 <button 
@@ -543,13 +618,84 @@ NOTIFY pgrst, 'reload schema';
         </section>
       )}
 
+      {/* Branding Section */}
+      <section>
+        <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
+          <Building2 size={24} className="text-indigo-600" />
+          Company Branding
+        </h3>
+        <div className="bg-white dark:bg-white p-8 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Company Name</label>
+                <input 
+                  type="text" 
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
+                  placeholder="e.g. Acme Corp"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Company Logo</label>
+                <div className="flex items-center gap-4">
+                  <label className={cn(
+                    "flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-indigo-500 transition-all cursor-pointer",
+                    isUploading && "opacity-50 cursor-not-allowed"
+                  )}>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      disabled={isUploading}
+                      className="hidden"
+                    />
+                    <Building2 size={20} className="text-slate-400" />
+                    <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                      {isUploading ? 'Uploading...' : 'Choose Logo File'}
+                    </span>
+                  </label>
+                  {companyLogo && (
+                    <button 
+                      onClick={() => setCompanyLogo('')}
+                      className="p-3 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-colors"
+                      title="Remove Logo"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Recommended: Square PNG or SVG (max 2MB)</p>
+              </div>
+              <button 
+                onClick={handleUpdateBranding}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+              >
+                Save Branding
+              </button>
+            </div>
+            <div className="flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-200">
+              {companyLogo ? (
+                <img src={companyLogo} alt="Logo Preview" className="max-h-32 object-contain mb-4" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-20 h-20 bg-slate-200 dark:bg-slate-200 rounded-2xl flex items-center justify-center text-slate-400 mb-4">
+                  <Building2 size={40} />
+                </div>
+              )}
+              <p className="text-[10px] text-slate-500 text-center uppercase tracking-wider">Logo Preview</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Preferences Section */}
       <section>
         <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
           <SettingsIcon size={24} className="text-indigo-600" />
           General Preferences
         </h3>
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm overflow-hidden">
           <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {/* Theme */}
             <div className="p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -564,7 +710,7 @@ NOTIFY pgrst, 'reload schema';
               </div>
               <button 
                 onClick={toggleTheme}
-                className="w-14 h-8 bg-slate-100 dark:bg-slate-800 rounded-full p-1 relative transition-all"
+                className="w-14 h-8 bg-slate-100 dark:bg-slate-100 rounded-full p-1 relative transition-all"
               >
                 <div className={cn(
                   "w-6 h-6 bg-white dark:bg-indigo-600 rounded-full shadow-sm transition-all",
@@ -632,7 +778,7 @@ NOTIFY pgrst, 'reload schema';
                   onClick={() => updateSettings({ sync_enabled: !settings.sync_enabled })}
                   className={cn(
                     "w-14 h-8 rounded-full p-1 relative transition-all",
-                    settings.sync_enabled ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-800"
+                    settings.sync_enabled ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-200"
                   )}
                 >
                   <div className={cn(
@@ -678,7 +824,7 @@ NOTIFY pgrst, 'reload schema';
                           <button 
                             onClick={() => refreshData()}
                             disabled={syncStatus.loading}
-                            className="px-4 py-2 bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold border border-emerald-100 dark:border-emerald-800 hover:bg-emerald-50 transition-all disabled:opacity-50"
+                            className="px-4 py-2 bg-white dark:bg-white text-emerald-600 dark:text-emerald-600 rounded-xl text-xs font-bold border border-emerald-100 dark:border-emerald-200 hover:bg-emerald-50 transition-all disabled:opacity-50"
                           >
                             {syncStatus.loading ? 'Syncing...' : 'Sync Now'}
                           </button>
@@ -715,7 +861,7 @@ NOTIFY pgrst, 'reload schema';
                         {currentCompany?.linked_emails && currentCompany.linked_emails.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2">
                             {currentCompany.linked_emails.map(email => (
-                              <span key={email} className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                              <span key={email} className="px-3 py-1 bg-slate-100 dark:bg-slate-100 rounded-full text-[10px] font-bold text-slate-600 dark:text-slate-600 border border-slate-200 dark:border-slate-200">
                                 {email}
                               </span>
                             ))}
@@ -731,13 +877,13 @@ NOTIFY pgrst, 'reload schema';
                         <button 
                           onClick={() => pullCompanies(settings.user_email || '')}
                           disabled={syncStatus.loading}
-                          className="px-4 py-2 bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold border border-indigo-100 dark:border-indigo-800 hover:bg-indigo-50 transition-all disabled:opacity-50"
+                          className="px-4 py-2 bg-white dark:bg-white text-indigo-600 dark:text-indigo-600 rounded-xl text-xs font-bold border border-indigo-100 dark:border-indigo-200 hover:bg-indigo-50 transition-all disabled:opacity-50"
                         >
                           Pull Companies
                         </button>
                       </div>
 
-                      <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                      <div className="p-4 bg-slate-50 dark:bg-slate-50 rounded-2xl border border-slate-100 dark:border-slate-200">
                         <button 
                           onClick={() => setShowSqlSetup(!showSqlSetup)}
                           className="flex items-center justify-between w-full text-left"
@@ -806,7 +952,7 @@ NOTIFY pgrst, 'reload schema';
           Danger Zone
         </h3>
         <div className="space-y-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
+          <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 p-8 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-bold">Sign Out</p>
@@ -814,7 +960,7 @@ NOTIFY pgrst, 'reload schema';
               </div>
               <button 
                 onClick={signOut}
-                className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-2"
+                className="px-6 py-3 bg-slate-100 dark:bg-slate-100 text-slate-600 dark:text-slate-900 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-200 transition-all flex items-center gap-2"
               >
                 <LogOut size={18} />
                 Sign Out

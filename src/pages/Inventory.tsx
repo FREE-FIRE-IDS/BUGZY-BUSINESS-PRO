@@ -85,36 +85,36 @@ export default function Inventory() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600">
+            <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-50 text-indigo-600">
               <Package size={24} />
             </div>
             <div>
-              <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Items</h3>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{items.length}</p>
+              <h3 className="text-slate-500 dark:text-slate-500 text-sm font-medium">Total Items</h3>
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-900">{items.length}</p>
             </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-900/20 text-rose-600">
+            <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-50 text-rose-600">
               <AlertTriangle size={24} />
             </div>
             <div>
-              <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Low Stock</h3>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{lowStockItems.length}</p>
+              <h3 className="text-slate-500 dark:text-slate-500 text-sm font-medium">Low Stock</h3>
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-900">{lowStockItems.length}</p>
             </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600">
+            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-50 text-emerald-600">
               <TrendingUp size={24} />
             </div>
             <div>
-              <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Value</h3>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">
+              <h3 className="text-slate-500 dark:text-slate-500 text-sm font-medium">Total Value</h3>
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-900">
                 {formatCurrency(items.reduce((sum, item) => sum + (item.price * item.stock), 0), settings.currency)}
               </p>
             </div>
@@ -130,13 +130,13 @@ export default function Inventory() {
             placeholder="Search items by name or SKU..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-white"
+            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-900"
           />
         </div>
         <div className="flex gap-3">
           <button 
             onClick={exportPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-900 dark:text-white font-medium"
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-100 transition-all text-slate-900 dark:text-slate-900 font-medium"
           >
             <Download size={18} />
             PDF
@@ -151,10 +151,10 @@ export default function Inventory() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-slate-50 dark:bg-slate-200 text-slate-500 dark:text-slate-600 text-xs uppercase tracking-wider">
+            <thead className="bg-slate-50 dark:bg-slate-50 text-slate-500 dark:text-slate-500 text-xs uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-4 font-semibold">Item Details</th>
                 <th className="px-6 py-4 font-semibold">SKU</th>
@@ -166,18 +166,18 @@ export default function Inventory() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-200">
               {filteredItems.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-200/50 transition-colors">
+                <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-slate-100 dark:bg-slate-200 rounded-xl flex items-center justify-center text-slate-500">
+                      <div className="w-10 h-10 bg-slate-100 dark:bg-slate-100 rounded-xl flex items-center justify-center text-slate-500">
                         <Package size={20} />
                       </div>
-                      <span className="text-sm font-bold text-slate-900 dark:text-white">{item.name}</span>
+                      <span className="text-sm font-bold text-slate-900 dark:text-slate-900">{item.name}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-500">{item.sku || '-'}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-white">{formatCurrency(item.price, settings.currency)}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-white">
+                  <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-900">{formatCurrency(item.price, settings.currency)}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-900">
                     <div className="flex items-center justify-end gap-3">
                       <button 
                         onClick={() => setAdjustingStock({ item, type: 'reduce' })}
@@ -237,8 +237,8 @@ export default function Inventory() {
         {isDeleteConfirmOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDeleteConfirmOpen(null)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center">
-              <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-white rounded-3xl shadow-2xl p-8 text-center">
+              <div className="w-16 h-16 bg-rose-50 dark:bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
                 <Trash2 size={32} />
               </div>
               <h3 className="text-xl font-bold mb-2">Delete Item?</h3>
@@ -251,12 +251,12 @@ export default function Inventory() {
                   onChange={(e) => setIsHardDelete(e.target.checked)}
                   className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
                 />
-                <label htmlFor="hardDelete" className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                <label htmlFor="hardDelete" className="text-sm font-medium text-slate-700 dark:text-slate-700 cursor-pointer">
                   Hard Delete (Permanent)
                 </label>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => { setIsDeleteConfirmOpen(null); setIsHardDelete(false); }} className="flex-1 px-4 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                <button onClick={() => { setIsDeleteConfirmOpen(null); setIsHardDelete(false); }} className="flex-1 px-4 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-50 transition-all">Cancel</button>
                 <button onClick={() => { deleteItem(isDeleteConfirmOpen!, isHardDelete); setIsDeleteConfirmOpen(null); setIsHardDelete(false); }} className="flex-1 px-4 py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">Delete</button>
               </div>
             </motion.div>
@@ -269,10 +269,10 @@ export default function Inventory() {
         {(isAddModalOpen || editingItem) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setIsAddModalOpen(false); setEditingItem(null); }} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-100">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-100 flex items-center justify-between">
                 <h2 className="text-xl font-bold">{editingItem ? 'Edit Item' : 'Add New Item'}</h2>
-                <button onClick={() => { setIsAddModalOpen(false); setEditingItem(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
+                <button onClick={() => { setIsAddModalOpen(false); setEditingItem(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-100 rounded-xl transition-colors"><X size={20} /></button>
               </div>
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
@@ -297,27 +297,27 @@ export default function Inventory() {
                 <div className="grid grid-cols-2 gap-6">
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-500 mb-1">Item Name *</label>
-                    <input name="name" defaultValue={editingItem?.name} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Wireless Mouse" />
+                    <input name="name" defaultValue={editingItem?.name} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Wireless Mouse" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">SKU / Barcode</label>
-                    <input name="sku" defaultValue={editingItem?.sku} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. WM-001" />
+                    <input name="sku" defaultValue={editingItem?.sku} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. WM-001" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Price</label>
-                    <input name="price" type="number" defaultValue={editingItem?.price} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
+                    <input name="price" type="number" defaultValue={editingItem?.price} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Stock</label>
-                    <input name="stock" type="number" defaultValue={editingItem?.stock} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0" />
+                    <input name="stock" type="number" defaultValue={editingItem?.stock} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Low Stock Alert</label>
-                    <input name="low_stock_alert" type="number" defaultValue={editingItem?.low_stock_alert} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="5" />
+                    <input name="low_stock_alert" type="number" defaultValue={editingItem?.low_stock_alert} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="5" />
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => { setIsAddModalOpen(false); setEditingItem(null); }} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                  <button type="button" onClick={() => { setIsAddModalOpen(false); setEditingItem(null); }} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-50 transition-all">Cancel</button>
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">
                     {editingItem ? 'Update Item' : 'Save Item'}
                   </button>
@@ -331,12 +331,12 @@ export default function Inventory() {
         {adjustingStock && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setAdjustingStock(null)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-sm bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-100">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-100 flex items-center justify-between">
                 <h2 className="text-xl font-bold">
                   {adjustingStock.type === 'add' ? 'Add Stock' : 'Reduce Stock'}
                 </h2>
-                <button onClick={() => setAdjustingStock(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
+                <button onClick={() => setAdjustingStock(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-100 rounded-xl transition-colors"><X size={20} /></button>
               </div>
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
@@ -353,14 +353,14 @@ export default function Inventory() {
                 setAdjustingStock(null);
               }}>
                 <div className="space-y-4">
-                  <p className="text-sm text-slate-500">Adjusting stock for <span className="font-bold text-slate-900 dark:text-white">{adjustingStock.item.name}</span></p>
+                  <p className="text-sm text-slate-500">Adjusting stock for <span className="font-bold text-slate-900 dark:text-slate-900">{adjustingStock.item.name}</span></p>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Quantity</label>
-                    <input name="amount" type="number" required min="1" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter quantity" autoFocus />
+                    <input name="amount" type="number" required min="1" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter quantity" autoFocus />
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => setAdjustingStock(null)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                  <button type="button" onClick={() => setAdjustingStock(null)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-50 transition-all">Cancel</button>
                   <button type="submit" className={cn(
                     "flex-1 px-6 py-3 rounded-xl font-bold text-white transition-all shadow-lg",
                     adjustingStock.type === 'add' ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20" : "bg-rose-600 hover:bg-rose-700 shadow-rose-500/20"

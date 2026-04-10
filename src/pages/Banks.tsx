@@ -18,8 +18,12 @@ import { BankAccount as Bank, Transaction, TransactionType } from '../types';
 import { generateBankStatement } from '../lib/pdfGenerator';
 
 export default function Banks() {
-  const { banks, transactions, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, parties, currentCompany } = useApp();
+  const { banks, transactions, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, parties, currentCompany, setSelectedBankId } = useApp();
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
+
+  React.useEffect(() => {
+    setSelectedBankId(selectedBank?.id || null);
+  }, [selectedBank, setSelectedBankId]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingBank, setEditingBank] = useState<Bank | null>(null);
@@ -68,31 +72,40 @@ export default function Banks() {
           animate={{ opacity: 1, x: 0 }}
           className="space-y-6"
         >
-          <div className="flex items-center justify-between">
-            <button 
-              onClick={() => setSelectedBank(null)}
-              className="text-indigo-600 font-medium flex items-center gap-2 hover:underline"
-            >
-              ← Back to Banks
-            </button>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-white p-6 rounded-[2rem] border border-slate-100 dark:border-slate-200 shadow-sm">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setSelectedBank(null)}
+                className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl text-slate-500 transition-all"
+              >
+                <X size={20} />
+              </button>
+              <div>
+                <h2 className="text-2xl font-black text-slate-900">{selectedBank.name}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase rounded-md">Bank Account</span>
+                  <span className="text-xs text-slate-400">{selectedBank.account_number || 'No account number'}</span>
+                </div>
+              </div>
+            </div>
             <div className="flex gap-3">
               <button 
                 onClick={() => setIsDepositModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold"
               >
                 <ArrowDownLeft size={18} />
                 Deposit
               </button>
               <button 
                 onClick={() => setIsWithdrawModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
+                className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 font-bold"
               >
                 <ArrowUpRight size={18} />
                 Withdraw
               </button>
               <button 
                 onClick={() => setIsTransferModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+                className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold"
               >
                 <ArrowLeftRight size={18} />
                 Transfer
@@ -105,10 +118,10 @@ export default function Banks() {
             {isDepositModalOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDepositModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden">
-                  <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
+                  <div className="p-8 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
                     <h2 className="text-xl font-bold">Deposit to {selectedBank.name}</h2>
-                    <button onClick={() => setIsDepositModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
+                    <button onClick={() => setIsDepositModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-200 rounded-xl transition-colors"><X size={20} /></button>
                   </div>
                   <form className="p-8 space-y-6" onSubmit={(e) => {
                     e.preventDefault();
@@ -130,7 +143,7 @@ export default function Banks() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
-                        <input name="description" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Cash deposit" />
+                        <input name="description" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Cash deposit" />
                       </div>
                     </div>
                     <div className="flex gap-3 pt-4">
@@ -145,10 +158,10 @@ export default function Banks() {
             {isWithdrawModalOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsWithdrawModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden">
-                  <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
+                  <div className="p-8 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
                     <h2 className="text-xl font-bold">Withdraw from {selectedBank.name}</h2>
-                    <button onClick={() => setIsWithdrawModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
+                    <button onClick={() => setIsWithdrawModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-200 rounded-xl transition-colors"><X size={20} /></button>
                   </div>
                   <form className="p-8 space-y-6" onSubmit={(e) => {
                     e.preventDefault();
@@ -184,29 +197,29 @@ export default function Banks() {
           </AnimatePresence>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-slate-500 text-sm mb-1">Current Balance</h3>
+            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Current Balance</h3>
               <p className="text-2xl font-bold text-indigo-600">
                 {formatCurrency(selectedBank.balance, settings.currency)}
               </p>
               <p className="text-xs text-slate-400 mt-2">Available for withdrawal</p>
             </div>
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-slate-500 text-sm mb-1">Account Number</h3>
-              <p className="text-xl font-bold text-black">{selectedBank.account_number || 'N/A'}</p>
+            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Account Number</h3>
+              <p className="text-xl font-bold text-slate-900 dark:text-slate-900">{selectedBank.account_number || 'N/A'}</p>
             </div>
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-slate-500 text-sm mb-1">Transactions</h3>
-              <p className="text-xl font-bold text-black">{bankLedger.length}</p>
+            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Transactions</h3>
+              <p className="text-xl font-bold text-slate-900 dark:text-slate-900">{bankLedger.length}</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-bold text-black">Bank Ledger</h3>
+          <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 dark:text-slate-900">Bank Ledger</h3>
               <button 
                 onClick={handleExportPDF}
-                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
               >
                 <Download size={18} />
                 PDF
@@ -214,7 +227,7 @@ export default function Banks() {
             </div>
             <div className="overflow-x-auto hidden md:block">
               <table className="w-full text-left">
-                <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase tracking-wider">
+                <thead className="bg-slate-50 dark:bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                   <tr>
                     <th className="px-6 py-4 font-semibold">Date</th>
                     <th className="px-6 py-4 font-semibold">Type</th>
@@ -227,7 +240,7 @@ export default function Banks() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {bankLedger.map((tx) => (
                     <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-100">{formatDate(tx.date)}</td>
+                      <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-900">{formatDate(tx.date)}</td>
                       <td className="px-6 py-4">
                         <span className={cn(
                           "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
@@ -236,7 +249,7 @@ export default function Banks() {
                           {tx.type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{tx.description || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-500">{tx.description || '-'}</td>
                       <td className="px-6 py-4 text-sm font-bold text-right text-rose-600 dark:text-rose-400">
                         {tx.bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
@@ -272,7 +285,7 @@ export default function Banks() {
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-xs text-slate-400">{formatDate(tx.date)}</p>
-                      <p className="font-bold text-slate-900 dark:text-slate-100">{tx.description || tx.type}</p>
+                      <p className="font-bold text-slate-900 dark:text-slate-900">{tx.description || tx.type}</p>
                     </div>
                     <span className={cn(
                       "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
@@ -344,7 +357,7 @@ export default function Banks() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => setSelectedBank(bank)}
-                className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group"
+                className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600">
@@ -355,8 +368,8 @@ export default function Banks() {
                     <span className="text-lg font-bold text-indigo-600">{formatCurrency(bank.balance, settings.currency)}</span>
                   </div>
                 </div>
-                <h3 className="text-lg font-bold group-hover:text-indigo-600 transition-colors">{bank.name}</h3>
-                <p className="text-sm text-slate-500 mt-1">{bank.account_number || 'No account number'}</p>
+                <h3 className="text-lg font-bold group-hover:text-indigo-600 transition-colors text-slate-900 dark:text-slate-900">{bank.name}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-500 mt-1">{bank.account_number || 'No account number'}</p>
                 
                 <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center">
                   <div className="flex gap-2">
@@ -367,33 +380,32 @@ export default function Banks() {
                       <ArrowUpRight size={16} />
                     </div>
                   </div>
-                                      <div className="flex gap-2">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditBank(bank);
-                        }}
-                        className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                      >
-                        <Plus size={16} className="rotate-45" />
-                      </button>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteBank(bank.id);
-                        }}
-                        className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    <button className="text-xs font-bold text-indigo-600 hover:underline">View Ledger</button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditBank(bank);
+                      }}
+                      className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                    >
+                      <Plus size={16} className="rotate-45" />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteBank(bank.id);
+                      }}
+                      className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             ))}
             {banks.length === 0 && (
               <div className="col-span-full py-20 text-center">
-                <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                <div className="w-20 h-20 bg-slate-100 dark:bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
                   <Building2 size={40} />
                 </div>
                 <h3 className="text-lg font-bold text-slate-600 dark:text-slate-400">No bank accounts found</h3>
@@ -409,11 +421,11 @@ export default function Banks() {
         {isDeleteConfirmOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDeleteConfirmOpen(null)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-white rounded-3xl shadow-2xl p-8 text-center">
               <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
                 <Trash2 size={32} />
               </div>
-              <h3 className="text-xl font-bold mb-2">Delete Bank?</h3>
+              <h3 className="text-xl font-bold mb-2 text-rose-600">Delete Bank?</h3>
               <p className="text-slate-500 mb-4 text-sm">This action will soft-delete the bank account. All transaction history will be preserved.</p>
               <div className="flex items-center justify-center gap-2 mb-8">
                 <input 
@@ -441,10 +453,10 @@ export default function Banks() {
         {isAddModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsAddModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
                 <h2 className="text-xl font-bold">Add New Bank</h2>
-                <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
+                <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-200 rounded-xl transition-colors"><X size={20} /></button>
               </div>
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
@@ -453,22 +465,23 @@ export default function Banks() {
                   company_id: currentCompany?.id,
                   name: formData.get('name') as string,
                   account_number: formData.get('account_number') as string,
-                  balance: Number(formData.get('balance')) || 0,
+                  opening_balance: Number(formData.get('opening_balance')) || 0,
+                  balance: Number(formData.get('opening_balance')) || 0,
                 });
                 setIsAddModalOpen(false);
               }}>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Bank Name *</label>
-                    <input name="name" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. HBL Bank" />
+                    <input name="name" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. HBL Bank" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Account Number</label>
-                    <input name="account_number" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. 1234567890" />
+                    <input name="account_number" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. 1234567890" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Opening Balance</label>
-                    <input name="balance" type="number" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
+                    <input name="opening_balance" type="number" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
@@ -483,10 +496,10 @@ export default function Banks() {
         {isTransferModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsTransferModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
                 <h2 className="text-xl font-bold">Transfer from {selectedBank.name}</h2>
-                <button onClick={() => setIsTransferModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
+                <button onClick={() => setIsTransferModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-200 rounded-xl transition-colors"><X size={20} /></button>
               </div>
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
@@ -512,7 +525,7 @@ export default function Banks() {
                       name="type" 
                       value={transferType}
                       onChange={(e) => setTransferType(e.target.value as any)}
-                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="Bank To Bank">Bank to Bank</option>
                       <option value="Bank To Party">Bank to Party</option>
@@ -524,7 +537,7 @@ export default function Banks() {
                   {(transferType === 'Bank To Bank' || transferType === 'Bank To Party' || transferType === 'Party To Bank') && (
                     <div>
                       <label className="block text-sm font-medium text-slate-500 mb-1">Source/Target Bank</label>
-                      <select name="bank_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                      <select name="bank_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value={selectedBank.id}>{selectedBank.name} (Current)</option>
                         {banks.filter(b => b.id !== selectedBank.id).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                       </select>
@@ -534,7 +547,7 @@ export default function Banks() {
                   {transferType === 'Bank To Bank' && (
                     <div>
                       <label className="block text-sm font-medium text-slate-500 mb-1">Destination Bank</label>
-                      <select name="to_bank_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                      <select name="to_bank_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
                         {banks.filter(b => b.id !== selectedBank.id).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                       </select>
                     </div>
@@ -543,7 +556,7 @@ export default function Banks() {
                   {(transferType === 'Bank To Party' || transferType === 'Party To Bank' || transferType === 'Party To Party') && (
                     <div>
                       <label className="block text-sm font-medium text-slate-500 mb-1">Source/Target Party</label>
-                      <select name="party_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                      <select name="party_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
                         {parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
@@ -552,7 +565,7 @@ export default function Banks() {
                   {transferType === 'Party To Party' && (
                     <div>
                       <label className="block text-sm font-medium text-slate-500 mb-1">Destination Party</label>
-                      <select name="to_party_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                      <select name="to_party_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
                         {parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
@@ -564,7 +577,7 @@ export default function Banks() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
-                    <input name="description" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Internal transfer" />
+                    <input name="description" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Internal transfer" />
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
@@ -579,10 +592,10 @@ export default function Banks() {
         {isEditModalOpen && editingBank && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEditModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
                 <h2 className="text-xl font-bold">Edit Bank</h2>
-                <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
+                <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-200 rounded-xl transition-colors"><X size={20} /></button>
               </div>
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
@@ -590,22 +603,23 @@ export default function Banks() {
                 updateBank(editingBank.id, {
                   name: formData.get('name') as string,
                   account_number: formData.get('account_number') as string,
-                  balance: Number(formData.get('balance')) || 0,
+                  opening_balance: Number(formData.get('opening_balance')) || 0,
+                  balance: Number(formData.get('opening_balance')) || 0,
                 });
                 setIsEditModalOpen(false);
               }}>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Bank Name *</label>
-                    <input name="name" defaultValue={editingBank.name} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input name="name" defaultValue={editingBank.name} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Account Number</label>
-                    <input name="account_number" defaultValue={editingBank.account_number} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input name="account_number" defaultValue={editingBank.account_number} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Balance</label>
-                    <input name="balance" type="number" defaultValue={editingBank.balance} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Opening Balance</label>
+                    <input name="opening_balance" type="number" defaultValue={editingBank.opening_balance} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
@@ -620,7 +634,7 @@ export default function Banks() {
         {isEditTxModalOpen && editingTx && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEditTxModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
               <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <h2 className="text-xl font-bold">Edit Transaction</h2>
                 <button onClick={() => setIsEditTxModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
@@ -639,15 +653,15 @@ export default function Banks() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Date</label>
-                    <input name="date" type="date" defaultValue={editingTx.date.split('T')[0]} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input name="date" type="date" defaultValue={editingTx.date.split('T')[0]} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Amount</label>
-                    <input name="amount" type="number" defaultValue={editingTx.amount} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input name="amount" type="number" defaultValue={editingTx.amount} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
-                    <input name="description" defaultValue={editingTx.description} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input name="description" defaultValue={editingTx.description} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">

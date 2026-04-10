@@ -18,7 +18,8 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   ArrowLeftRight,
-  FileText
+  FileText,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -34,6 +35,45 @@ import Expenses from './pages/Expenses';
 import Invoices from './pages/Invoices';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+
+import GlobalTransactionModal from './components/GlobalTransactionModal';
+
+function ShortcutHelper({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-6 pointer-events-none"
+    >
+      <div className="bg-slate-900/90 backdrop-blur-md text-white p-8 rounded-[2.5rem] shadow-2xl border border-white/10 max-w-lg w-full">
+        <h3 className="text-xl font-bold mb-8 flex items-center gap-3">
+          <Plus size={24} className="text-indigo-400" />
+          Global Shortcuts
+        </h3>
+        <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+          {[
+            { key: 'ALT + I', label: 'Pay In' },
+            { key: 'ALT + O', label: 'Pay Out' },
+            { key: 'ALT + J', label: 'Party to Party' },
+            { key: 'ALT + Y', label: 'Party to Bank' },
+            { key: 'ALT + B', label: 'Bank to Party' },
+            { key: 'ALT + U', label: 'Bank to Bank' },
+            { key: 'ALT + D', label: 'Dashboard' },
+            { key: 'ALT + P', label: 'Parties' },
+          ].map((s) => (
+            <div key={s.key} className="flex items-center justify-between">
+              <span className="text-slate-400 text-sm">{s.label}</span>
+              <kbd className="px-2 py-1 bg-white/10 rounded-lg border border-white/20 text-[10px] font-black text-indigo-300">{s.key}</kbd>
+            </div>
+          ))}
+        </div>
+        <p className="mt-10 text-[10px] text-slate-500 text-center uppercase tracking-[0.2em] font-bold">Hold CTRL to show this panel</p>
+      </div>
+    </motion.div>
+  );
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -83,14 +123,21 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+      if (e.key === 'Control') {
         setIsShortcutPopupOpen(true);
       }
       if (e.altKey) {
-        if (e.key === 'i') { setActiveTab('parties'); }
-        if (e.key === 'o') { setActiveTab('parties'); }
-        if (e.key === 'j') { setActiveTab('parties'); }
-        if (e.key === 'e') { setActiveTab('dashboard'); }
+        e.preventDefault();
+        switch (e.key.toLowerCase()) {
+          case 'i': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' })); break;
+          case 'o': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment Out' })); break;
+          case 'j': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Party To Party' })); break;
+          case 'y': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Party To Bank' })); break;
+          case 'b': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Bank To Party' })); break;
+          case 'u': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Bank To Bank' })); break;
+          case 'd': setActiveTab('dashboard'); break;
+          case 'p': setActiveTab('parties'); break;
+        }
       }
     };
 
@@ -115,7 +162,7 @@ export default function App() {
   return (
     <div className={cn(
       "min-h-screen transition-colors duration-300",
-      theme === 'dark' ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
+      theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
     )}>
       {/* Sidebar */}
       <aside className={cn(
@@ -124,16 +171,20 @@ export default function App() {
         isSidebarOpen ? "w-64 translate-x-0" : "w-20"
       )}>
         <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">
-            B
-          </div>
+          {currentCompany?.logo_url ? (
+            <img src={currentCompany.logo_url} alt="Logo" className="w-10 h-10 object-contain rounded-xl" referrerPolicy="no-referrer" />
+          ) : (
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">
+              {currentCompany?.name?.charAt(0) || 'B'}
+            </div>
+          )}
           {isSidebarOpen && (
             <motion.span 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="font-bold text-lg tracking-tight text-slate-900 dark:text-white"
+              className="font-bold text-lg tracking-tight text-slate-900 dark:text-slate-50 truncate max-w-[150px]"
             >
-              Bugzy Pro
+              {currentCompany?.name || 'Bugzy Pro'}
             </motion.span>
           )}
         </div>
@@ -172,21 +223,46 @@ export default function App() {
         {/* Topbar */}
         <header className={cn(
           "h-16 border-b flex items-center justify-between px-4 md:px-8 sticky top-0 z-30 backdrop-blur-md",
-          theme === 'dark' ? "bg-slate-950/80 border-slate-800" : "bg-white/80 border-slate-200"
+          theme === 'dark' ? "bg-slate-900/80 border-slate-800" : "bg-white/80 border-slate-200"
         )}>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-1">
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors hidden md:block"
             >
               <Menu size={20} />
             </button>
-            <h2 className="text-lg font-semibold capitalize">{activeTab === 'more' ? 'Menu' : activeTab}</h2>
+            <div className="flex items-center gap-3">
+              {currentCompany?.logo_url ? (
+                <img src={currentCompany.logo_url} alt="Logo" className="w-8 h-8 object-contain rounded-lg md:hidden" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-sm md:hidden">
+                  {currentCompany?.name?.charAt(0) || 'B'}
+                </div>
+              )}
+              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50 capitalize truncate max-w-[120px] md:max-w-none hidden lg:block">
+                {activeTab === 'more' ? 'Menu' : activeTab}
+              </h2>
+            </div>
+
+            {/* Top Search Bar */}
+            <div className="relative flex-1 max-w-md ml-4 hidden md:block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input 
+                type="text" 
+                placeholder="Search transactions, parties..." 
+                className="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-full text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 max-w-[150px] md:max-w-none">
-              <Building2 size={16} className="shrink-0" />
+              {currentCompany?.logo_url ? (
+                <img src={currentCompany.logo_url} alt="Logo" className="w-5 h-5 object-contain rounded-sm" referrerPolicy="no-referrer" />
+              ) : (
+                <Building2 size={16} className="shrink-0" />
+              )}
               <span className="text-sm font-medium truncate">{currentCompany?.name}</span>
             </div>
             <button 
@@ -215,10 +291,10 @@ export default function App() {
                       onClick={() => setActiveTab(item.id)}
                       className={cn(
                         "flex flex-col items-center justify-center p-6 rounded-2xl border transition-all gap-3",
-                        theme === 'dark' ? "bg-slate-900 border-slate-800 hover:bg-slate-800" : "bg-white border-slate-200 hover:bg-slate-50"
+                        theme === 'dark' ? "bg-white border-slate-200 hover:bg-slate-50" : "bg-white border-slate-200 hover:bg-slate-50"
                       )}
                     >
-                      <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                      <div className="p-3 bg-indigo-100 dark:bg-indigo-100 text-indigo-600 dark:text-indigo-600 rounded-xl">
                         <item.icon size={24} />
                       </div>
                       <span className="font-medium">{item.label}</span>
@@ -231,79 +307,50 @@ export default function App() {
         </div>
       </main>
 
-      {/* Shortcut Popup */}
-      <AnimatePresence>
-        {isShortcutPopupOpen && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-6 pointer-events-none"
-          >
-            <div className="bg-slate-900/90 backdrop-blur-md text-white p-8 rounded-3xl shadow-2xl border border-white/10 max-w-sm w-full">
-              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <History size={24} className="text-indigo-400" />
-                Quick Shortcuts
-              </h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Payment In</span>
-                  <kbd className="px-2 py-1 bg-white/10 rounded border border-white/20 text-xs font-bold">ALT + I</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Payment Out</span>
-                  <kbd className="px-2 py-1 bg-white/10 rounded border border-white/20 text-xs font-bold">ALT + O</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Party Transfer</span>
-                  <kbd className="px-2 py-1 bg-white/10 rounded border border-white/20 text-xs font-bold">ALT + J</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Expense</span>
-                  <kbd className="px-2 py-1 bg-white/10 rounded border border-white/20 text-xs font-bold">ALT + E</kbd>
-                </div>
-              </div>
-              <p className="mt-8 text-[10px] text-slate-500 text-center uppercase tracking-widest">Hold CTRL to show this popup</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Mobile Bottom Nav */}
-      <div className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex justify-around p-2 z-50">
-        {menuItems.map((item) => (
+      {/* Mobile Bottom Navigation */}
+      <nav className={cn(
+        "fixed bottom-0 left-0 right-0 z-50 md:hidden flex items-center justify-around p-2 border-t backdrop-blur-md",
+        theme === 'dark' ? "bg-slate-900/90 border-slate-800" : "bg-white/90 border-slate-200"
+      )}>
+        {menuItems.slice(0, 4).map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "flex flex-col items-center gap-1 p-2 rounded-lg transition-colors min-w-[64px]",
-              activeTab === item.id ? "text-indigo-600" : "text-slate-400"
+              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+              activeTab === item.id 
+                ? "text-indigo-600" 
+                : theme === 'dark' ? "text-slate-400" : "text-slate-400"
             )}
           >
             <item.icon size={20} />
-            <span className="text-[10px] font-medium">{item.label}</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">{item.label}</span>
           </button>
         ))}
-      </div>
+        <button
+          onClick={() => setActiveTab('more')}
+          className={cn(
+            "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+            activeTab === 'more' 
+              ? "text-indigo-600" 
+              : theme === 'dark' ? "text-slate-400" : "text-slate-400"
+          )}
+        >
+          <Menu size={20} />
+          <span className="text-[10px] font-bold uppercase tracking-wider">Menu</span>
+        </button>
+      </nav>
+
+      <GlobalTransactionModal />
+      <ShortcutHelper show={isShortcutPopupOpen} />
     </div>
   );
 }
 
 function SetupCompany() {
   const { addCompany, restoreCompany, syncStatus } = useApp();
-  const [mode, setMode] = useState<'create' | 'restore'>('create');
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('PKR');
-  const [recoveryCode, setRecoveryCode] = useState('');
-  const [generatedCode, setGeneratedCode] = useState('');
-
-  useEffect(() => {
-    if (mode === 'create') {
-      const words = ['blue', 'fast', 'smart', 'gold', 'cool', 'bold', 'safe', 'rich', 'pure', 'kind'];
-      const code = Array.from({ length: 4 }, () => words[Math.floor(Math.random() * words.length)]).join('-');
-      setGeneratedCode(code);
-    }
-  }, [mode]);
 
   const handleCreate = async () => {
     if (!name.trim()) return;
@@ -312,13 +359,7 @@ function SetupCompany() {
       address: '',
       currency,
       user_id: 'default',
-      recovery_code: generatedCode,
     });
-  };
-
-  const handleRestore = async () => {
-    if (!recoveryCode.trim()) return;
-    await restoreCompany(recoveryCode);
   };
 
   return (
@@ -327,96 +368,44 @@ function SetupCompany() {
         <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-bold text-3xl mx-auto mb-6">
           B
         </div>
-        <h1 className="text-2xl font-bold text-center mb-2 dark:text-white">Bugzy Pro</h1>
+        <h1 className="text-2xl font-bold text-center mb-2 text-slate-900 dark:text-slate-50">Bugzy Pro</h1>
         
-        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-8">
+        <div className="space-y-4 mt-8">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Company Name</label>
+            <input 
+              type="text" 
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50"
+              placeholder="e.g. Acme Corp"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Currency</label>
+            <select 
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50"
+            >
+              <option value="PKR">Pakistan Rupee (PKR)</option>
+              <option value="USD">US Dollar (USD)</option>
+              <option value="None">None</option>
+            </select>
+          </div>
+          
+          {syncStatus.error && (
+            <p className="text-red-500 text-xs bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-800">{syncStatus.error}</p>
+          )}
+
           <button 
-            onClick={() => setMode('create')}
-            className={cn(
-              "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-              mode === 'create' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
-            )}
+            onClick={handleCreate}
+            disabled={syncStatus.loading}
+            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
           >
-            Create New
-          </button>
-          <button 
-            onClick={() => setMode('restore')}
-            className={cn(
-              "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-              mode === 'restore' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
-            )}
-          >
-            Restore
+            {syncStatus.loading ? 'Creating...' : 'Create Company'}
           </button>
         </div>
-
-        {mode === 'create' ? (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Company Name</label>
-              <input 
-                type="text" 
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
-                placeholder="e.g. Acme Corp"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Currency</label>
-              <select 
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
-              >
-                <option value="PKR">Pakistan Rupee (PKR)</option>
-                <option value="USD">US Dollar (USD)</option>
-                <option value="None">None</option>
-              </select>
-            </div>
-            <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800">
-              <label className="block text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">Your Recovery Code</label>
-              <input 
-                type="text" 
-                value={generatedCode}
-                onChange={(e) => setGeneratedCode(e.target.value.toLowerCase())}
-                className="w-full bg-transparent text-lg font-mono font-bold text-indigo-900 dark:text-indigo-200 border-b border-indigo-200 dark:border-indigo-700 outline-none focus:border-indigo-500"
-                placeholder="word-word-word-word"
-              />
-              <p className="text-[10px] text-indigo-600/60 dark:text-indigo-400/60 mt-2 italic">Set any 4-word code! You'll need it to restore your data if you sign out.</p>
-            </div>
-            <button 
-              onClick={handleCreate}
-              disabled={syncStatus.loading}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
-            >
-              {syncStatus.loading ? 'Creating...' : 'Create Company'}
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Recovery Code</label>
-              <input 
-                type="text" 
-                value={recoveryCode}
-                onChange={(e) => setRecoveryCode(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white font-mono"
-                placeholder="word-word-word-word"
-              />
-            </div>
-            {syncStatus.error && (
-              <p className="text-red-500 text-xs bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-800">{syncStatus.error}</p>
-            )}
-            <button 
-              onClick={handleRestore}
-              disabled={syncStatus.loading}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
-            >
-              {syncStatus.loading ? 'Restoring...' : 'Restore Company'}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

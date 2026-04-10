@@ -36,6 +36,7 @@ export interface Party {
   email?: string;
   address?: string;
   type: PartyType;
+  opening_balance: number;
   balance: number;
   created_at: string;
   updated_at?: string;
@@ -47,6 +48,7 @@ export interface BankAccount {
   company_id: string;
   name: string;
   account_number?: string;
+  opening_balance: number;
   balance: number;
   created_at: string;
   updated_at?: string;
@@ -73,6 +75,7 @@ export interface Transaction {
   type: TransactionType;
   amount: number;
   description?: string;
+  category?: string;
   party_id?: string;
   bank_id?: string;
   to_party_id?: string;
@@ -95,6 +98,7 @@ export interface Invoice {
     item_id: string;
     name: string;
     quantity: number;
+    unit?: string;
     price: number;
     total: number;
   }[];

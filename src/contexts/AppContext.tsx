@@ -36,6 +36,12 @@ interface AppContextType {
   addInvoice: (invoice: Omit<Invoice, 'id' | 'created_at'>) => Promise<void>;
   updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
+  selectedPartyId: string | null;
+  setSelectedPartyId: (id: string | null) => void;
+  selectedBankId: string | null;
+  setSelectedBankId: (id: string | null) => void;
+  session: any;
+  signOut: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -99,24 +105,8 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [companies, setCompanies] = useState<Company[]>(() => {
-    try {
-      const saved = localStorage.getItem('companies');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Failed to parse companies:', e);
-      return [];
-    }
-  });
-  const [currentCompany, setCurrentCompany] = useState<Company | null>(() => {
-    try {
-      const saved = localStorage.getItem('currentCompany');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      console.error('Failed to parse currentCompany:', e);
-      return null;
-    }
-  });
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
   const [parties, setParties] = useState<Party[]>([]);
   const [banks, setBanks] = useState<BankAccount[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -137,6 +127,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     error: null,
     success: null
   });
+  const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
+  const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
+  const [session, setSession] = useState<any>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const hasInitialSynced = React.useRef<Record<string, boolean>>({});
+  const isInternalUpdate = React.useRef(false);
 
   useEffect(() => {
     localStorage.setItem('companies', JSON.stringify(companies));
@@ -145,24 +153,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (currentCompany) {
       localStorage.setItem('currentCompany', JSON.stringify(currentCompany));
-      
-      // Load company-specific data
-      const companyId = currentCompany.id;
-      const loadLocal = (key: string) => {
-        try {
-          const data = JSON.parse(localStorage.getItem(`${key}_${companyId}`) || '[]');
-          return Array.isArray(data) ? data.filter(i => !i.deleted_at) : [];
-        } catch (e) {
-          console.error(`Failed to load ${key}:`, e);
-          return [];
-        }
-      };
-
-      setParties(loadLocal('parties'));
-      setBanks(loadLocal('banks'));
-      setItems(loadLocal('items'));
-      setTransactions(loadLocal('transactions'));
-      setInvoices(loadLocal('invoices'));
+      // Trigger data pull when company changes
+      refreshData(undefined, true);
     } else {
       localStorage.removeItem('currentCompany');
       setParties([]);
@@ -177,11 +169,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('app_settings', JSON.stringify(settings));
   }, [settings]);
 
-  const refreshData = async (emailOverride?: string) => {
+  const refreshData = async (emailOverride?: string, force = false) => {
     const email = emailOverride || settings.user_email;
     if (!settings.sync_enabled || !email) return;
+    
+    // Prevent redundant syncs unless forced
+    if (!force && currentCompany && hasInitialSynced.current[currentCompany.id]) {
+      console.log(`[Sync] Skipping redundant sync for ${currentCompany.id}`);
+      return;
+    }
 
-    setSyncStatus({ loading: true, error: null, success: null });
+    setSyncStatus(prev => ({ ...prev, loading: true, error: null }));
     try {
       // 1. Pull Companies
       const { data: cloudCompanies, error: compError } = await supabase
@@ -217,41 +215,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // 2. Pull Data for activeCompany
       const fetchAndMerge = async (table: string, setter: (data: any[]) => void) => {
-        let dbTable = table === 'items' ? 'inventory' : table;
-        
-        const { data: cloudData, error } = await supabase
-          .from(dbTable)
-          .select('*')
-          .eq('company_id', companyId);
-        
-        if (error) {
-            console.error(`Fetch error for ${dbTable}:`, error);
-            // If table doesn't exist, skip but don't crash
-            if (error.code === 'PGRST116' || error.message.includes('relation')) return;
-            throw error;
-        }
-        
-        const localData = JSON.parse(localStorage.getItem(`${table}_${companyId}`) || '[]');
-        const { merged, toUpload } = mergeData(localData, cloudData || []);
-        
-        const nonDeleted = merged.filter((i: any) => !i.deleted_at);
-        setter(nonDeleted);
-        localStorage.setItem(`${table}_${companyId}`, JSON.stringify(merged));
-        
-        if (toUpload.length > 0) {
-          await syncToCloud(table, toUpload);
+        try {
+          let dbTable = table === 'items' ? 'inventory' : table;
+          
+          const { data: cloudData, error } = await supabase
+            .from(dbTable)
+            .select('*')
+            .eq('company_id', companyId);
+          
+          if (error) {
+              console.error(`Fetch error for ${dbTable}:`, error);
+              if (error.code === 'PGRST116' || error.message.includes('relation')) return;
+              throw error;
+          }
+          
+          const nonDeleted = (cloudData || []).filter((i: any) => !i.deleted_at);
+          
+          isInternalUpdate.current = true;
+          setter(nonDeleted);
+          isInternalUpdate.current = false;
+        } catch (e) {
+          console.error(`Failed to sync ${table}:`, e);
         }
       };
 
-      await Promise.all([
+      await Promise.allSettled([
         fetchAndMerge('parties', setParties),
         fetchAndMerge('banks', setBanks),
         fetchAndMerge('items', setItems),
         fetchAndMerge('transactions', setTransactions),
         fetchAndMerge('invoices', setInvoices),
-        // Add expenses mapping just in case user has a separate table
         fetchAndMerge('expenses', (data) => {
-            // Merge into transactions if they are separate
             if (data.length > 0) {
                 setTransactions(prev => {
                     const { merged } = mergeData(prev, data);
@@ -261,10 +255,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         })
       ]);
       
+      hasInitialSynced.current[activeCompany.id] = true;
       setSyncStatus({ loading: false, error: null, success: 'Synced' });
     } catch (error: any) {
       console.error('Sync error:', error);
       setSyncStatus({ loading: false, error: error.message, success: null });
+    } finally {
+      setSyncStatus(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -341,11 +338,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
     }
     
+    // Verify session as requested
+    if (!session) {
+        console.warn(`[Sync Warning] No active session found for ${table}. Current Auth State:`, supabase.auth.getUser());
+    }
+
     // Map 'items' to 'inventory' for Supabase
     let dbTable = table;
     if (table === 'items') dbTable = 'inventory';
-    // If table is 'expenses', use 'expenses' table
-    // If table is 'transactions', use 'transactions' table
     
     try {
         // Sanitize data: replace empty strings with null for date fields
@@ -353,7 +353,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const sanitized = { ...obj };
           Object.keys(sanitized).forEach(key => {
             if (sanitized[key] === "") {
-              // If it looks like a date field or is a known optional field, set to null
               if (key.includes('date') || key.includes('_at') || key === 'bank_id' || key === 'party_id' || key === 'to_party_id' || key === 'to_bank_id') {
                 sanitized[key] = null;
               }
@@ -366,21 +365,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ? data.map(d => sanitize({ ...d, user_email: email }))
           : sanitize({ ...data, user_email: email });
         
-        console.log(`[Sync Start] Table: ${dbTable} (${isNew ? 'INSERT' : 'UPSERT'})`, dataWithEmail);
+        console.log(`[Sync Attempt] Table: ${dbTable}, Operation: ${isNew ? 'INSERT' : 'UPSERT'}`, dataWithEmail);
         
-        const { error } = await supabase.from(dbTable).upsert(dataWithEmail);
+        const { data: result, error } = await supabase.from(dbTable).upsert(dataWithEmail).select();
         
         if (error) {
-            console.error(`[Sync Error] ${dbTable}:`, error);
-            if (error.message.includes('Could not find the table')) {
-                setSyncStatus({ 
-                    loading: false, 
-                    error: `Table "${dbTable}" not found. Please run the SQL setup script in Settings.`, 
-                    success: null 
-                });
-            }
+            console.error(`[Sync Error] ${dbTable} failed:`, {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code
+            });
+            
+            setSyncStatus({ 
+                loading: false, 
+                error: `Sync failed for ${dbTable}: ${error.message}${error.hint ? ' - ' + error.hint : ''}`, 
+                success: null 
+            });
             throw error;
         }
+
+        console.log(`[Sync Success] ${dbTable} synced. Result:`, result);
 
         // Mark as synced locally
         if (currentCompany) {
@@ -389,9 +394,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const updatedAll = localAll.map((item: any) => ids.includes(item.id) ? { ...item, _synced: true } : item);
             localStorage.setItem(`${table}_${currentCompany.id}`, JSON.stringify(updatedAll));
         }
-
-        console.log(`[Sync Success] ${dbTable} synced successfully`);
-    } catch (error) {
+    } catch (error: any) {
         console.error(`[Sync Exception] ${dbTable}:`, error);
         throw error;
     }
@@ -421,9 +424,20 @@ const deleteFromCloud = async (table: string, id: string) => {
 };
 
   useEffect(() => {
-    if (companies.length > 0 && !currentCompany) {
-      setCurrentCompany(companies[0]);
-    }
+    const init = async () => {
+      // Load current company from localStorage initially just to have a starting point
+      const saved = localStorage.getItem('currentCompany');
+      if (saved) {
+        const company = JSON.parse(saved);
+        setCurrentCompany(company);
+      }
+      
+      // Then pull companies from cloud
+      if (settings.user_email) {
+        await refreshData(undefined, true);
+      }
+    };
+    init();
   }, []);
 
   useEffect(() => {
@@ -432,34 +446,38 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   useEffect(() => {
     if (settings.sync_enabled && settings.user_email && currentCompany) {
-        refreshData();
+        // Only refresh if not already synced for this company
+        if (!hasInitialSynced.current[currentCompany.id]) {
+            refreshData();
+        }
+        
         console.log('[Realtime] Setting up subscription...');
-        const channel = supabase.channel(`company-${currentCompany.id}`)
+        const channel = supabase.channel(`company-sync-${currentCompany.id}`)
             .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+                console.log('[Realtime] Payload Received:', {
+                    table: payload.table,
+                    eventType: payload.eventType,
+                    new: payload.new,
+                    old: payload.old,
+                    timestamp: new Date().toISOString()
+                });
                 const { table, new: newRecord, old: oldRecord, eventType } = payload;
                 const record = (newRecord || oldRecord) as any;
                 
-                // Robust relevance check:
-                // For DELETE, record only has the ID. We check if it exists in our current state.
+                if (!record) return;
+
                 const recordCompanyId = record?.company_id;
                 let isRelevant = table === 'companies' || (recordCompanyId && recordCompanyId === currentCompany.id);
                 
-                // If company_id is missing (common in DELETE), check if the ID exists in our local state
-                if (!isRelevant && eventType === 'DELETE' && record.id) {
-                    const id = record.id;
-                    const existsLocally = 
-                        parties.some(p => p.id === id) || 
-                        banks.some(b => b.id === id) || 
-                        items.some(i => i.id === id) || 
-                        transactions.some(t => t.id === id) || 
-                        invoices.some(i => i.id === id);
-                    if (existsLocally) isRelevant = true;
+                if (!isRelevant && eventType === 'DELETE') {
+                    // For deletes, we might not have company_id in oldRecord if it wasn't selected
+                    // But usually oldRecord has the primary key
+                    isRelevant = true; 
                 }
                 
                 if (isRelevant) {
-                    console.log(`[Realtime] ${eventType} on ${table}:`, record);
-                    
                     const updateState = (key: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => {
+                        isInternalUpdate.current = true;
                         setter(prev => {
                             const localAll = JSON.parse(localStorage.getItem(`${key}_${currentCompany.id}`) || '[]');
                             let updatedAll = [...localAll];
@@ -467,18 +485,25 @@ const deleteFromCloud = async (table: string, id: string) => {
                             if (eventType === 'INSERT' || eventType === 'UPDATE') {
                                 const index = updatedAll.findIndex(i => i.id === record.id);
                                 if (index !== -1) {
-                                    updatedAll[index] = { ...record, _synced: true };
+                                    // Only update if the incoming record is newer
+                                    const localTime = new Date(updatedAll[index].updated_at || updatedAll[index].created_at || 0).getTime();
+                                    const remoteTime = new Date(record.updated_at || record.created_at || 0).getTime();
+                                    if (remoteTime >= localTime) {
+                                        updatedAll[index] = { ...record, _synced: true };
+                                    }
                                 } else {
                                     updatedAll = [{ ...record, _synced: true }, ...updatedAll];
                                 }
                             } else if (eventType === 'DELETE') {
-                                const id = record.id || payload.old?.id;
+                                const id = record.id || (oldRecord as any)?.id;
+                                if (!id) return prev;
                                 updatedAll = updatedAll.filter(i => i.id !== id);
                             }
 
                             localStorage.setItem(`${key}_${currentCompany.id}`, JSON.stringify(updatedAll));
                             return updatedAll.filter(i => !i.deleted_at);
                         });
+                        setTimeout(() => { isInternalUpdate.current = false; }, 100);
                     };
 
                     if (table === 'transactions' || table === 'expenses') updateState('transactions', setTransactions);
@@ -487,24 +512,39 @@ const deleteFromCloud = async (table: string, id: string) => {
                     else if (table === 'inventory') updateState('items', setItems);
                     else if (table === 'invoices') updateState('invoices', setInvoices);
                     else if (table === 'companies') {
+                        isInternalUpdate.current = true;
                         setCompanies(prev => {
                             const localAll = JSON.parse(localStorage.getItem('companies') || '[]');
                             let updatedAll = [...localAll];
-                            if (eventType === 'INSERT') {
-                                if (!updatedAll.find(c => c.id === record.id)) updatedAll = [...updatedAll, record];
-                            } else if (eventType === 'UPDATE') {
-                                updatedAll = updatedAll.map(c => c.id === record.id ? record : c);
+                            if (eventType === 'INSERT' || eventType === 'UPDATE') {
+                                const index = updatedAll.findIndex(c => c.id === record.id);
+                                if (index !== -1) {
+                                    const localTime = new Date(updatedAll[index].updated_at || updatedAll[index].created_at || 0).getTime();
+                                    const remoteTime = new Date(record.updated_at || record.created_at || 0).getTime();
+                                    if (remoteTime >= localTime) {
+                                        updatedAll[index] = record;
+                                        // Update current company branding if it's the active one
+                                        if (currentCompany.id === record.id) {
+                                            setCurrentCompany(record);
+                                        }
+                                    }
+                                } else {
+                                    updatedAll = [...updatedAll, record];
+                                }
                             } else if (eventType === 'DELETE') {
-                                updatedAll = updatedAll.filter(c => c.id !== record.id);
+                                const id = record.id || (oldRecord as any)?.id;
+                                if (!id) return prev;
+                                updatedAll = updatedAll.filter(c => c.id !== id);
                             }
                             localStorage.setItem('companies', JSON.stringify(updatedAll));
                             return updatedAll.filter(c => !c.deleted_at);
                         });
+                        setTimeout(() => { isInternalUpdate.current = false; }, 100);
                     }
                 }
             })
-            .subscribe((status) => {
-                console.log(`[Realtime] Status: ${status}`);
+            .subscribe((status, err) => {
+                console.log(`[Realtime] Status: ${status}`, err || '');
             });
         
         return () => {
@@ -516,26 +556,44 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   // Automatically recalculate balances when transactions change (e.g. via Realtime)
   useEffect(() => {
-    if (!currentCompany) return;
+    if (!currentCompany || syncStatus.loading) return;
 
     const timer = setTimeout(() => {
-      recalculateBalances(transactions, parties, banks, items);
-    }, 500);
+      recalculateBalances(transactions, parties, banks, items, invoices);
+    }, 1000);
 
     return () => clearTimeout(timer);
-  }, [transactions, parties, banks, items, currentCompany?.id]);
+  }, [transactions, parties, banks, items, invoices, currentCompany?.id]);
 
-  const recalculateBalances = async (allTransactions: Transaction[], allParties: Party[], allBanks: BankAccount[], allItems: Item[]) => {
+  const recalculateBalances = async (allTransactions: Transaction[], allParties: Party[], allBanks: BankAccount[], allItems: Item[], allInvoices: Invoice[]) => {
     if (!currentCompany) return;
 
     const partyBalances: Record<string, number> = {};
     const bankBalances: Record<string, number> = {};
     const itemStock: Record<string, number> = {};
 
-    allParties.forEach(p => partyBalances[p.id] = 0);
-    allBanks.forEach(b => bankBalances[b.id] = 0);
+    allParties.forEach(p => partyBalances[p.id] = p.opening_balance || 0);
+    allBanks.forEach(b => bankBalances[b.id] = b.opening_balance || 0);
     allItems.forEach(i => itemStock[i.id] = 0);
 
+    // 1. Process Invoices
+    allInvoices.forEach(inv => {
+      if (inv.party_id && partyBalances[inv.party_id] !== undefined) {
+        if (inv.type === 'Sale') partyBalances[inv.party_id] += inv.total;
+        if (inv.type === 'Purchase') partyBalances[inv.party_id] -= inv.total;
+      }
+      
+      if (inv.items) {
+        inv.items.forEach(item => {
+          if (item.item_id && itemStock[item.item_id] !== undefined) {
+            if (inv.type === 'Sale') itemStock[item.item_id] -= item.quantity;
+            if (inv.type === 'Purchase') itemStock[item.item_id] += item.quantity;
+          }
+        });
+      }
+    });
+
+    // 2. Process Transactions
     [...allTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach(tx => {
       if (tx.party_id && partyBalances[tx.party_id] !== undefined) {
         if (tx.type === 'Payment In' || tx.type === 'Sale') partyBalances[tx.party_id] += tx.amount;
@@ -577,12 +635,16 @@ const deleteFromCloud = async (table: string, id: string) => {
     localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(updatedBanks));
     localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(updatedItems));
 
-    if (settings.sync_enabled) {
-      await Promise.all([
-        ...changedParties.map(p => syncToCloud('parties', p)),
-        ...changedBanks.map(b => syncToCloud('banks', b)),
-        ...changedItems.map(i => syncToCloud('items', i))
-      ]);
+    // Only sync if there are actual changes and we're not in the middle of an internal update
+    if (settings.sync_enabled && !isInternalUpdate.current && !syncStatus.loading) {
+      const partiesToSync = changedParties.map(p => syncToCloud('parties', p));
+      const banksToSync = changedBanks.map(b => syncToCloud('banks', b));
+      const itemsToSync = changedItems.map(i => syncToCloud('items', i));
+
+      if (partiesToSync.length > 0 || banksToSync.length > 0 || itemsToSync.length > 0) {
+        Promise.all([...partiesToSync, ...banksToSync, ...itemsToSync])
+          .catch(err => console.error('Recalculate Sync Error:', err));
+      }
     }
   };
 
@@ -608,7 +670,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
     
     // Recalculate balances (also optimistic)
-    await recalculateBalances(updated, parties, banks, items);
+    await recalculateBalances(updated, parties, banks, items, invoices);
   };
 
   const updateTransaction = async (id: string, tx: Partial<Transaction>) => {
@@ -622,7 +684,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       const table = (tx.type === 'Expense' || updated.find(t => t.id === id)?.type === 'Expense') ? 'expenses' : 'transactions';
       await syncToCloud(table, updated.find(t => t.id === id));
     }
-    await recalculateBalances(updated, parties, banks, items);
+    await recalculateBalances(updated, parties, banks, items, invoices);
   };
 
   const addParty = async (party: Omit<Party, 'id' | 'created_at'>) => {
@@ -630,6 +692,8 @@ const deleteFromCloud = async (table: string, id: string) => {
     const now = new Date().toISOString();
     const newParty: Party = {
       ...party,
+      opening_balance: party.opening_balance || 0,
+      balance: party.opening_balance || 0,
       id: crypto.randomUUID(),
       created_at: now,
       updated_at: now,
@@ -689,6 +753,8 @@ const deleteFromCloud = async (table: string, id: string) => {
     const now = new Date().toISOString();
     const newBank: BankAccount = {
       ...bank,
+      opening_balance: bank.opening_balance || 0,
+      balance: bank.opening_balance || 0,
       id: crypto.randomUUID(),
       created_at: now,
       updated_at: now,
@@ -828,7 +894,7 @@ const deleteFromCloud = async (table: string, id: string) => {
             await syncToCloud(table, { ...tx, deleted_at: now, updated_at: now });
         }
       }
-      await recalculateBalances(updatedTransactions, parties, banks, items);
+      await recalculateBalances(updatedTransactions, parties, banks, items, invoices);
   };
 
   const addCompany = async (company: Omit<Company, 'id' | 'created_at'>) => {
@@ -890,6 +956,55 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
   };
 
+  const restoreCompany = async (code: string) => {
+    if (!code) return false;
+    setSyncStatus({ loading: true, error: null, success: null });
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('*')
+        .eq('recovery_code', code.toLowerCase())
+        .is('deleted_at', null)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw new Error('Invalid recovery code. No company found.');
+        }
+        throw error;
+      }
+      
+      if (data) {
+        setCompanies(prev => {
+          const exists = prev.find(c => c.id === data.id);
+          if (exists) return prev;
+          return [...prev, data];
+        });
+        setCurrentCompany(data);
+        
+        // Update settings with the email from the company if available
+        if (data.user_email) {
+          updateSettings({ user_email: data.user_email, sync_enabled: true, is_verified: true });
+        }
+        
+        setSyncStatus({ loading: false, error: null, success: 'Company restored successfully!' });
+        
+        // Trigger a full data pull for this company
+        // We need to wait a bit for settings to update
+        setTimeout(() => {
+          refreshData(data.user_email, true);
+        }, 500);
+        
+        return true;
+      }
+      return false;
+    } catch (error: any) {
+      console.error('Error restoring company:', error);
+      setSyncStatus({ loading: false, error: error.message, success: null });
+      return false;
+    }
+  };
+
   const addInvoice = async (invoice: Omit<Invoice, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
     const now = new Date().toISOString();
@@ -909,6 +1024,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (settings.sync_enabled) {
       syncToCloud('invoices', newInvoice, true).catch(err => console.error('Add Invoice Sync Error:', err));
     }
+    await recalculateBalances(transactions, parties, banks, items, updated);
   };
 
   const updateInvoice = async (id: string, invoice: Partial<Invoice>) => {
@@ -921,6 +1037,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (settings.sync_enabled) {
       await syncToCloud('invoices', updated.find(i => i.id === id));
     }
+    await recalculateBalances(transactions, parties, banks, items, updated);
   };
 
   const deleteInvoice = async (id: string, hard = true) => {
@@ -947,10 +1064,19 @@ const deleteFromCloud = async (table: string, id: string) => {
         await syncToCloud('invoices', { ...invoice, deleted_at: now, updated_at: now });
       }
     }
+    await recalculateBalances(transactions, parties, banks, items, updatedInvoices);
   };
 
   const updateSettings = (newSettings: Partial<AppSettings>) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    updateSettings({ user_email: '', is_verified: false, sync_enabled: false });
+    localStorage.clear();
+    window.location.reload();
   };
 
   return (
@@ -963,7 +1089,9 @@ const deleteFromCloud = async (table: string, id: string) => {
       addTransaction, updateTransaction,
       addParty, updateParty, deleteParty, addBank, updateBank, deleteBank,
       addItem, updateItem, deleteItem, deleteTransaction,
-      addCompany, updateCompany, deleteCompany, addInvoice, updateInvoice, deleteInvoice
+      addCompany, updateCompany, deleteCompany, addInvoice, updateInvoice, deleteInvoice,
+      selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
+      session, signOut
     }}>
       {children}
     </AppContext.Provider>

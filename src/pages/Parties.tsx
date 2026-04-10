@@ -23,7 +23,7 @@ import { Party, Transaction, TransactionType } from '../types';
 import { generatePartyStatement } from '../lib/pdfGenerator';
 
 export default function Parties() {
-  const { parties, transactions, invoices, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany } = useApp();
+  const { parties, transactions, invoices, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany, setSelectedPartyId } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   
@@ -32,6 +32,10 @@ export default function Parties() {
     return ['All', ...Array.from(types)];
   }, [parties]);
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
+
+  React.useEffect(() => {
+    setSelectedPartyId(selectedParty?.id || null);
+  }, [selectedParty, setSelectedPartyId]);
   
   const currentSelectedParty = useMemo(() => {
     if (!selectedParty) return null;
@@ -91,31 +95,33 @@ export default function Parties() {
           animate={{ opacity: 1, x: 0 }}
           className="space-y-6"
         >
-          <div className="flex items-center justify-between">
-            <button 
-              onClick={() => setSelectedParty(null)}
-              className="text-indigo-600 font-medium flex items-center gap-2 hover:underline"
-            >
-              ← Back to Parties
-            </button>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-white p-6 rounded-[2rem] border border-slate-100 dark:border-slate-200 shadow-sm">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setSelectedParty(null)}
+                className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl text-slate-500 transition-all"
+              >
+                <X size={20} />
+              </button>
+              <div>
+                <h2 className="text-2xl font-black text-slate-900">{currentSelectedParty.name}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase rounded-md">{currentSelectedParty.type}</span>
+                  <span className="text-xs text-slate-400">{currentSelectedParty.phone || 'No phone'}</span>
+                </div>
+              </div>
+            </div>
             <div className="flex gap-3">
               <button 
                 onClick={() => { setEditingParty(currentSelectedParty); setIsAddModalOpen(true); }}
-                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 transition-all"
+                className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 border border-slate-100 rounded-xl hover:bg-slate-100 transition-all text-sm font-bold"
               >
                 <FileText size={18} />
-                Edit Details
-              </button>
-              <button 
-                onClick={() => setIsDeleteConfirmOpen(currentSelectedParty.id)}
-                className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl hover:bg-rose-100 transition-all"
-              >
-                <Trash2 size={18} />
-                Delete Party
+                Edit
               </button>
               <button 
                 onClick={() => setIsTransactionModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+                className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold"
               >
                 <Plus size={18} />
                 New Transaction
@@ -128,7 +134,7 @@ export default function Parties() {
             {(isTransactionModalOpen || editingTransaction) && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setIsTransactionModalOpen(false); setEditingTransaction(null); }} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden">
+                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
                   <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                     <h2 className="text-xl font-bold">{editingTransaction ? 'Edit Transaction' : `New Transaction for ${currentSelectedParty.name}`}</h2>
                     <button onClick={() => { setIsTransactionModalOpen(false); setEditingTransaction(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
@@ -173,7 +179,7 @@ export default function Parties() {
                           name="type" 
                           defaultValue={editingTransaction?.type || txType}
                           onChange={(e) => setTxType(e.target.value as any)}
-                          className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500"
                         >
                           <option value="Payment In">Payment IN (Receive)</option>
                           <option value="Payment Out">Payment OUT (Pay)</option>
@@ -186,7 +192,7 @@ export default function Parties() {
                       {(txType === 'Party To Bank' || txType === 'Bank To Party') && (
                         <div>
                           <label className="block text-sm font-medium text-slate-500 mb-1">Select Bank</label>
-                          <select name="bank_id" defaultValue={editingTransaction?.bank_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                          <select name="bank_id" defaultValue={editingTransaction?.bank_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
                             {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                           </select>
                         </div>
@@ -195,7 +201,7 @@ export default function Parties() {
                       {txType === 'Party To Party' && (
                         <div>
                           <label className="block text-sm font-medium text-slate-500 mb-1">Select Destination Party</label>
-                          <select name="to_party_id" defaultValue={editingTransaction?.to_party_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                          <select name="to_party_id" defaultValue={editingTransaction?.to_party_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
                             {parties.filter(p => p.id !== selectedParty.id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                           </select>
                         </div>
@@ -203,11 +209,11 @@ export default function Parties() {
 
                       <div>
                         <label className="block text-sm font-medium text-slate-500 mb-1">Amount</label>
-                        <input name="amount" type="number" defaultValue={editingTransaction?.amount} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
+                        <input name="amount" type="number" defaultValue={editingTransaction?.amount} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
-                        <input name="description" defaultValue={editingTransaction?.description} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Monthly payment" />
+                        <input name="description" defaultValue={editingTransaction?.description} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Monthly payment" />
                       </div>
                     </div>
                     <div className="flex gap-3 pt-4">
@@ -221,8 +227,8 @@ export default function Parties() {
           </AnimatePresence>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-slate-500 text-sm mb-1">Total Balance</h3>
+            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Total Balance</h3>
               <p className={cn(
                 "text-2xl font-bold",
                 currentSelectedParty.balance >= 0 ? "text-emerald-600" : "text-rose-600"
@@ -233,26 +239,26 @@ export default function Parties() {
                 {currentSelectedParty.balance >= 0 ? "You'll receive" : "You'll pay"}
               </p>
             </div>
-                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative group">
-                      <button 
-                        onClick={() => { setEditingParty(currentSelectedParty); setIsAddModalOpen(true); }}
-                        className="absolute top-4 right-4 p-2 text-slate-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <FileText size={16} />
-                      </button>
-                      <h3 className="text-slate-500 dark:text-slate-400 text-sm mb-1">Party Type</h3>
-                      <p className="text-xl font-bold text-slate-900 dark:text-white">{currentSelectedParty.type}</p>
-                    </div>
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-              <h3 className="text-slate-500 dark:text-slate-400 text-sm mb-1">Contact Info</h3>
-              <p className="text-sm font-medium text-slate-900 dark:text-white">{currentSelectedParty.phone || 'No phone'}</p>
+            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm relative group">
+              <button 
+                onClick={() => { setEditingParty(currentSelectedParty); setIsAddModalOpen(true); }}
+                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-all"
+              >
+                <FileText size={16} />
+              </button>
+              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Party Type</h3>
+              <p className="text-xl font-bold text-slate-900 dark:text-slate-900">{currentSelectedParty.type}</p>
+            </div>
+            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Contact Info</h3>
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-900">{currentSelectedParty.phone || 'No phone'}</p>
               <p className="text-sm text-slate-400">{currentSelectedParty.email || 'No email'}</p>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <h3 className="font-bold text-slate-900 dark:text-white">Transaction Ledger</h3>
+          <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 dark:text-slate-900">Transaction Ledger</h3>
               <div className="flex gap-2">
                 <button 
                   onClick={handleExportPDF}
@@ -267,7 +273,7 @@ export default function Parties() {
             </div>
             <div className="overflow-x-auto hidden md:block">
               <table className="w-full text-left">
-                <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase tracking-wider">
+                <thead className="bg-slate-50 dark:bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                   <tr>
                     <th className="px-6 py-4 font-semibold">Date</th>
                     <th className="px-6 py-4 font-semibold">Type</th>
@@ -280,7 +286,7 @@ export default function Parties() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {partyLedger.map((tx) => (
                     <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-100">{formatDate(tx.date)}</td>
+                      <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-900">{formatDate(tx.date)}</td>
                       <td className="px-6 py-4">
                         <span className={cn(
                           "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
@@ -289,11 +295,11 @@ export default function Parties() {
                           {tx.type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{tx.description || '-'}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-100">
+                      <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-500">{tx.description || '-'}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-900">
                         {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party')) || (tx.to_party_id === currentSelectedParty.id) ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-100">
+                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-900">
                         {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party')) ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -326,7 +332,7 @@ export default function Parties() {
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-xs text-slate-400">{formatDate(tx.date)}</p>
-                      <p className="font-bold text-slate-900 dark:text-slate-100">{tx.description || tx.type}</p>
+                      <p className="font-bold text-slate-900 dark:text-slate-900">{tx.description || tx.type}</p>
                     </div>
                     <span className={cn(
                       "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
@@ -339,13 +345,13 @@ export default function Parties() {
                     <div className="flex gap-4">
                       <div>
                         <p className="text-[10px] text-slate-400 uppercase font-bold">Debit</p>
-                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                        <p className="text-sm font-bold text-slate-900 dark:text-slate-900">
                           {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party')) || (tx.to_party_id === currentSelectedParty.id) ? formatCurrency(tx.amount, settings.currency) : '-'}
                         </p>
                       </div>
                       <div>
                         <p className="text-[10px] text-slate-400 uppercase font-bold">Credit</p>
-                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                        <p className="text-sm font-bold text-slate-900 dark:text-slate-900">
                           {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party')) ? formatCurrency(tx.amount, settings.currency) : '-'}
                         </p>
                       </div>
@@ -386,12 +392,12 @@ export default function Parties() {
                   placeholder="Search parties..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                 />
               </div>
             </div>
             <div className="flex gap-3">
-              <div className="flex bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto max-w-md">
+              <div className="flex bg-white dark:bg-white p-1 rounded-xl border border-slate-200 dark:border-slate-200 overflow-x-auto max-w-md">
                 {partyTypes.map((type) => (
                   <button
                     key={type}
@@ -423,7 +429,7 @@ export default function Parties() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => setSelectedParty(party)}
-                className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group"
+                className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 font-bold text-xl">
@@ -472,7 +478,7 @@ export default function Parties() {
             ))}
             {filteredParties.length === 0 && (
               <div className="col-span-full py-20 text-center">
-                <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                <div className="w-20 h-20 bg-slate-100 dark:bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
                   <Users size={40} />
                 </div>
                 <h3 className="text-lg font-bold text-slate-600 dark:text-slate-400">No parties found</h3>
@@ -488,11 +494,11 @@ export default function Parties() {
         {isDeleteConfirmOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDeleteConfirmOpen(null)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-white rounded-3xl shadow-2xl p-8 text-center">
               <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
                 <Trash2 size={32} />
               </div>
-              <h3 className="text-xl font-bold mb-2">Delete Party?</h3>
+              <h3 className="text-xl font-bold mb-2 text-rose-600">Delete Party?</h3>
               <p className="text-slate-500 mb-4 text-sm">This action will soft-delete the party. All transaction history will be preserved.</p>
               <div className="flex items-center justify-center gap-2 mb-8">
                 <input 
@@ -530,11 +536,11 @@ export default function Parties() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden"
             >
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
                 <h2 className="text-xl font-bold">{editingParty ? 'Edit Party' : 'Add New Party'}</h2>
-                <button onClick={() => { setIsAddModalOpen(false); setEditingParty(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                <button onClick={() => { setIsAddModalOpen(false); setEditingParty(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-200 rounded-xl transition-colors">
                   <X size={20} />
                 </button>
               </div>
@@ -548,7 +554,8 @@ export default function Parties() {
                   email: formData.get('email') as string,
                   address: formData.get('address') as string,
                   type: formData.get('type') as any,
-                  balance: Number(formData.get('balance')) || 0,
+                  opening_balance: Number(formData.get('opening_balance')) || 0,
+                  balance: Number(formData.get('opening_balance')) || 0,
                 };
 
                 if (editingParty) {
@@ -562,11 +569,11 @@ export default function Parties() {
                 <div className="grid grid-cols-2 gap-6">
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-500 mb-1">Party Name *</label>
-                    <input name="name" defaultValue={editingParty?.name} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. John Doe" />
+                    <input name="name" defaultValue={editingParty?.name} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. John Doe" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Phone Number</label>
-                    <input name="phone" defaultValue={editingParty?.phone} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. +92 300 1234567" />
+                    <input name="phone" defaultValue={editingParty?.phone} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. +92 300 1234567" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Party Type</label>
@@ -588,7 +595,7 @@ export default function Parties() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Opening Balance</label>
-                    <input name="balance" type="number" defaultValue={editingParty?.balance} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
+                    <input name="opening_balance" type="number" defaultValue={editingParty?.opening_balance} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">

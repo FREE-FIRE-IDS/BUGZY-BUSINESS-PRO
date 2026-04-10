@@ -16,14 +16,14 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function Expenses() {
-  const { transactions, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany } = useApp();
+  const { transactions, addTransaction, updateTransaction, deleteTransaction, settings, banks, parties, currentCompany } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any | null>(null);
-  const [paymentType, setPaymentType] = useState<'Cash' | 'Bank'>('Cash');
+  const [paymentType, setPaymentType] = useState<'Cash' | 'Bank' | 'Credit'>('Cash');
 
   const expenses = transactions.filter(t => t.type === 'Expense');
   const filteredExpenses = expenses.filter(e => 
@@ -82,15 +82,15 @@ export default function Expenses() {
     <div className="space-y-8">
       {/* Header & Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="md:col-span-2 bg-white dark:bg-white p-8 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-black">Expenses</h2>
-            <p className="text-slate-500">Track your business overheads and spending</p>
+            <h2 className="text-2xl font-bold text-black dark:text-slate-900">Expenses</h2>
+            <p className="text-slate-500 dark:text-slate-500">Track your business overheads and spending</p>
           </div>
           <div className="flex gap-3 w-full sm:w-auto">
             <button 
               onClick={exportPDF}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-black font-medium"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-100 transition-all text-black dark:text-slate-900 font-medium"
             >
               <Download size={18} />
               PDF
@@ -119,31 +119,41 @@ export default function Expenses() {
             placeholder="Search expenses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-900"
           />
         </div>
       </div>
 
       {/* Expenses Table */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+            <thead className="bg-slate-50 dark:bg-slate-50 text-slate-500 dark:text-slate-500 text-xs uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-4 font-semibold">Date</th>
                 <th className="px-6 py-4 font-semibold">Description</th>
+                <th className="px-6 py-4 font-semibold">Category</th>
                 <th className="px-6 py-4 font-semibold">Paid From</th>
                 <th className="px-6 py-4 font-semibold text-right">Amount</th>
                 <th className="px-6 py-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredExpenses.map((expense) => {
                 const bank = banks.find(b => b.id === expense.bank_id);
                 return (
-                  <tr key={expense.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-black">{formatDate(expense.date)}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-black">{expense.description || 'General Expense'}</td>
+                  <tr key={expense.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-900">{formatDate(expense.date)}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-slate-900">{expense.description || 'General Expense'}</td>
+                    <td className="px-6 py-4 text-sm">
+                      {expense.category ? (
+                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-100 text-slate-600 dark:text-slate-600 rounded text-[10px] font-bold uppercase">
+                          {expense.category}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-sm text-slate-500">{bank?.name || 'Cash'}</td>
                     <td className="px-6 py-4 text-sm font-bold text-right text-rose-600">
                       {formatCurrency(expense.amount, settings.currency)}
@@ -184,8 +194,8 @@ export default function Expenses() {
         {isDeleteConfirmOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDeleteConfirmOpen(null)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center">
-              <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-white rounded-3xl shadow-2xl p-8 text-center">
+              <div className="w-16 h-16 bg-rose-50 dark:bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
                 <Trash2 size={32} />
               </div>
               <h3 className="text-xl font-bold mb-2">Delete Expense?</h3>
@@ -198,12 +208,12 @@ export default function Expenses() {
                   onChange={(e) => setIsHardDelete(e.target.checked)}
                   className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
                 />
-                <label htmlFor="hardDelete" className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                <label htmlFor="hardDelete" className="text-sm font-medium text-slate-700 dark:text-slate-700 cursor-pointer">
                   Hard Delete (Permanent)
                 </label>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => { setIsDeleteConfirmOpen(null); setIsHardDelete(false); }} className="flex-1 px-4 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                <button onClick={() => { setIsDeleteConfirmOpen(null); setIsHardDelete(false); }} className="flex-1 px-4 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-50 transition-all">Cancel</button>
                 <button onClick={() => { deleteTransaction(isDeleteConfirmOpen!, isHardDelete); setIsDeleteConfirmOpen(null); setIsHardDelete(false); }} className="flex-1 px-4 py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">Delete</button>
               </div>
             </motion.div>
@@ -226,11 +236,11 @@ export default function Expenses() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden"
+              className="relative w-full max-w-md bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden"
             >
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-100 flex items-center justify-between">
                 <h2 className="text-xl font-bold">Add Expense</h2>
-                <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-100 rounded-xl transition-colors">
                   <X size={20} />
                 </button>
               </div>
@@ -245,19 +255,21 @@ export default function Expenses() {
                   type: 'Expense',
                   amount: Number(formData.get('amount')),
                   description: formData.get('description') as string,
+                  category: formData.get('category') as string,
                   payment_type: paymentType,
                   bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
+                  party_id: paymentType === 'Credit' ? formData.get('party_id') as string : undefined,
                 });
                 setIsAddModalOpen(false);
               }}>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Date</label>
-                    <input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Amount</label>
-                    <input name="amount" type="number" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
+                    <input name="amount" type="number" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Payment Type</label>
@@ -267,7 +279,7 @@ export default function Expenses() {
                         onClick={() => setPaymentType('Cash')}
                         className={cn(
                           "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-                          paymentType === 'Cash' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
+                          paymentType === 'Cash' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
                         )}
                       >
                         Cash
@@ -277,29 +289,71 @@ export default function Expenses() {
                         onClick={() => setPaymentType('Bank')}
                         className={cn(
                           "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-                          paymentType === 'Bank' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
+                          paymentType === 'Bank' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
                         )}
                       >
                         Bank
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setPaymentType('Credit')}
+                        className={cn(
+                          "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
+                          paymentType === 'Credit' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
+                        )}
+                      >
+                        Credit
                       </button>
                     </div>
                   </div>
                   {paymentType === 'Bank' && (
                     <div>
                       <label className="block text-sm font-medium text-slate-500 mb-1">Paid From (Bank)</label>
-                      <select name="bank_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                      <select name="bank_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="">Select Bank</option>
                         {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                       </select>
                     </div>
                   )}
+                  {paymentType === 'Credit' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-500 mb-1">Party (To Pay)</label>
+                      <select name="party_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Select Party</option>
+                        {parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Category</label>
+                    <div className="relative">
+                      <input 
+                        name="category" 
+                        list="expense-categories"
+                        className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" 
+                        placeholder="Select or type category" 
+                      />
+                      <datalist id="expense-categories">
+                        <option value="Food" />
+                        <option value="Transport" />
+                        <option value="Rent" />
+                        <option value="Utilities" />
+                        <option value="Salaries" />
+                        <option value="Marketing" />
+                        <option value="Office Supplies" />
+                        <option value="Maintenance" />
+                        <option value="Taxes" />
+                        <option value="Insurance" />
+                      </datalist>
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
-                    <textarea name="description" rows={3} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="What was this expense for?"></textarea>
+                    <textarea name="description" rows={3} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="What was this expense for?"></textarea>
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                  <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-50 transition-all">Cancel</button>
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">Save Expense</button>
                 </div>
               </form>
@@ -309,10 +363,10 @@ export default function Expenses() {
         {isEditModalOpen && editingExpense && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEditModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-100 flex items-center justify-between">
                 <h2 className="text-xl font-bold">Edit Expense</h2>
-                <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
+                <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-100 rounded-xl transition-colors"><X size={20} /></button>
               </div>
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
@@ -322,19 +376,21 @@ export default function Expenses() {
                   date: dateStr ? new Date(dateStr).toISOString() : editingExpense.date,
                   amount: Number(formData.get('amount')),
                   description: formData.get('description') as string,
+                  category: formData.get('category') as string,
                   payment_type: paymentType,
                   bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
+                  party_id: paymentType === 'Credit' ? formData.get('party_id') as string : undefined,
                 });
                 setIsEditModalOpen(false);
               }}>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Date</label>
-                    <input name="date" type="date" defaultValue={editingExpense.date.split('T')[0]} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input name="date" type="date" defaultValue={editingExpense.date.split('T')[0]} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Amount</label>
-                    <input name="amount" type="number" defaultValue={editingExpense.amount} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input name="amount" type="number" defaultValue={editingExpense.amount} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Payment Type</label>
@@ -344,7 +400,7 @@ export default function Expenses() {
                         onClick={() => setPaymentType('Cash')}
                         className={cn(
                           "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-                          paymentType === 'Cash' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
+                          paymentType === 'Cash' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
                         )}
                       >
                         Cash
@@ -354,28 +410,71 @@ export default function Expenses() {
                         onClick={() => setPaymentType('Bank')}
                         className={cn(
                           "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-                          paymentType === 'Bank' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-white" : "text-slate-500"
+                          paymentType === 'Bank' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
                         )}
                       >
                         Bank
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setPaymentType('Credit')}
+                        className={cn(
+                          "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
+                          paymentType === 'Credit' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
+                        )}
+                      >
+                        Credit
                       </button>
                     </div>
                   </div>
                   {paymentType === 'Bank' && (
                     <div>
                       <label className="block text-sm font-medium text-slate-500 mb-1">Paid From (Bank)</label>
-                      <select name="bank_id" defaultValue={editingExpense.bank_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+                      <select name="bank_id" defaultValue={editingExpense.bank_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 outline-none focus:ring-2 focus:ring-indigo-500">
                         {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                       </select>
                     </div>
                   )}
+                  {paymentType === 'Credit' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-500 mb-1">Party (To Pay)</label>
+                      <select name="party_id" defaultValue={editingExpense.party_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Select Party</option>
+                        {parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Category</label>
+                    <div className="relative">
+                      <input 
+                        name="category" 
+                        list="edit-expense-categories"
+                        defaultValue={editingExpense.category}
+                        className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" 
+                        placeholder="Select or type category" 
+                      />
+                      <datalist id="edit-expense-categories">
+                        <option value="Food" />
+                        <option value="Transport" />
+                        <option value="Rent" />
+                        <option value="Utilities" />
+                        <option value="Salaries" />
+                        <option value="Marketing" />
+                        <option value="Office Supplies" />
+                        <option value="Maintenance" />
+                        <option value="Taxes" />
+                        <option value="Insurance" />
+                      </datalist>
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
-                    <textarea name="description" defaultValue={editingExpense.description} rows={3} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                    <textarea name="description" defaultValue={editingExpense.description} rows={3} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                  <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-50 transition-all">Cancel</button>
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">Update Expense</button>
                 </div>
               </form>
