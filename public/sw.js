@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bugzy-v12';
+const CACHE_NAME = 'bugzy-v13';
 const ASSETS = [
   '/',
   '/index.html',
@@ -11,11 +11,11 @@ const ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // Critical assets must be cached
-      return cache.addAll(['/', '/index.html', '/manifest.json']).then(() => {
-        // Non-critical assets can fail
+      // Cache critical assets
+      return cache.addAll(['/', '/manifest.json']).then(() => {
+        // Cache other assets without failing the whole install
         return Promise.allSettled(
-          ASSETS.filter(a => !['/', '/index.html', '/manifest.json'].includes(a))
+          ASSETS.filter(a => a !== '/' && a !== '/manifest.json')
             .map(url => fetch(url).then(res => {
               if (res.ok) return cache.put(url, res);
             }))
@@ -52,7 +52,10 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          return caches.match(event.request) || caches.match('/') || caches.match('/index.html');
+          // Correctly chain fallback promises
+          return caches.match(event.request)
+            .then(res => res || caches.match('/'))
+            .then(res => res || caches.match('/index.html'));
         })
     );
     return;
@@ -69,10 +72,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => {
-        // Fail gracefully for non-navigation requests
-        return null;
-      });
+      }).catch(() => null);
     })
   );
 });
