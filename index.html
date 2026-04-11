@@ -19,25 +19,15 @@
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
-            .then(reg => {
-              console.log('PWA Service Worker registered');
-              
-              // Force the SW to take control immediately
-              if (reg.installing) {
-                const sw = reg.installing || reg.waiting;
-                sw.onstatechange = () => {
-                  if (sw.state === 'installed' && navigator.serviceWorker.controller) {
-                    console.log('New content available.');
-                  }
-                };
-              }
-            })
-            .catch(err => console.error('PWA Service Worker failed', err));
+            .then(() => console.log('SW Registered'))
+            .catch(err => console.error('SW Failed', err));
         });
 
-        // Ensure the page is controlled on first load
+        let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          console.log('Service Worker took control');
+          if (refreshing) return;
+          window.location.reload();
+          refreshing = true;
         });
       }
     </script>

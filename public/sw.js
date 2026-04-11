@@ -14,7 +14,11 @@ self.addEventListener('fetch', (event) => {
   // Navigation (HTML pages)
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match('/index.html'))
+      fetch(event.request).then(response => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put('/index.html', clone));
+        return response;
+      }).catch(() => caches.match('/index.html'))
     );
     return;
   }
