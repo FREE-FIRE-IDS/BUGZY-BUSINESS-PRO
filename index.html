@@ -29,6 +29,11 @@
           window.location.reload();
           refreshing = true;
         });
+
+        // Debug install eligibility
+        window.addEventListener('beforeinstallprompt', (e) => {
+          console.log('PWA Install Prompt eligible');
+        });
       }
     </script>
   </head>
