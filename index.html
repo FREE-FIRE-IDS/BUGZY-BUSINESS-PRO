@@ -17,11 +17,10 @@
 
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(() => console.log('SW Registered'))
-            .catch(err => console.error('SW Failed', err));
-        });
+        // Register immediately, don't wait for 'load'
+        navigator.serviceWorker.register('/sw.js')
+          .then(() => console.log('SW Registered'))
+          .catch(err => console.error('SW Failed', err));
 
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {

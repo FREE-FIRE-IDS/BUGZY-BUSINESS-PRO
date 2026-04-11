@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bugzy-v11';
+const CACHE_NAME = 'bugzy-v12';
 const ASSETS = [
   '/',
   '/index.html',
@@ -11,12 +11,16 @@ const ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return Promise.allSettled(
-        ASSETS.map(url => fetch(url).then(res => {
-          if (res.ok) return cache.put(url, res);
-          throw new Error(`Failed to fetch ${url}`);
-        }))
-      );
+      // Critical assets must be cached
+      return cache.addAll(['/', '/index.html', '/manifest.json']).then(() => {
+        // Non-critical assets can fail
+        return Promise.allSettled(
+          ASSETS.filter(a => !['/', '/index.html', '/manifest.json'].includes(a))
+            .map(url => fetch(url).then(res => {
+              if (res.ok) return cache.put(url, res);
+            }))
+        );
+      });
     })
   );
   self.skipWaiting();
@@ -36,25 +40,39 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   const isLocal = url.origin === self.location.origin;
 
+  // Navigation: Network-First with robust fallback
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match(event.request) || caches.match('/') || caches.match('/index.html');
-      })
+      fetch(event.request)
+        .then(response => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request) || caches.match('/') || caches.match('/index.html');
+        })
     );
     return;
   }
 
-  if (isLocal) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => {
-        return cached || fetch(event.request).then((response) => {
-          if (!response || !response.ok) return response;
+  // All other requests: Cache-First, then Network
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+
+      return fetch(event.request).then((response) => {
+        if (response && response.ok && isLocal) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          return response;
-        });
-      })
-    );
-  }
+        }
+        return response;
+      }).catch(() => {
+        // Fail gracefully for non-navigation requests
+        return null;
+      });
+    })
+  );
 });
