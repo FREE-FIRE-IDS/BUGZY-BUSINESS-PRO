@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bugzy-pwa-v3';
+const CACHE_NAME = 'bugzy-pwa-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -12,6 +12,7 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
+      console.log('Caching static assets');
       return cache.addAll(STATIC_ASSETS);
     })
   );
@@ -30,21 +31,38 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event - Stale-while-revalidate for assets, Network-first for others
+// Fetch event
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
 
-  // For navigation requests, try network first, then fallback to root
+  // For navigation requests, try network first, then fallback to cached index.html
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match('/'))
+      fetch(event.request).catch(() => {
+        return caches.match('/') || caches.match('/index.html');
+      })
     );
     return;
   }
 
-  // For other requests, use stale-while-revalidate
+  // For static assets (icons, manifest), use Cache-First
+  if (STATIC_ASSETS.includes(url.pathname)) {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        return cachedResponse || fetch(event.request).then((networkResponse) => {
+          return caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, networkResponse.clone());
+            return networkResponse;
+          });
+        });
+      })
+    );
+    return;
+  }
+
+  // For other requests (JS, CSS, images), use Stale-While-Revalidate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request).then((networkResponse) => {

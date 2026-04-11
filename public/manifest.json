@@ -1,9 +1,9 @@
 {
-  "id": "bugzy-business-pro",
+  "id": "bugzy-business-pro-v1",
   "name": "Bugzy Business Pro",
   "short_name": "Bugzy",
   "description": "Professional Business Management & Accounting for small to medium enterprises.",
-  "lang": "en",
+  "lang": "en-US",
   "dir": "ltr",
   "categories": ["business", "finance", "productivity"],
   "start_url": "/",
@@ -54,11 +54,13 @@
     {
       "name": "Invoices",
       "url": "/invoices",
+      "description": "Manage your invoices",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Parties",
       "url": "/parties",
+      "description": "Manage your customers and suppliers",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
