@@ -1,10 +1,9 @@
-const CACHE_NAME = 'bugzy-pwa-v6';
+const CACHE_NAME = 'bugzy-pwa-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/icon-192.png',
-  '/icon-256.png',
   '/icon-512.png',
   '/icon-maskable.png'
 ];
@@ -12,16 +11,9 @@ const STATIC_ASSETS = [
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(async (cache) => {
+    caches.open(CACHE_NAME).then((cache) => {
       console.log('Caching shell assets');
-      // Use a loop to add assets individually to be resilient to missing files
-      for (const asset of STATIC_ASSETS) {
-        try {
-          await cache.add(asset);
-        } catch (err) {
-          console.warn(`Failed to cache ${asset}:`, err);
-        }
-      }
+      return cache.addAll(STATIC_ASSETS);
     })
   );
   self.skipWaiting();
