@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bugzy-pwa-v4';
+const CACHE_NAME = 'bugzy-pwa-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -12,7 +12,7 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('Caching static assets');
+      console.log('Caching shell assets');
       return cache.addAll(STATIC_ASSETS);
     })
   );
@@ -37,21 +37,30 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // For navigation requests, try network first, then fallback to cached index.html
+  // 1. Navigation requests: Network-First, Fallback to Cache
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match('/') || caches.match('/index.html');
-      })
+      fetch(event.request)
+        .then((response) => {
+          // Optional: Update the cache with the latest index.html
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => {
+          // Offline fallback: try the exact request, then the root
+          return caches.match(event.request) || caches.match('/') || caches.match('/index.html');
+        })
     );
     return;
   }
 
-  // For static assets (icons, manifest), use Cache-First
+  // 2. Static Assets (Icons, Manifest): Cache-First
   if (STATIC_ASSETS.includes(url.pathname)) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
-        return cachedResponse || fetch(event.request).then((networkResponse) => {
+        if (cachedResponse) return cachedResponse;
+        return fetch(event.request).then((networkResponse) => {
           return caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, networkResponse.clone());
             return networkResponse;
@@ -62,7 +71,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For other requests (JS, CSS, images), use Stale-While-Revalidate
+  // 3. App Assets (JS, CSS, Images): Stale-While-Revalidate
+  // This ensures the app works offline even if bundles change
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request).then((networkResponse) => {
@@ -73,8 +83,12 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
-      }).catch(() => null);
+      }).catch(() => {
+        // If fetch fails and we have no cached response, we're truly offline and asset is missing
+        return null;
+      });
 
+      // Return cached response immediately if we have it, otherwise wait for fetch
       return cachedResponse || fetchPromise;
     })
   );
