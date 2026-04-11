@@ -50,7 +50,12 @@ self.addEventListener('fetch', (event) => {
           // Offline fallback: try the exact request, then the root, then index.html
           return caches.match(event.request)
             .then(response => response || caches.match('/'))
-            .then(response => response || caches.match('/index.html'));
+            .then(response => response || caches.match('/index.html'))
+            .then(response => response || new Response('Offline', {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: new Headers({ 'Content-Type': 'text/plain' })
+            }));
         })
     );
     return;
@@ -83,7 +88,10 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
-      }).catch(() => null);
+      }).catch(() => {
+        // Return a dummy response if fetch fails and no cache
+        return new Response('Network error', { status: 408, statusText: 'Network Timeout' });
+      });
 
       return cachedResponse || fetchPromise;
     })
