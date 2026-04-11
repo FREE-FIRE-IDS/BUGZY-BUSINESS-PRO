@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bugzy-pwa-v6';
+const CACHE_NAME = 'bugzy-pwa-v7';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -12,7 +12,7 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('Caching shell assets');
+      console.log('[SW] Caching shell assets');
       return cache.addAll(STATIC_ASSETS);
     })
   );
@@ -42,14 +42,15 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // Optional: Update the cache with the latest index.html
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           return response;
         })
         .catch(() => {
-          // Offline fallback: try the exact request, then the root
-          return caches.match(event.request) || caches.match('/') || caches.match('/index.html');
+          // Offline fallback: try the exact request, then the root, then index.html
+          return caches.match(event.request)
+            .then(response => response || caches.match('/'))
+            .then(response => response || caches.match('/index.html'));
         })
     );
     return;
@@ -72,7 +73,6 @@ self.addEventListener('fetch', (event) => {
   }
 
   // 3. App Assets (JS, CSS, Images): Stale-While-Revalidate
-  // This ensures the app works offline even if bundles change
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request).then((networkResponse) => {
@@ -83,12 +83,8 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
-      }).catch(() => {
-        // If fetch fails and we have no cached response, we're truly offline and asset is missing
-        return null;
-      });
+      }).catch(() => null);
 
-      // Return cached response immediately if we have it, otherwise wait for fetch
       return cachedResponse || fetchPromise;
     })
   );
