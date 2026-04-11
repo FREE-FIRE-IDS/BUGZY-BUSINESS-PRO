@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bugzy-pwa-v8';
+const CACHE_NAME = 'bugzy-pwa-v7';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -51,9 +51,9 @@ self.addEventListener('fetch', (event) => {
           return caches.match(event.request)
             .then(response => response || caches.match('/'))
             .then(response => response || caches.match('/index.html'))
-            .then(response => response || new Response('Bugzy Business Pro is currently offline.', {
-              status: 200,
-              statusText: 'OK',
+            .then(response => response || new Response('Offline', {
+              status: 503,
+              statusText: 'Service Unavailable',
               headers: new Headers({ 'Content-Type': 'text/plain' })
             }));
         })
