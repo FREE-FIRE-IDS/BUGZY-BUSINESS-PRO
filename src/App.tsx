@@ -38,6 +38,7 @@ import Invoices from './pages/Invoices';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Admin from './pages/Admin';
+import Activation from './pages/Activation';
 
 import GlobalTransactionModal from './components/GlobalTransactionModal';
 
@@ -144,6 +145,7 @@ function SplashScreen() {
 function PaymentScreen({ company }: { company: any }) {
   const { submitPaymentRequest } = useApp();
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [view, setView] = useState<'payment' | 'activate'>('payment');
 
   const handlePaid = async () => {
     setStatus('loading');
@@ -156,6 +158,20 @@ function PaymentScreen({ company }: { company: any }) {
     }
   };
 
+  if (view === 'activate') {
+    return (
+      <div className="relative">
+        <Activation />
+        <button 
+          onClick={() => setView('payment')}
+          className="fixed bottom-10 left-1/2 -translate-x-1/2 text-sm font-bold text-slate-500 hover:text-indigo-600 transition-all"
+        >
+          Back to Payment Details
+        </button>
+      </div>
+    );
+  }
+
   if (status === 'success') {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6 text-center">
@@ -165,14 +181,22 @@ function PaymentScreen({ company }: { company: any }) {
           </div>
           <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 mb-4 tracking-tight">Request Sent</h1>
           <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
-            Your payment request has been sent to the admin. Your account will be unlocked automatically once approved.
+            Your payment request has been sent to the admin. Once approved, you will receive a license key to activate your account.
           </p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all"
-          >
-            Check Status
-          </button>
+          <div className="space-y-4">
+            <button 
+              onClick={() => setView('activate')}
+              className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20"
+            >
+              I Have a License Key
+            </button>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-4 text-slate-500 font-bold hover:text-slate-700 transition-all"
+            >
+              Check Status
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -203,13 +227,22 @@ function PaymentScreen({ company }: { company: any }) {
           </div>
         </div>
 
-        <button 
-          onClick={handlePaid}
-          disabled={status === 'loading'}
-          className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
-        >
-          {status === 'loading' ? 'Sending...' : 'I Have Paid'}
-        </button>
+        <div className="space-y-4">
+          <button 
+            onClick={handlePaid}
+            disabled={status === 'loading'}
+            className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
+          >
+            {status === 'loading' ? 'Sending...' : 'I Have Paid'}
+          </button>
+          <button 
+            onClick={() => setView('activate')}
+            className="w-full py-4 text-indigo-600 dark:text-indigo-400 font-bold hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-2xl transition-all"
+          >
+            I Already Have a Key
+          </button>
+        </div>
+        
         {status === 'error' && <p className="mt-4 text-xs text-red-500 font-bold">Failed to send request. Try again.</p>}
         <p className="mt-6 text-xs text-slate-400">After payment, click the button to notify the admin.</p>
       </div>

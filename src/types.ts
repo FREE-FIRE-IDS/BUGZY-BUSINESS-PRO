@@ -123,6 +123,17 @@ export interface PaymentRequest {
   company_name: string;
   amount: number;
   status: 'pending' | 'approved' | 'rejected';
+  license_key?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface License {
+  id: string;
+  user_email: string;
+  license_key: string;
+  device_id: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }

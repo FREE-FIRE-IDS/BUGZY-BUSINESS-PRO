@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Company, Party, BankAccount, InventoryItem as Item, Transaction, AppSettings, Invoice, PaymentRequest } from '../types';
+import { Company, Party, BankAccount, InventoryItem as Item, Transaction, AppSettings, Invoice, PaymentRequest, License } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface AppContextType {
@@ -40,7 +40,10 @@ interface AppContextType {
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
   submitPaymentRequest: (amount: number) => Promise<void>;
   fetchPaymentRequests: () => Promise<PaymentRequest[]>;
-  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected', companyId: string) => Promise<void>;
+  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected', companyId: string, licenseKey?: string) => Promise<void>;
+  activateLicense: (key: string) => Promise<void>;
+  fetchLicenses: () => Promise<License[]>;
+  resetLicenseDevice: (id: string) => Promise<void>;
   isAdmin: boolean;
   selectedPartyId: string | null;
   setSelectedPartyId: (id: string | null) => void;
@@ -1165,21 +1168,78 @@ const deleteFromCloud = async (table: string, id: string) => {
     return data || [];
   };
 
-  const updatePaymentRequestStatus = async (id: string, status: 'approved' | 'rejected', companyId: string) => {
+  const updatePaymentRequestStatus = async (id: string, status: 'approved' | 'rejected', companyId: string, licenseKey?: string) => {
     const now = new Date().toISOString();
     const { error: reqError } = await supabase
       .from('payment_requests')
-      .update({ status, updated_at: now })
+      .update({ status, license_key: licenseKey, updated_at: now })
       .eq('id', id);
     if (reqError) throw reqError;
 
-    if (status === 'approved') {
-      const { error: compError } = await supabase
-        .from('companies')
-        .update({ is_paid: true, updated_at: now })
-        .eq('id', companyId);
-      if (compError) throw compError;
+    if (status === 'approved' && licenseKey) {
+      const { error: licError } = await supabase
+        .from('licenses')
+        .insert({
+          id: crypto.randomUUID(),
+          user_email: (await supabase.from('payment_requests').select('user_email').eq('id', id).single()).data?.user_email,
+          license_key: licenseKey,
+          is_active: true,
+          created_at: now,
+          updated_at: now
+        });
+      if (licError) throw licError;
     }
+  };
+
+  const activateLicense = async (key: string) => {
+    if (!settings.user_email || !currentCompany) return;
+    
+    // 1. Get Device ID (Simple fingerprint)
+    const deviceId = navigator.userAgent + (navigator as any).deviceMemory + (navigator as any).hardwareConcurrency;
+    
+    // 2. Fetch License
+    const { data: license, error: fetchError } = await supabase
+      .from('licenses')
+      .select('*')
+      .eq('license_key', key)
+      .single();
+    
+    if (fetchError || !license) throw new Error('Invalid License Key');
+    if (!license.is_active) throw new Error('License is inactive');
+    
+    // 3. Check Device Binding
+    if (license.device_id && license.device_id !== deviceId) {
+      throw new Error('License already bound to another device');
+    }
+    
+    // 4. Bind Device and Activate
+    const now = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from('licenses')
+      .update({ device_id: deviceId, updated_at: now })
+      .eq('id', license.id);
+    
+    if (updateError) throw updateError;
+    
+    // 5. Unlock Company
+    await updateCompany(currentCompany.id, { is_paid: true });
+  };
+
+  const fetchLicenses = async () => {
+    const { data, error } = await supabase
+      .from('licenses')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  };
+
+  const resetLicenseDevice = async (id: string) => {
+    const { error } = await supabase
+      .from('licenses')
+      .update({ device_id: null, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
   };
 
   const isAdmin = settings.user_email === 'sudaiskamran31@gmail.com';
@@ -1205,7 +1265,9 @@ const deleteFromCloud = async (table: string, id: string) => {
       addCompany, updateCompany, deleteCompany,
       backupData, restoreData,
       addInvoice, updateInvoice, deleteInvoice,
-      submitPaymentRequest, fetchPaymentRequests, updatePaymentRequestStatus, isAdmin,
+      submitPaymentRequest, fetchPaymentRequests, updatePaymentRequestStatus,
+      activateLicense, fetchLicenses, resetLicenseDevice,
+      isAdmin,
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
       session, signOut
     }}>

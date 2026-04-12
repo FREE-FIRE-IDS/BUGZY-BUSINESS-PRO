@@ -12,14 +12,27 @@ CREATE TABLE IF NOT EXISTS payment_requests (
   company_name TEXT NOT NULL,
   amount NUMERIC NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
+  license_key TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 3. Enable RLS
-ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+-- 3. Create licenses table
+CREATE TABLE IF NOT EXISTS licenses (
+  id UUID PRIMARY KEY,
+  user_email TEXT NOT NULL,
+  license_key TEXT UNIQUE NOT NULL,
+  device_id TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
--- 4. Policies for payment_requests
+-- 4. Enable RLS
+ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
+
+-- 5. Policies for payment_requests
 CREATE POLICY "Users can create their own payment requests" 
 ON payment_requests FOR INSERT 
 WITH CHECK (auth.jwt() ->> 'email' = user_email);
@@ -36,7 +49,25 @@ CREATE POLICY "Admins can update payment requests"
 ON payment_requests FOR UPDATE 
 USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
 
--- 5. Admin policy for companies table
+-- 6. Policies for licenses
+CREATE POLICY "Users can view their own licenses" 
+ON licenses FOR SELECT 
+USING (auth.jwt() ->> 'email' = user_email);
+
+CREATE POLICY "Admins can view all licenses" 
+ON licenses FOR SELECT 
+USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
+
+CREATE POLICY "Admins can manage licenses" 
+ON licenses FOR ALL 
+USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
+
+CREATE POLICY "Users can update their own device_id" 
+ON licenses FOR UPDATE 
+USING (auth.jwt() ->> 'email' = user_email)
+WITH CHECK (auth.jwt() ->> 'email' = user_email);
+
+-- 7. Admin policy for companies table
 CREATE POLICY "Admins can update company paid status" 
 ON companies FOR UPDATE 
 USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
