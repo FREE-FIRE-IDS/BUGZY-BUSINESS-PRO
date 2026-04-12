@@ -20,7 +20,8 @@ import {
   ArrowLeftRight,
   FileText,
   Search,
-  Sparkles
+  Sparkles,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -150,7 +151,7 @@ function PaymentScreen({ company }: { company: any }) {
   const handlePaid = async () => {
     setStatus('loading');
     try {
-      await submitPaymentRequest(5000); // Example amount
+      await submitPaymentRequest(1200); // Updated to 1200 PKR
       setStatus('success');
     } catch (e) {
       console.error(e);
@@ -208,16 +209,16 @@ function PaymentScreen({ company }: { company: any }) {
         <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-3xl flex items-center justify-center mx-auto mb-8">
           <Wallet size={40} />
         </div>
-        <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 mb-4 tracking-tight">Trial Expired</h1>
+        <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 mb-4 tracking-tight">Subscription Required</h1>
         <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
-          Your 20-day free trial for <span className="font-bold text-slate-900 dark:text-slate-50">{company.name}</span> has ended. Please pay to continue using full features.
+          Your 20-day free trial for <span className="font-bold text-slate-900 dark:text-slate-50">{company.name}</span> has ended. Subscribe for <span className="font-bold text-indigo-600">1200 PKR/year</span> to continue.
         </p>
         
         <div className="bg-slate-50 dark:bg-slate-800/50 rounded-3xl p-6 mb-10 border border-slate-100 dark:border-slate-800">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Payment Details</p>
           <div className="space-y-4 text-left">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">EasyPaisa / JazzCash</span>
+              <span className="text-sm text-slate-500">JazzCash</span>
               <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">0332-7373104</span>
             </div>
             <div className="flex items-center justify-between">
@@ -287,12 +288,43 @@ function ShortcutHelper({ show }: { show: boolean }) {
   );
 }
 
+function TrialBanner({ company, onUpgrade }: { company: any, onUpgrade: () => void }) {
+  if (company.is_paid) return null;
+  
+  const trialStart = new Date(company.trial_start || company.created_at);
+  const trialEnd = addDays(trialStart, 20);
+  const daysLeft = Math.max(0, differenceInDays(trialEnd, new Date()));
+
+  return (
+    <div className="bg-indigo-600 text-white px-4 py-2 flex items-center justify-between text-sm font-bold sticky top-0 z-[45] shadow-md">
+      <div className="flex items-center gap-2">
+        <Clock size={16} />
+        <span className="hidden sm:inline">Trial Version: {daysLeft} days remaining</span>
+        <span className="sm:hidden">{daysLeft}d left</span>
+      </div>
+      <button 
+        onClick={onUpgrade}
+        className="bg-white text-indigo-600 px-4 py-1 rounded-full text-xs font-black hover:bg-indigo-50 transition-all shadow-lg active:scale-95"
+      >
+        Buy Now (1200 PKR/year)
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { currentCompany, companies, setCurrentCompany, addCompany, updateCompany, settings, updateSettings, isAdmin } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
+  const [forceUpgrade, setForceUpgrade] = useState(false);
+
+  useEffect(() => {
+    if (!currentCompany && companies.length > 0) {
+      setCurrentCompany(companies[0]);
+    }
+  }, [currentCompany, companies, setCurrentCompany]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -323,11 +355,17 @@ export default function App() {
     { id: 'expenses', label: 'Expenses', icon: Receipt },
     { id: 'reports', label: 'Reports', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
+    ...(currentCompany && !currentCompany.is_paid ? [{ id: 'upgrade', label: 'Buy Now', icon: Sparkles }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2 }] : []),
   ];
 
   const renderPage = () => {
     const tab = activeTab === 'more' ? 'settings' : activeTab;
+    if (tab === 'upgrade') {
+      setForceUpgrade(true);
+      setActiveTab('dashboard');
+      return <Dashboard />;
+    }
     switch (tab) {
       case 'dashboard': return <Dashboard />;
       case 'parties': return <Parties />;
@@ -396,8 +434,20 @@ export default function App() {
     const trialEnd = addDays(trialStart, 20);
     const isExpired = isAfter(new Date(), trialEnd);
 
-    if (isExpired) {
-      return <PaymentScreen company={currentCompany} />;
+    if (isExpired || forceUpgrade) {
+      return (
+        <div className="relative">
+          <PaymentScreen company={currentCompany} />
+          {forceUpgrade && (
+            <button 
+              onClick={() => setForceUpgrade(false)}
+              className="fixed top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all z-[60]"
+            >
+              <X size={24} />
+            </button>
+          )}
+        </div>
+      );
     }
   }
 
@@ -459,17 +509,38 @@ export default function App() {
               )}
             </button>
           ))}
+
+          {currentCompany && !currentCompany.is_paid && (
+            <button
+              onClick={() => setForceUpgrade(true)}
+              className={cn(
+                "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative mt-6 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 font-bold hover:bg-amber-100 dark:hover:bg-amber-900/40",
+                !isSidebarOpen && "justify-center"
+              )}
+            >
+              <Sparkles size={22} className="animate-pulse" />
+              {isSidebarOpen && <span>Buy Now</span>}
+              {!isSidebarOpen && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                  Buy Now
+                </div>
+              )}
+            </button>
+          )}
         </nav>
       </aside>
 
       {/* Main Content */}
       <main className={cn(
-        "transition-all duration-300 min-h-screen pb-20 md:pb-0",
+        "transition-all duration-300 min-h-screen pb-20 md:pb-0 flex flex-col",
         isSidebarOpen ? "md:pl-64" : "md:pl-20"
       )}>
+        {currentCompany && <TrialBanner company={currentCompany} onUpgrade={() => setForceUpgrade(true)} />}
+        
         {/* Topbar */}
         <header className={cn(
-          "h-16 border-b flex items-center justify-between px-4 md:px-8 sticky top-0 z-30 backdrop-blur-md",
+          "h-16 border-b flex items-center justify-between px-4 md:px-8 sticky z-30 backdrop-blur-md",
+          currentCompany && !currentCompany.is_paid ? "top-[40px]" : "top-0",
           theme === 'dark' ? "bg-slate-900/80 border-slate-800" : "bg-white/80 border-slate-200"
         )}>
           <div className="flex items-center gap-4 flex-1">

@@ -114,13 +114,49 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
-  const [parties, setParties] = useState<Party[]>([]);
-  const [banks, setBanks] = useState<BankAccount[]>([]);
-  const [items, setItems] = useState<Item[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [companies, setCompanies] = useState<Company[]>(() => {
+    const saved = localStorage.getItem('companies');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [currentCompany, setCurrentCompany] = useState<Company | null>(() => {
+    const saved = localStorage.getItem('currentCompany');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [parties, setParties] = useState<Party[]>(() => {
+    const company = localStorage.getItem('currentCompany');
+    if (!company) return [];
+    const id = JSON.parse(company).id;
+    const saved = localStorage.getItem(`parties_${id}`);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [banks, setBanks] = useState<BankAccount[]>(() => {
+    const company = localStorage.getItem('currentCompany');
+    if (!company) return [];
+    const id = JSON.parse(company).id;
+    const saved = localStorage.getItem(`banks_${id}`);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [items, setItems] = useState<Item[]>(() => {
+    const company = localStorage.getItem('currentCompany');
+    if (!company) return [];
+    const id = JSON.parse(company).id;
+    const saved = localStorage.getItem(`items_${id}`);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const company = localStorage.getItem('currentCompany');
+    if (!company) return [];
+    const id = JSON.parse(company).id;
+    const saved = localStorage.getItem(`transactions_${id}`);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [invoices, setInvoices] = useState<Invoice[]>(() => {
+    const company = localStorage.getItem('currentCompany');
+    if (!company) return [];
+    const id = JSON.parse(company).id;
+    const saved = localStorage.getItem(`invoices_${id}`);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('app_settings');
     const defaultSettings: AppSettings = {
@@ -976,7 +1012,16 @@ const deleteFromCloud = async (table: string, id: string) => {
       // FULL OVERWRITE - No merging, no cloud sync triggering
       localStorage.clear();
       Object.entries(data).forEach(([key, value]) => {
-        if (typeof value === 'string') localStorage.setItem(key, value);
+        if (typeof value === 'string') {
+          let finalValue = value;
+          // Force disable sync on restore to prevent auto-fetching cloud data
+          if (key === 'app_settings') {
+            const settings = JSON.parse(value);
+            settings.sync_enabled = false;
+            finalValue = JSON.stringify(settings);
+          }
+          localStorage.setItem(key, finalValue);
+        }
       });
       // Force reload to apply new state without any sync events
       window.location.href = '/';

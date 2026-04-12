@@ -18,7 +18,9 @@ import {
   Tag,
   X,
   Database,
-  ShieldAlert
+  ShieldAlert,
+  Download,
+  Upload
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -30,7 +32,7 @@ export default function Settings() {
   const { 
     settings, updateSettings, companies, currentCompany, setCurrentCompany, 
     refreshData, addCompany, deleteCompany, pullCompanies, syncStatus,
-    linkDevice, signOut, updateCompany, isAdmin
+    linkDevice, signOut, updateCompany, isAdmin, backupData, restoreData
   } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [emailInput, setEmailInput] = React.useState(settings.user_email || '');
@@ -947,6 +949,72 @@ NOTIFY pgrst, 'reload schema';
       </section>
       
       {/* Admin Section */}
+      {/* Backup & Restore */}
+      <section>
+        <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-indigo-600">
+          <Database size={24} />
+          Backup & Restore
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 p-8 shadow-sm">
+            <div className="flex flex-col gap-4">
+              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                <Download size={24} />
+              </div>
+              <div>
+                <p className="font-bold">Create Backup</p>
+                <p className="text-sm text-slate-500">Export all your data to a JSON file. Keep this file safe as a local snapshot.</p>
+              </div>
+              <button 
+                onClick={backupData}
+                className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
+              >
+                <Download size={18} />
+                Download Backup
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 p-8 shadow-sm">
+            <div className="flex flex-col gap-4">
+              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
+                <Upload size={24} />
+              </div>
+              <div>
+                <p className="font-bold">Restore Data</p>
+                <p className="text-sm text-slate-500 text-amber-600 font-medium">Warning: This will REPLACE all current data. This action cannot be undone.</p>
+              </div>
+              <label className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer text-center">
+                <Upload size={18} />
+                Upload & Restore
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  className="hidden" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = async (event) => {
+                        const content = event.target?.result as string;
+                        if (confirm("CRITICAL WARNING: This will permanently DELETE all current data and replace it with the backup file. Are you absolutely sure?")) {
+                          try {
+                            await restoreData(content);
+                          } catch (err: any) {
+                            setToast({ message: err.message, type: 'error' });
+                          }
+                        }
+                      };
+                      reader.readAsText(file);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {isAdmin ? (
         <section>
           <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-indigo-600">
