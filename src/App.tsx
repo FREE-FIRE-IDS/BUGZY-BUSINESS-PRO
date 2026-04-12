@@ -218,7 +218,7 @@ function PaymentScreen({ company }: { company: any }) {
           <div className="space-y-4 text-left">
             <div className="flex items-center justify-between">
               <span className="text-sm text-slate-500">EasyPaisa / JazzCash</span>
-              <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">0300-1234567</span>
+              <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">0332-7373104</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-slate-500">Account Name</span>

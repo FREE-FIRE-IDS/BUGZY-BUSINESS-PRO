@@ -1192,7 +1192,15 @@ const deleteFromCloud = async (table: string, id: string) => {
   };
 
   const activateLicense = async (key: string) => {
-    if (!settings.user_email || !currentCompany) return;
+    if (!currentCompany) return;
+    
+    // MASTER LICENSE CHECK
+    if (key === '16897463890072') {
+      await updateCompany(currentCompany.id, { is_paid: true });
+      return;
+    }
+
+    if (!settings.user_email) throw new Error('Please link your email in Settings first');
     
     // 1. Get Device ID (Simple fingerprint)
     const deviceId = navigator.userAgent + (navigator as any).deviceMemory + (navigator as any).hardwareConcurrency;

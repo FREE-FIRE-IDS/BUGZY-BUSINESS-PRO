@@ -46,7 +46,7 @@ export default function Activation() {
               type="text"
               value={key}
               onChange={(e) => setKey(e.target.value.toUpperCase())}
-              placeholder="XXXX-XXXX-XXXX-XXXX"
+              placeholder="XXXX-XXXX-XXXX"
               className={cn(
                 "w-full px-6 py-5 bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl text-center font-mono text-xl tracking-widest focus:outline-none transition-all",
                 status === 'error' ? "border-rose-500 bg-rose-50 dark:bg-rose-900/10" : "border-slate-100 dark:border-slate-800 focus:border-indigo-500"
@@ -83,9 +83,22 @@ export default function Activation() {
           </button>
         </form>
 
-        <p className="mt-8 text-xs text-slate-400">
-          Don't have a key? Contact support after making your payment.
-        </p>
+        <div className="mt-10 pt-8 border-t border-slate-100 dark:border-slate-800">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">No License Key?</p>
+          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 mb-6 text-left">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">Pay <span className="font-bold text-indigo-600">Rs. 5,000</span> to:</p>
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold">JazzCash/EasyPaisa</span>
+              <span className="font-mono font-bold text-indigo-600">0332-7373104</span>
+            </div>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="text-sm font-bold text-indigo-600 hover:underline"
+          >
+            I Have Paid, Send Request
+          </button>
+        </div>
       </div>
     </div>
   );
