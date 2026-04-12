@@ -124,4 +124,5 @@ export interface AppSettings {
   user_email?: string;
   is_verified?: boolean;
   verification_code?: string;
+  onboarding_completed?: boolean;
 }

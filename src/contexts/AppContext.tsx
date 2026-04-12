@@ -121,6 +121,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currency: 'PKR',
       pdf_theme: 'standard',
       sync_enabled: true,
+      onboarding_completed: false,
     };
     return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
   });
@@ -938,11 +939,13 @@ const deleteFromCloud = async (table: string, id: string) => {
   const restoreData = async (json: string) => {
     try {
       const data = JSON.parse(json);
+      // FULL OVERWRITE - No merging, no cloud sync triggering
       localStorage.clear();
       Object.entries(data).forEach(([key, value]) => {
         if (typeof value === 'string') localStorage.setItem(key, value);
       });
-      window.location.reload();
+      // Force reload to apply new state without any sync events
+      window.location.href = '/';
     } catch (e) {
       console.error('Restore failed:', e);
       throw new Error('Invalid backup file');

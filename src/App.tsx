@@ -19,7 +19,8 @@ import {
   ArrowDownLeft,
   ArrowLeftRight,
   FileText,
-  Search
+  Search,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -38,6 +39,71 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 
 import GlobalTransactionModal from './components/GlobalTransactionModal';
+
+function Onboarding({ onComplete }: { onComplete: () => void }) {
+  const [step, setStep] = useState(0);
+  
+  const slides = [
+    {
+      title: "Welcome to Bugzy Pro",
+      desc: "Professional business management and accounting, designed to work offline first.",
+      icon: <Sparkles size={48} className="text-indigo-500" />
+    },
+    {
+      title: "Powerful Features",
+      desc: "Manage invoices, parties, inventory, and expenses with ease on any device.",
+      icon: <LayoutDashboard size={48} className="text-indigo-500" />
+    },
+    {
+      title: "Secure & Private",
+      desc: "Your data stays on your device. Use our Vyapar-style backup to keep your records safe.",
+      icon: <Receipt size={48} className="text-indigo-500" />
+    },
+    {
+      title: "Ready to Grow?",
+      desc: "Set up your company in seconds and start your 20-day free trial today.",
+      icon: <Building2 size={48} className="text-indigo-500" />
+    }
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-10 border border-slate-100 dark:border-slate-800 text-center">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+            <div className="w-24 h-24 bg-indigo-50 dark:bg-indigo-900/20 rounded-3xl flex items-center justify-center mx-auto mb-8">
+              {slides[step].icon}
+            </div>
+            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 tracking-tight">{slides[step].title}</h1>
+            <p className="text-slate-500 dark:text-slate-400 leading-relaxed">{slides[step].desc}</p>
+          </motion.div>
+        </AnimatePresence>
+
+        <div className="flex justify-center gap-2 mt-10 mb-10">
+          {slides.map((_, i) => (
+            <div key={i} className={cn("h-1.5 rounded-full transition-all", i === step ? "w-8 bg-indigo-600" : "w-2 bg-slate-200 dark:bg-slate-800")} />
+          ))}
+        </div>
+
+        <button 
+          onClick={() => {
+            if (step < slides.length - 1) setStep(step + 1);
+            else onComplete();
+          }}
+          className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
+        >
+          {step === slides.length - 1 ? "Get Started" : "Next"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function SplashScreen() {
   return (
@@ -152,7 +218,7 @@ function ShortcutHelper({ show }: { show: boolean }) {
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { currentCompany, companies, setCurrentCompany, addCompany, updateCompany } = useApp();
+  const { currentCompany, companies, setCurrentCompany, addCompany, updateCompany, settings, updateSettings } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
 
@@ -239,6 +305,10 @@ export default function App() {
 
   if (showSplash) {
     return <SplashScreen />;
+  }
+
+  if (!settings.onboarding_completed) {
+    return <Onboarding onComplete={() => updateSettings({ onboarding_completed: true })} />;
   }
 
   if (!currentCompany && companies.length === 0) {
