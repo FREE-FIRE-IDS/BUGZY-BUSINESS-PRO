@@ -17,7 +17,8 @@ import {
   Link2,
   Tag,
   X,
-  Database
+  Database,
+  ShieldAlert
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -29,7 +30,7 @@ export default function Settings() {
   const { 
     settings, updateSettings, companies, currentCompany, setCurrentCompany, 
     refreshData, addCompany, deleteCompany, pullCompanies, syncStatus,
-    linkDevice, signOut, updateCompany
+    linkDevice, signOut, updateCompany, isAdmin
   } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [emailInput, setEmailInput] = React.useState(settings.user_email || '');
@@ -944,6 +945,41 @@ NOTIFY pgrst, 'reload schema';
           </div>
         </div>
       </section>
+      
+      {/* Admin Section */}
+      {isAdmin ? (
+        <section>
+          <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-indigo-600">
+            <Shield size={24} />
+            Admin Access
+          </h3>
+          <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 p-8 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold">Admin Dashboard</p>
+                <p className="text-sm text-slate-500">You are logged in as an administrator. Access the dashboard to manage payments.</p>
+              </div>
+              <button 
+                onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'admin' }))}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2"
+              >
+                <Shield size={18} />
+                Open Admin Panel
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com' && (
+        <section className="bg-amber-50 dark:bg-amber-900/10 p-6 rounded-3xl border border-amber-200 dark:border-amber-800">
+          <p className="text-amber-800 dark:text-amber-200 font-bold flex items-center gap-2">
+            <ShieldAlert size={18} />
+            Admin Email Detected
+          </p>
+          <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+            You are using the admin email but the dashboard is hidden. Try refreshing the page or re-linking your device.
+          </p>
+        </section>
+      )}
 
       {/* Danger Zone */}
       <section>

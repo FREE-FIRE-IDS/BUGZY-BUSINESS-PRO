@@ -1242,7 +1242,14 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (error) throw error;
   };
 
-  const isAdmin = settings.user_email === 'sudaiskamran31@gmail.com';
+  const isAdmin = (settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') || 
+                  (session?.user?.email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com');
+
+  useEffect(() => {
+    if (isAdmin) {
+      console.log('Admin access granted for:', settings.user_email || session?.user?.email);
+    }
+  }, [isAdmin, settings.user_email, session?.user?.email]);
 
   const signOut = async () => {
     await supabase.auth.signOut();

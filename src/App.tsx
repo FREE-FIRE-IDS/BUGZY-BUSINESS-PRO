@@ -323,6 +323,7 @@ export default function App() {
     { id: 'expenses', label: 'Expenses', icon: Receipt },
     { id: 'reports', label: 'Reports', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2 }] : []),
   ];
 
   const renderPage = () => {
@@ -563,7 +564,7 @@ export default function App() {
         "fixed bottom-0 left-0 right-0 z-50 md:hidden flex items-center justify-around p-2 border-t backdrop-blur-md",
         theme === 'dark' ? "bg-slate-900/90 border-slate-800" : "bg-white/90 border-slate-200"
       )}>
-        {menuItems.slice(0, 4).map((item) => (
+        {menuItems.filter(i => i.id !== 'more' && i.id !== 'admin').slice(0, 4).map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
@@ -578,6 +579,20 @@ export default function App() {
             <span className="text-[10px] font-bold uppercase tracking-wider">{item.label}</span>
           </button>
         ))}
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('admin')}
+            className={cn(
+              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+              activeTab === 'admin' 
+                ? "text-indigo-600" 
+                : theme === 'dark' ? "text-slate-400" : "text-slate-400"
+            )}
+          >
+            <Building2 size={20} />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Admin</span>
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('more')}
           className={cn(
