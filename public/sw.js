@@ -1,5 +1,5 @@
-const CACHE_NAME = 'bugzy-v13';
-const ASSETS = [
+const CACHE_NAME = 'bugzy-v14';
+const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
@@ -7,71 +7,58 @@ const ASSETS = [
   '/icon-512.png'
 ];
 
+// Install event - caching assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // Cache critical assets
-      return cache.addAll(['/', '/manifest.json']).then(() => {
-        // Cache other assets without failing the whole install
-        return Promise.allSettled(
-          ASSETS.filter(a => a !== '/' && a !== '/manifest.json')
-            .map(url => fetch(url).then(res => {
-              if (res.ok) return cache.put(url, res);
-            }))
-        );
-      });
+      return cache.addAll(ASSETS_TO_CACHE);
     })
   );
   self.skipWaiting();
 });
 
+// Activate event - cleaning up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(
-      keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-    )).then(() => self.clients.claim())
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
   );
 });
 
+// Fetch event - serving from cache or network
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  const url = new URL(event.request.url);
-  const isLocal = url.origin === self.location.origin;
-
-  // Navigation: Network-First with robust fallback
+  // For navigation requests, try network first, then fallback to cache
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => {
-          // Correctly chain fallback promises
-          return caches.match(event.request)
-            .then(res => res || caches.match('/'))
-            .then(res => res || caches.match('/index.html'));
-        })
+      fetch(event.request).catch(() => {
+        return caches.match('/') || caches.match('/index.html');
+      })
     );
     return;
   }
 
-  // All other requests: Cache-First, then Network
+  // For other requests, try cache first, then network
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-
-      return fetch(event.request).then((response) => {
-        if (response && response.ok && isLocal) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request).then((fetchResponse) => {
+        // Cache successful local responses
+        if (fetchResponse && fetchResponse.status === 200 && fetchResponse.type === 'basic') {
+          const responseToCache = fetchResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
         }
-        return response;
-      }).catch(() => null);
+        return fetchResponse;
+      });
     })
   );
 });
