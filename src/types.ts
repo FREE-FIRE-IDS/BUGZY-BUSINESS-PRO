@@ -22,6 +22,8 @@ export interface Company {
   currency: string;
   user_id: string;
   user_email?: string;
+  trial_start?: string; // ISO date
+  is_paid?: boolean;
   created_at: string;
   updated_at?: string;
   deleted_at?: string;

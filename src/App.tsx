@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
 import { useTheme } from './contexts/ThemeContext';
 import { cn } from './lib/utils';
+import { differenceInDays, addDays, isAfter } from 'date-fns';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -37,6 +38,79 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 
 import GlobalTransactionModal from './components/GlobalTransactionModal';
+
+function SplashScreen() {
+  return (
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6">
+      <motion.div 
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center text-white shadow-2xl shadow-indigo-500/20 mb-8"
+      >
+        <svg className="w-14 h-14" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M50 25 L50 75 M35 45 L35 75 M65 45 L65 75" stroke="white" strokeWidth="8" strokeLinecap="round"/>
+          <path d="M30 75 L70 75" stroke="white" strokeWidth="4"/>
+          <path d="M40 45 L50 35 L60 45" fill="#fbbf24"/>
+        </svg>
+      </motion.div>
+      <motion.h1 
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="text-3xl font-black text-white tracking-tighter"
+      >
+        Bugzy Business Pro
+      </motion.h1>
+      <motion.p 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.6 }}
+        className="text-slate-500 mt-4 font-medium uppercase tracking-[0.3em] text-[10px]"
+      >
+        Offline First Accounting
+      </motion.p>
+    </div>
+  );
+}
+
+function PaymentScreen({ company, onPaid }: { company: any, onPaid: () => void }) {
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-10 border border-slate-100 dark:border-slate-800 text-center">
+        <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-3xl flex items-center justify-center mx-auto mb-8">
+          <Wallet size={40} />
+        </div>
+        <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 mb-4 tracking-tight">Trial Expired</h1>
+        <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
+          Your 20-day free trial for <span className="font-bold text-slate-900 dark:text-slate-50">{company.name}</span> has ended. Please pay to continue using full features.
+        </p>
+        
+        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-3xl p-6 mb-10 border border-slate-100 dark:border-slate-800">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Payment Details</p>
+          <div className="space-y-4 text-left">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-500">EasyPaisa / JazzCash</span>
+              <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">0300-1234567</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-500">Account Name</span>
+              <span className="font-bold text-slate-900 dark:text-slate-50">Bugzy Business</span>
+            </div>
+          </div>
+        </div>
+
+        <button 
+          onClick={onPaid}
+          className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
+        >
+          I Have Paid
+        </button>
+        <p className="mt-6 text-xs text-slate-400">After payment, click the button to unlock instantly.</p>
+      </div>
+    </div>
+  );
+}
 
 function ShortcutHelper({ show }: { show: boolean }) {
   if (!show) return null;
@@ -78,8 +152,16 @@ function ShortcutHelper({ show }: { show: boolean }) {
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { currentCompany, companies, setCurrentCompany, addCompany } = useApp();
+  const { currentCompany, companies, setCurrentCompany, addCompany, updateCompany } = useApp();
   const { theme, toggleTheme } = useTheme();
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const handleNavigate = (e: any) => {
@@ -155,8 +237,23 @@ export default function App() {
     };
   }, []);
 
+  if (showSplash) {
+    return <SplashScreen />;
+  }
+
   if (!currentCompany && companies.length === 0) {
     return <SetupCompany />;
+  }
+
+  // Trial Check
+  if (currentCompany && !currentCompany.is_paid) {
+    const trialStart = new Date(currentCompany.trial_start || currentCompany.created_at);
+    const trialEnd = addDays(trialStart, 20);
+    const isExpired = isAfter(new Date(), trialEnd);
+
+    if (isExpired) {
+      return <PaymentScreen company={currentCompany} onPaid={() => updateCompany(currentCompany.id, { is_paid: true })} />;
+    }
   }
 
   return (

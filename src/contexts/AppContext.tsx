@@ -33,6 +33,8 @@ interface AppContextType {
   deleteTransaction: (id: string, hard?: boolean) => Promise<void>;
   addCompany: (company: Omit<Company, 'id' | 'created_at'>) => Promise<void>;
   updateCompany: (id: string, company: Partial<Company>) => Promise<void>;
+  backupData: () => void;
+  restoreData: (json: string) => Promise<void>;
   addInvoice: (invoice: Omit<Invoice, 'id' | 'created_at'>) => Promise<void>;
   updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
@@ -903,6 +905,8 @@ const deleteFromCloud = async (table: string, id: string) => {
       ...company,
       id: crypto.randomUUID(),
       user_email: settings.user_email || '',
+      trial_start: now,
+      is_paid: false,
       created_at: now,
       updated_at: now,
       linked_emails: [],
@@ -913,6 +917,35 @@ const deleteFromCloud = async (table: string, id: string) => {
     
     if (settings.sync_enabled && settings.user_email) {
       await syncToCloud('companies', newCompany);
+    }
+  };
+
+  const backupData = () => {
+    const data: Record<string, string | null> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) data[key] = localStorage.getItem(key);
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bugzy_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const restoreData = async (json: string) => {
+    try {
+      const data = JSON.parse(json);
+      localStorage.clear();
+      Object.entries(data).forEach(([key, value]) => {
+        if (typeof value === 'string') localStorage.setItem(key, value);
+      });
+      window.location.reload();
+    } catch (e) {
+      console.error('Restore failed:', e);
+      throw new Error('Invalid backup file');
     }
   };
 
@@ -1089,7 +1122,9 @@ const deleteFromCloud = async (table: string, id: string) => {
       addTransaction, updateTransaction,
       addParty, updateParty, deleteParty, addBank, updateBank, deleteBank,
       addItem, updateItem, deleteItem, deleteTransaction,
-      addCompany, updateCompany, deleteCompany, addInvoice, updateInvoice, deleteInvoice,
+      addCompany, updateCompany, deleteCompany,
+      backupData, restoreData,
+      addInvoice, updateInvoice, deleteInvoice,
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
       session, signOut
     }}>

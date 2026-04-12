@@ -16,7 +16,10 @@ import {
   Receipt,
   Package,
   Sparkles,
-  Search
+  Search,
+  Download,
+  Upload,
+  Clock
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -31,11 +34,37 @@ import { useApp } from '../contexts/AppContext';
 import { formatCurrency, cn } from '../lib/utils';
 import { motion } from 'motion/react';
 import { getBusinessInsights } from '../services/geminiService';
+import { differenceInDays, addDays } from 'date-fns';
 
 export default function Dashboard() {
-  const { transactions, parties, banks, settings, items, invoices, currentCompany } = useApp();
+  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData } = useApp();
   const [aiInsights, setAiInsights] = useState<string[]>([]);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  const trialInfo = useMemo(() => {
+    if (!currentCompany || currentCompany.is_paid) return null;
+    const start = new Date(currentCompany.trial_start || currentCompany.created_at);
+    const end = addDays(start, 20);
+    const daysLeft = differenceInDays(end, new Date());
+    return { daysLeft: Math.max(0, daysLeft), end };
+  }, [currentCompany]);
+
+  const handleRestore = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e: any) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e: any) => {
+          restoreData(e.target.result);
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  };
 
   useEffect(() => {
     const fetchInsights = async () => {
@@ -107,6 +136,38 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 pb-24 md:pb-8">
+      {/* Trial & Backup Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center gap-4">
+          {trialInfo && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-100 dark:border-amber-800">
+              <Clock size={16} />
+              <span className="text-sm font-bold">{trialInfo.daysLeft} Days Left in Trial</span>
+            </div>
+          )}
+          {currentCompany?.is_paid && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-100 dark:border-emerald-800">
+              <Sparkles size={16} />
+              <span className="text-sm font-bold">Pro Account Active</span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={backupData}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl border border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-sm font-bold"
+          >
+            <Download size={16} /> Backup
+          </button>
+          <button 
+            onClick={handleRestore}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl border border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-sm font-bold"
+          >
+            <Upload size={16} /> Restore
+          </button>
+        </div>
+      </div>
+
       {/* Summary Cards (To Receive / To Pay) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <motion.div 
