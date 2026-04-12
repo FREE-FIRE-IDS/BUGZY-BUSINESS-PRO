@@ -37,6 +37,7 @@ import Expenses from './pages/Expenses';
 import Invoices from './pages/Invoices';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Admin from './pages/Admin';
 
 import GlobalTransactionModal from './components/GlobalTransactionModal';
 
@@ -140,7 +141,43 @@ function SplashScreen() {
   );
 }
 
-function PaymentScreen({ company, onPaid }: { company: any, onPaid: () => void }) {
+function PaymentScreen({ company }: { company: any }) {
+  const { submitPaymentRequest } = useApp();
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  const handlePaid = async () => {
+    setStatus('loading');
+    try {
+      await submitPaymentRequest(5000); // Example amount
+      setStatus('success');
+    } catch (e) {
+      console.error(e);
+      setStatus('error');
+    }
+  };
+
+  if (status === 'success') {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-10 border border-slate-100 dark:border-slate-800">
+          <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-3xl flex items-center justify-center mx-auto mb-8">
+            <Sparkles size={40} />
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 mb-4 tracking-tight">Request Sent</h1>
+          <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
+            Your payment request has been sent to the admin. Your account will be unlocked automatically once approved.
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all"
+          >
+            Check Status
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
       <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-10 border border-slate-100 dark:border-slate-800 text-center">
@@ -167,12 +204,14 @@ function PaymentScreen({ company, onPaid }: { company: any, onPaid: () => void }
         </div>
 
         <button 
-          onClick={onPaid}
-          className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
+          onClick={handlePaid}
+          disabled={status === 'loading'}
+          className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
         >
-          I Have Paid
+          {status === 'loading' ? 'Sending...' : 'I Have Paid'}
         </button>
-        <p className="mt-6 text-xs text-slate-400">After payment, click the button to unlock instantly.</p>
+        {status === 'error' && <p className="mt-4 text-xs text-red-500 font-bold">Failed to send request. Try again.</p>}
+        <p className="mt-6 text-xs text-slate-400">After payment, click the button to notify the admin.</p>
       </div>
     </div>
   );
@@ -218,7 +257,7 @@ function ShortcutHelper({ show }: { show: boolean }) {
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { currentCompany, companies, setCurrentCompany, addCompany, updateCompany, settings, updateSettings } = useApp();
+  const { currentCompany, companies, setCurrentCompany, addCompany, updateCompany, settings, updateSettings, isAdmin } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
 
@@ -242,6 +281,7 @@ export default function App() {
     { id: 'parties', label: 'Parties', icon: Users },
     { id: 'banks', label: 'Banks', icon: Building2 },
     { id: 'invoices', label: 'Invoices', icon: FileText },
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2 }] : []),
     { id: 'more', label: 'More', icon: Menu },
   ];
 
@@ -263,6 +303,7 @@ export default function App() {
       case 'invoices': return <Invoices />;
       case 'reports': return <Reports />;
       case 'settings': return <Settings />;
+      case 'admin': return <Admin />;
       default: return <Dashboard />;
     }
   };
@@ -322,7 +363,7 @@ export default function App() {
     const isExpired = isAfter(new Date(), trialEnd);
 
     if (isExpired) {
-      return <PaymentScreen company={currentCompany} onPaid={() => updateCompany(currentCompany.id, { is_paid: true })} />;
+      return <PaymentScreen company={currentCompany} />;
     }
   }
 

@@ -116,6 +116,17 @@ export interface Invoice {
   deleted_at?: string;
 }
 
+export interface PaymentRequest {
+  id: string;
+  company_id: string;
+  user_email: string;
+  company_name: string;
+  amount: number;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AppSettings {
   theme: 'light' | 'dark';
   currency: string;

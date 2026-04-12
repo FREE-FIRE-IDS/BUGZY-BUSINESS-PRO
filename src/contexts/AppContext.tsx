@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Company, Party, BankAccount, InventoryItem as Item, Transaction, AppSettings, Invoice } from '../types';
+import { Company, Party, BankAccount, InventoryItem as Item, Transaction, AppSettings, Invoice, PaymentRequest } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface AppContextType {
@@ -38,6 +38,10 @@ interface AppContextType {
   addInvoice: (invoice: Omit<Invoice, 'id' | 'created_at'>) => Promise<void>;
   updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
+  submitPaymentRequest: (amount: number) => Promise<void>;
+  fetchPaymentRequests: () => Promise<PaymentRequest[]>;
+  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected', companyId: string) => Promise<void>;
+  isAdmin: boolean;
   selectedPartyId: string | null;
   setSelectedPartyId: (id: string | null) => void;
   selectedBankId: string | null;
@@ -171,6 +175,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem('app_settings', JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    if (!settings.user_email) return;
+
+    const channel = supabase
+      .channel('db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, (payload) => {
+        if (payload.new && (payload.new as any).user_email === settings.user_email) {
+          const updatedCompany = payload.new as Company;
+          setCompanies(prev => {
+            const exists = prev.find(c => c.id === updatedCompany.id);
+            if (exists) {
+              return prev.map(c => c.id === updatedCompany.id ? updatedCompany : c);
+            }
+            return [...prev, updatedCompany];
+          });
+          if (currentCompany?.id === updatedCompany.id) {
+            setCurrentCompany(updatedCompany);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [settings.user_email, currentCompany?.id]);
 
   const refreshData = async (emailOverride?: string, force = false) => {
     const email = emailOverride || settings.user_email;
@@ -1107,6 +1138,52 @@ const deleteFromCloud = async (table: string, id: string) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
   };
 
+  const submitPaymentRequest = async (amount: number) => {
+    if (!currentCompany || !settings.user_email) return;
+    const now = new Date().toISOString();
+    const request: PaymentRequest = {
+      id: crypto.randomUUID(),
+      company_id: currentCompany.id,
+      user_email: settings.user_email,
+      company_name: currentCompany.name,
+      amount,
+      status: 'pending',
+      created_at: now,
+      updated_at: now,
+    };
+    
+    const { error } = await supabase.from('payment_requests').insert(request);
+    if (error) throw error;
+  };
+
+  const fetchPaymentRequests = async () => {
+    const { data, error } = await supabase
+      .from('payment_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  };
+
+  const updatePaymentRequestStatus = async (id: string, status: 'approved' | 'rejected', companyId: string) => {
+    const now = new Date().toISOString();
+    const { error: reqError } = await supabase
+      .from('payment_requests')
+      .update({ status, updated_at: now })
+      .eq('id', id);
+    if (reqError) throw reqError;
+
+    if (status === 'approved') {
+      const { error: compError } = await supabase
+        .from('companies')
+        .update({ is_paid: true, updated_at: now })
+        .eq('id', companyId);
+      if (compError) throw compError;
+    }
+  };
+
+  const isAdmin = settings.user_email === 'sudaiskamran31@gmail.com';
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setSession(null);
@@ -1128,6 +1205,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       addCompany, updateCompany, deleteCompany,
       backupData, restoreData,
       addInvoice, updateInvoice, deleteInvoice,
+      submitPaymentRequest, fetchPaymentRequests, updatePaymentRequestStatus, isAdmin,
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
       session, signOut
     }}>
