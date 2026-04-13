@@ -1381,8 +1381,6 @@ const deleteFromCloud = async (table: string, id: string) => {
   };
 
   const activateLicense = async (key: string) => {
-    if (!currentCompany) return;
-    
     // MASTER LICENSE CHECK
     if (key === '16897463890072') {
       localStorage.setItem('device_license', 'true');
@@ -1400,12 +1398,12 @@ const deleteFromCloud = async (table: string, id: string) => {
       .eq('license_key', key.toUpperCase())
       .single();
     
-    if (fetchError || !license) throw new Error('Invalid License Key');
-    if (!license.is_active) throw new Error('License is inactive');
+    if (fetchError || !license) throw new Error('Invalid License Key ❌');
+    if (!license.is_active) throw new Error('License is inactive ❌');
     
     // 3. Check Device Binding
     if (license.device_id && license.device_id !== deviceId) {
-      throw new Error('License already bound to another device');
+      throw new Error('License already bound to another device ❌');
     }
     
     // 4. Bind Device and Activate
@@ -1421,9 +1419,6 @@ const deleteFromCloud = async (table: string, id: string) => {
     localStorage.setItem('device_license', 'true');
     localStorage.setItem('active_license_key', key.toUpperCase());
     setIsDeviceLicensed(true);
-    
-    // 6. Unlock Company
-    await updateCompany(currentCompany.id, { is_paid: true });
   };
 
   const fetchLicenses = async () => {

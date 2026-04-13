@@ -37,7 +37,7 @@ export default function Activation() {
         
         <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 mb-4 tracking-tight">Activate License</h1>
         <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
-          Enter your unique license key to unlock full features for <span className="font-bold text-slate-900 dark:text-slate-50">{currentCompany?.name}</span>.
+          Enter your unique license key to unlock full features on this device.
         </p>
 
         <form onSubmit={handleActivate} className="space-y-6">

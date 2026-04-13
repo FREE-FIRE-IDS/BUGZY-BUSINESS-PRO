@@ -38,6 +38,8 @@ export default function Settings() {
   const { theme, toggleTheme } = useTheme();
   const [emailInput, setEmailInput] = React.useState(settings.user_email || '');
   const [linkEmailInput, setLinkEmailInput] = React.useState('');
+  const [emailError, setEmailError] = React.useState('');
+  const [linkEmailError, setLinkEmailError] = React.useState('');
   const [isAddCompanyModalOpen, setIsAddCompanyModalOpen] = React.useState(false);
   const [newCompanyName, setNewCompanyName] = React.useState('');
   const [newCompanyCode, setNewCompanyCode] = React.useState('');
@@ -418,8 +420,17 @@ NOTIFY pgrst, 'reload schema';
     setIsAddCompanyModalOpen(false);
   };
 
+  const isValidGmail = (email: string) => {
+    return email.toLowerCase().endsWith('@gmail.com');
+  };
+
   const handleEnableSync = async () => {
+    setEmailError('');
     if (!emailInput) return;
+    if (!isValidGmail(emailInput)) {
+      setEmailError('Invalid Gmail ❌');
+      return;
+    }
     updateSettings({ 
       user_email: emailInput, 
       is_verified: true, // Auto-verify since we're using email-only system
@@ -429,7 +440,12 @@ NOTIFY pgrst, 'reload schema';
   };
 
   const handleLinkDevice = async () => {
+    setLinkEmailError('');
     if (!linkEmailInput) return;
+    if (!isValidGmail(linkEmailInput)) {
+      setLinkEmailError('Invalid Gmail ❌');
+      return;
+    }
     await linkDevice(linkEmailInput);
     setLinkEmailInput('');
   };
@@ -639,7 +655,9 @@ NOTIFY pgrst, 'reload schema';
               <p className="font-bold mb-1">Device License</p>
               <p className="text-xs text-slate-500">
                 {isDeviceLicensed 
-                  ? `Your device is licensed with key: ${localStorage.getItem('active_license_key') || 'MASTER'}` 
+                  ? (localStorage.getItem('active_license_key') 
+                      ? `Your device is licensed with key: ${localStorage.getItem('active_license_key')}`
+                      : 'Your device is licensed with a Master Key.')
                   : 'Your device is currently in trial mode.'}
               </p>
             </div>
@@ -891,16 +909,25 @@ NOTIFY pgrst, 'reload schema';
                   {!settings.is_verified ? (
                     <div className="space-y-4">
                       <div className="flex gap-3">
-                        <input 
-                          type="email" 
-                          placeholder="Enter email to sync"
-                          value={emailInput}
-                          onChange={(e) => setEmailInput(e.target.value)}
-                          className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
+                        <div className="flex-1 space-y-2">
+                          <input 
+                            type="email" 
+                            placeholder="Enter Gmail to sync"
+                            value={emailInput}
+                            onChange={(e) => {
+                              setEmailInput(e.target.value);
+                              setEmailError('');
+                            }}
+                            className={cn(
+                              "w-full bg-slate-50 dark:bg-slate-800 border rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all",
+                              emailError ? "border-rose-500 ring-rose-500/20 ring-2" : "border-slate-200 dark:border-slate-700"
+                            )}
+                          />
+                          {emailError && <p className="text-rose-500 text-xs font-bold">{emailError}</p>}
+                        </div>
                         <button 
                           onClick={handleEnableSync}
-                          className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+                          className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 h-fit"
                         >
                           Enable Sync
                         </button>
@@ -942,16 +969,25 @@ NOTIFY pgrst, 'reload schema';
                           Link Another Device
                         </div>
                         <div className="flex gap-3">
-                          <input 
-                            type="email" 
-                            placeholder="Enter second device's email"
-                            value={linkEmailInput}
-                            onChange={(e) => setLinkEmailInput(e.target.value)}
-                            className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                          />
+                          <div className="flex-1 space-y-2">
+                            <input 
+                              type="email" 
+                              placeholder="Enter second device's Gmail"
+                              value={linkEmailInput}
+                              onChange={(e) => {
+                                setLinkEmailInput(e.target.value);
+                                setLinkEmailError('');
+                              }}
+                              className={cn(
+                                "w-full bg-slate-50 dark:bg-slate-800 border rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all",
+                                linkEmailError ? "border-rose-500 ring-rose-500/20 ring-2" : "border-slate-200 dark:border-slate-700"
+                              )}
+                            />
+                            {linkEmailError && <p className="text-rose-500 text-xs font-bold">{linkEmailError}</p>}
+                          </div>
                           <button 
                             onClick={handleLinkDevice}
-                            className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all"
+                            className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all h-fit"
                           >
                             Link
                           </button>

@@ -153,6 +153,7 @@ function PaymentScreen({ company }: { company: Company }) {
   const [step, setStep] = useState<'plan' | 'payment' | 'form' | 'success'>('plan');
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
   const [formData, setFormData] = useState({
     user_name: '',
     username: company.username || '',
@@ -208,20 +209,22 @@ function PaymentScreen({ company }: { company: Company }) {
         plan: selectedPlan
       });
       setStep('success');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       setStatus('error');
+      setErrorMsg(err.message || 'Failed to submit request');
     }
   };
 
   const handleActivate = async () => {
     setStatus('loading');
+    setErrorMsg('');
     try {
       await activateLicense(licenseKey);
       window.location.reload();
     } catch (err: any) {
-      alert(err.message);
-      setStatus('idle');
+      setErrorMsg(err.message);
+      setStatus('error');
     }
   };
 
@@ -511,25 +514,38 @@ function PaymentScreen({ company }: { company: Company }) {
                   </div>
                 </form>
 
-                <div className="mt-10 pt-8 border-t border-slate-100 dark:border-slate-800">
-                  <p className="text-xs text-slate-400 text-center mb-4 font-bold uppercase tracking-widest">Or Activate with Key</p>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text"
-                      value={licenseKey}
-                      onChange={e => setLicenseKey(e.target.value)}
-                      placeholder="Enter License Key"
-                      className="flex-1 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3 focus:border-indigo-600 outline-none transition-all font-mono text-sm"
-                    />
-                    <button 
-                      onClick={handleActivate}
-                      disabled={!licenseKey || status === 'loading'}
-                      className="bg-slate-900 text-white px-6 rounded-2xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
-                    >
-                      Activate
-                    </button>
+                  <div className="mt-10 pt-8 border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-xs text-slate-400 text-center mb-4 font-bold uppercase tracking-widest">Or Activate with Key</p>
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <input 
+                          type="text"
+                          value={licenseKey}
+                          onChange={e => {
+                            setLicenseKey(e.target.value);
+                            setErrorMsg('');
+                          }}
+                          placeholder="Enter License Key"
+                          className={cn(
+                            "flex-1 bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl px-5 py-3 outline-none transition-all font-mono text-sm",
+                            status === 'error' && errorMsg.includes('License') ? "border-rose-500" : "border-slate-100 dark:border-slate-700 focus:border-indigo-600"
+                          )}
+                        />
+                        <button 
+                          onClick={handleActivate}
+                          disabled={!licenseKey || status === 'loading'}
+                          className="bg-slate-900 text-white px-6 rounded-2xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+                        >
+                          Activate
+                        </button>
+                      </div>
+                      {status === 'error' && errorMsg && (
+                        <p className="text-rose-500 text-xs font-bold text-center bg-rose-50 dark:bg-rose-900/10 p-3 rounded-xl border border-rose-100 dark:border-rose-800/50">
+                          {errorMsg}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -650,7 +666,7 @@ export default function App() {
     { id: 'expenses', label: 'Expenses', icon: Receipt },
     { id: 'reports', label: 'Reports', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
-    ...(currentCompany && !currentCompany.is_paid ? [{ id: 'upgrade', label: 'Buy Now', icon: Sparkles }] : []),
+    ...(currentCompany && !currentCompany.is_paid && !isDeviceLicensed ? [{ id: 'upgrade', label: 'Buy Now', icon: Sparkles }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2 }] : []),
   ];
 
@@ -806,7 +822,7 @@ export default function App() {
             </button>
           ))}
 
-          {currentCompany && !currentCompany.is_paid && (
+          {currentCompany && !currentCompany.is_paid && !isDeviceLicensed && (
             <button
               onClick={() => setForceUpgrade(true)}
               className={cn(
