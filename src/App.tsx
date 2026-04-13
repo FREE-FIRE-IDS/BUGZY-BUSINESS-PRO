@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Company } from './types';
+import { supabase } from './lib/supabase';
 import { 
   LayoutDashboard, 
   Users, 
@@ -21,7 +23,9 @@ import {
   FileText,
   Search,
   Sparkles,
-  Clock
+  Clock,
+  Loader2,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -143,109 +147,351 @@ function SplashScreen() {
   );
 }
 
-function PaymentScreen({ company }: { company: any }) {
-  const { submitPaymentRequest } = useApp();
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [view, setView] = useState<'payment' | 'activate'>('payment');
+function PaymentScreen({ company }: { company: Company }) {
+  const { submitPaymentRequest, activateLicense } = useApp();
+  const [step, setStep] = useState<'plan' | 'payment' | 'form' | 'success'>('plan');
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [formData, setFormData] = useState({
+    user_name: '',
+    account_name: '',
+    phone: '',
+    screenshot_url: ''
+  });
+  const [licenseKey, setLicenseKey] = useState('');
 
-  const handlePaid = async () => {
+  const plans = {
+    monthly: { name: 'Monthly Plan', price: 599, duration: '30 Days' },
+    yearly: { name: 'Yearly Plan', price: 1499, duration: '365 Days' }
+  };
+
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const filePath = `proofs/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('payment-proofs')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, screenshot_url: publicUrl });
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      alert('Failed to upload image. Please try again or use a URL.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setStatus('loading');
     try {
-      await submitPaymentRequest(1200); // Updated to 1200 PKR
-      setStatus('success');
-    } catch (e) {
-      console.error(e);
+      await submitPaymentRequest({
+        ...formData,
+        amount: plans[selectedPlan].price,
+        plan: selectedPlan
+      });
+      setStep('success');
+    } catch (err) {
+      console.error(err);
       setStatus('error');
     }
   };
 
-  if (view === 'activate') {
-    return (
-      <div className="relative">
-        <Activation />
-        <button 
-          onClick={() => setView('payment')}
-          className="fixed bottom-10 left-1/2 -translate-x-1/2 text-sm font-bold text-slate-500 hover:text-indigo-600 transition-all"
-        >
-          Back to Payment Details
-        </button>
-      </div>
-    );
-  }
+  const handleActivate = async () => {
+    setStatus('loading');
+    try {
+      await activateLicense(licenseKey);
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.message);
+      setStatus('idle');
+    }
+  };
 
-  if (status === 'success') {
+  if (step === 'success') {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6 text-center">
-        <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-10 border border-slate-100 dark:border-slate-800">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-10 border border-slate-100 dark:border-slate-800"
+        >
           <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-3xl flex items-center justify-center mx-auto mb-8">
             <Sparkles size={40} />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 mb-4 tracking-tight">Request Sent</h1>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 mb-4 tracking-tight">Request Sent!</h1>
           <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
-            Your payment request has been sent to the admin. Once approved, you will receive a license key to activate your account.
+            Your payment request for the <span className="font-bold text-indigo-600">{plans[selectedPlan].name}</span> has been submitted. 
+            Admin will verify your payment and activate your subscription shortly.
           </p>
-          <div className="space-y-4">
-            <button 
-              onClick={() => setView('activate')}
-              className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20"
-            >
-              I Have a License Key
-            </button>
-            <button 
-              onClick={() => window.location.reload()}
-              className="w-full py-4 text-slate-500 font-bold hover:text-slate-700 transition-all"
-            >
-              Check Status
-            </button>
-          </div>
-        </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20"
+          >
+            Back to Dashboard
+          </button>
+        </motion.div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-10 border border-slate-100 dark:border-slate-800 text-center">
-        <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-3xl flex items-center justify-center mx-auto mb-8">
-          <Wallet size={40} />
-        </div>
-        <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 mb-4 tracking-tight">Subscription Required</h1>
-        <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
-          Your 20-day free trial for <span className="font-bold text-slate-900 dark:text-slate-50">{company.name}</span> has ended. Subscribe for <span className="font-bold text-indigo-600">1200 PKR/year</span> to continue.
-        </p>
-        
-        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-3xl p-6 mb-10 border border-slate-100 dark:border-slate-800">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Payment Details</p>
-          <div className="space-y-4 text-left">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">JazzCash</span>
-              <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">0332-7373104</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">Account Name</span>
-              <span className="font-bold text-slate-900 dark:text-slate-50">Bugzy Business</span>
-            </div>
-          </div>
-        </div>
+      <div className="max-w-xl w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
+        <div className="p-10">
+          <AnimatePresence mode="wait">
+            {step === 'plan' && (
+              <motion.div
+                key="plan"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="text-center"
+              >
+                <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <Package size={32} />
+                </div>
+                <h2 className="text-3xl font-black mb-2">Choose Your Plan</h2>
+                <p className="text-slate-500 mb-8">Select a subscription plan that fits your business needs.</p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                  {(['monthly', 'yearly'] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setSelectedPlan(p)}
+                      className={cn(
+                        "p-6 rounded-3xl border-2 transition-all text-left group",
+                        selectedPlan === p 
+                          ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20" 
+                          : "border-slate-100 dark:border-slate-800 hover:border-indigo-200"
+                      )}
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                          selectedPlan === p ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                        )}>
+                          {plans[p].duration}
+                        </span>
+                        {selectedPlan === p && <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white"><Plus size={12} className="rotate-45" /></div>}
+                      </div>
+                      <h3 className="font-black text-xl mb-1">{plans[p].name}</h3>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-black text-indigo-600">{plans[p].price}</span>
+                        <span className="text-sm text-slate-500 font-bold">PKR</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
 
-        <div className="space-y-4">
-          <button 
-            onClick={handlePaid}
-            disabled={status === 'loading'}
-            className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
-          >
-            {status === 'loading' ? 'Sending...' : 'I Have Paid'}
-          </button>
-          <button 
-            onClick={() => setView('activate')}
-            className="w-full py-4 text-indigo-600 dark:text-indigo-400 font-bold hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-2xl transition-all"
-          >
-            I Already Have a Key
-          </button>
+                <button 
+                  onClick={() => setStep('payment')}
+                  className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20"
+                >
+                  Continue to Payment
+                </button>
+              </motion.div>
+            )}
+
+            {step === 'payment' && (
+              <motion.div
+                key="payment"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <div className="text-center mb-8">
+                  <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <Wallet size={32} />
+                  </div>
+                  <h2 className="text-3xl font-black mb-2">Make Payment</h2>
+                  <p className="text-slate-500">Please send the exact amount to one of the accounts below.</p>
+                </div>
+
+                <div className="space-y-4 mb-8">
+                  <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">JazzCash / EasyPaisa</span>
+                      <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-[10px] font-black uppercase">Active</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-2xl font-black text-slate-900 dark:text-slate-50">0332-7373104</p>
+                        <p className="text-sm text-slate-500 font-bold">Account Name: Bugzy Business</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-black text-indigo-600">{plans[selectedPlan].price}</p>
+                        <p className="text-sm text-slate-500 font-bold">PKR Total</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20 flex gap-3">
+                    <Clock size={20} className="text-amber-600 shrink-0" />
+                    <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+                      <strong>Important:</strong> After sending the payment, please take a screenshot of the confirmation message. You will need to upload it in the next step.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => setStep('plan')}
+                    className="py-5 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                  >
+                    Back
+                  </button>
+                  <button 
+                    onClick={() => setStep('form')}
+                    className="bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20"
+                  >
+                    I Have Paid
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 'form' && (
+              <motion.div
+                key="form"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl font-black mb-2">Payment Details</h2>
+                  <p className="text-slate-500">Fill in the details to verify your payment.</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Your Name</label>
+                      <input 
+                        required
+                        type="text"
+                        value={formData.user_name}
+                        onChange={e => setFormData({...formData, user_name: e.target.value})}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3.5 focus:border-indigo-600 outline-none transition-all font-bold"
+                        placeholder="Full Name"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Account Name</label>
+                      <input 
+                        required
+                        type="text"
+                        value={formData.account_name}
+                        onChange={e => setFormData({...formData, account_name: e.target.value})}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3.5 focus:border-indigo-600 outline-none transition-all font-bold"
+                        placeholder="JazzCash/EasyPaisa Name"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
+                    <input 
+                      required
+                      type="tel"
+                      value={formData.phone}
+                      onChange={e => setFormData({...formData, phone: e.target.value})}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3.5 focus:border-indigo-600 outline-none transition-all font-bold"
+                      placeholder="03xx-xxxxxxx"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Payment Screenshot</label>
+                    <div className="flex gap-4">
+                      <div className="flex-1 relative">
+                        <input 
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileUpload}
+                          className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                          disabled={uploading}
+                        />
+                        <div className={cn(
+                          "w-full bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 flex items-center justify-center gap-2 transition-all",
+                          uploading ? "opacity-50" : "hover:border-indigo-400"
+                        )}>
+                          {uploading ? (
+                            <Loader2 className="animate-spin text-indigo-600" size={20} />
+                          ) : formData.screenshot_url ? (
+                            <Check className="text-emerald-600" size={20} />
+                          ) : (
+                            <Plus className="text-slate-400" size={20} />
+                          )}
+                          <span className="text-sm font-bold text-slate-500">
+                            {uploading ? 'Uploading...' : formData.screenshot_url ? 'Image Uploaded' : 'Upload Screenshot'}
+                          </span>
+                        </div>
+                      </div>
+                      {formData.screenshot_url && (
+                        <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-slate-100 dark:border-slate-800 shrink-0">
+                          <img src={formData.screenshot_url} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 grid grid-cols-2 gap-4">
+                    <button 
+                      type="button"
+                      onClick={() => setStep('payment')}
+                      className="py-5 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                    >
+                      Back
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={status === 'loading'}
+                      className="bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50"
+                    >
+                      {status === 'loading' ? 'Submitting...' : 'Submit Request'}
+                    </button>
+                  </div>
+                </form>
+
+                <div className="mt-10 pt-8 border-t border-slate-100 dark:border-slate-800">
+                  <p className="text-xs text-slate-400 text-center mb-4 font-bold uppercase tracking-widest">Or Activate with Key</p>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={licenseKey}
+                      onChange={e => setLicenseKey(e.target.value)}
+                      placeholder="Enter License Key"
+                      className="flex-1 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3 focus:border-indigo-600 outline-none transition-all font-mono text-sm"
+                    />
+                    <button 
+                      onClick={handleActivate}
+                      disabled={!licenseKey || status === 'loading'}
+                      className="bg-slate-900 text-white px-6 rounded-2xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+                    >
+                      Activate
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        
-        {status === 'error' && <p className="mt-4 text-xs text-red-500 font-bold">Failed to send request. Try again.</p>}
-        <p className="mt-6 text-xs text-slate-400">After payment, click the button to notify the admin.</p>
       </div>
     </div>
   );
@@ -288,25 +534,32 @@ function ShortcutHelper({ show }: { show: boolean }) {
   );
 }
 
-function TrialBanner({ company, onUpgrade }: { company: any, onUpgrade: () => void }) {
-  if (company.is_paid) return null;
+function TrialBanner({ company, onUpgrade }: { company: Company, onUpgrade: () => void }) {
+  if (company.is_paid && company.subscription?.status === 'active') return null;
   
   const trialStart = new Date(company.trial_start || company.created_at);
   const trialEnd = addDays(trialStart, 20);
   const daysLeft = Math.max(0, differenceInDays(trialEnd, new Date()));
 
+  const isExpired = daysLeft <= 0 && !company.is_paid;
+
   return (
-    <div className="bg-indigo-600 text-white px-4 py-2 flex items-center justify-between text-sm font-bold sticky top-0 z-[45] shadow-md">
+    <div className={cn(
+      "text-white px-4 py-2 flex items-center justify-between text-sm font-bold sticky top-0 z-[45] shadow-md transition-colors",
+      isExpired ? "bg-red-600" : "bg-indigo-600"
+    )}>
       <div className="flex items-center gap-2">
         <Clock size={16} />
-        <span className="hidden sm:inline">Trial Version: {daysLeft} days remaining</span>
-        <span className="sm:hidden">{daysLeft}d left</span>
+        <span className="hidden sm:inline">
+          {isExpired ? "Trial Expired" : `Trial Version: ${daysLeft} days remaining`}
+        </span>
+        <span className="sm:hidden">{isExpired ? "Expired" : `${daysLeft}d left`}</span>
       </div>
       <button 
         onClick={onUpgrade}
         className="bg-white text-indigo-600 px-4 py-1 rounded-full text-xs font-black hover:bg-indigo-50 transition-all shadow-lg active:scale-95"
       >
-        Buy Now (1200 PKR/year)
+        {isExpired ? "Subscribe Now" : "Buy Now"}
       </button>
     </div>
   );
@@ -429,12 +682,13 @@ export default function App() {
   }
 
   // Trial Check
-  if (currentCompany && !currentCompany.is_paid) {
+  if (currentCompany) {
+    const isPaid = currentCompany.is_paid || currentCompany.subscription?.status === 'active';
     const trialStart = new Date(currentCompany.trial_start || currentCompany.created_at);
     const trialEnd = addDays(trialStart, 20);
     const isExpired = isAfter(new Date(), trialEnd);
 
-    if (isExpired || forceUpgrade) {
+    if ((isExpired && !isPaid) || forceUpgrade) {
       return (
         <div className="relative">
           <PaymentScreen company={currentCompany} />

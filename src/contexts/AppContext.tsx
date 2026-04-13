@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Company, Party, BankAccount, InventoryItem as Item, Transaction, AppSettings, Invoice, PaymentRequest, License } from '../types';
+import { Company, Party, BankAccount, InventoryItem as Item, Transaction, AppSettings, Invoice, PaymentRequest, License, Subscription } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface AppContextType {
@@ -1193,15 +1193,27 @@ const deleteFromCloud = async (table: string, id: string) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
   };
 
-  const submitPaymentRequest = async (amount: number) => {
-    if (!currentCompany || !settings.user_email) return;
+  const submitPaymentRequest = async (data: {
+    user_name: string;
+    account_name: string;
+    phone: string;
+    amount: number;
+    plan: 'monthly' | 'yearly';
+    screenshot_url?: string;
+  }) => {
+    if (!currentCompany) return;
     const now = new Date().toISOString();
-    const request: PaymentRequest = {
-      id: crypto.randomUUID(),
+    const request: Omit<PaymentRequest, 'id'> = {
       company_id: currentCompany.id,
-      user_email: settings.user_email,
+      user_id: session?.user?.id || 'anonymous',
+      user_name: data.user_name,
+      user_email: settings.user_email || session?.user?.email || '',
       company_name: currentCompany.name,
-      amount,
+      account_name: data.account_name,
+      phone: data.phone,
+      amount: data.amount,
+      plan: data.plan,
+      screenshot_url: data.screenshot_url,
       status: 'pending',
       created_at: now,
       updated_at: now,
@@ -1220,26 +1232,37 @@ const deleteFromCloud = async (table: string, id: string) => {
     return data || [];
   };
 
-  const updatePaymentRequestStatus = async (id: string, status: 'approved' | 'rejected', companyId: string, licenseKey?: string) => {
+  const updatePaymentRequestStatus = async (id: string, status: 'approved' | 'rejected', companyId: string) => {
     const now = new Date().toISOString();
-    const { error: reqError } = await supabase
+    
+    // 1. Update request status
+    const { data: reqData, error: reqError } = await supabase
       .from('payment_requests')
-      .update({ status, license_key: licenseKey, updated_at: now })
-      .eq('id', id);
+      .update({ status, updated_at: now })
+      .eq('id', id)
+      .select()
+      .single();
+    
     if (reqError) throw reqError;
 
-    if (status === 'approved' && licenseKey) {
-      const { error: licError } = await supabase
-        .from('licenses')
-        .insert({
-          id: crypto.randomUUID(),
-          user_email: (await supabase.from('payment_requests').select('user_email').eq('id', id).single()).data?.user_email,
-          license_key: licenseKey,
-          is_active: true,
-          created_at: now,
-          updated_at: now
-        });
-      if (licError) throw licError;
+    // 2. If approved, update company subscription
+    if (status === 'approved' && reqData) {
+      const plan = reqData.plan;
+      const duration = plan === 'monthly' ? 30 : 365;
+      const startDate = new Date().toISOString();
+      const endDate = new Date(Date.now() + duration * 24 * 60 * 60 * 1000).toISOString();
+
+      const subscription: Subscription = {
+        plan,
+        start_date: startDate,
+        end_date: endDate,
+        status: 'active'
+      };
+
+      await updateCompany(companyId, { 
+        is_paid: true,
+        subscription 
+      });
     }
   };
 

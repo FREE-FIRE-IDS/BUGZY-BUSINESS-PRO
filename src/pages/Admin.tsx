@@ -39,11 +39,10 @@ export default function Admin() {
   };
 
   const handleApprove = async (id: string, companyId: string) => {
-    const key = generateKey();
-    if (!confirm(`Generate and send license key: ${key}?`)) return;
+    if (!confirm(`Approve this payment and activate subscription?`)) return;
     
     try {
-      await updatePaymentRequestStatus(id, 'approved', companyId, key);
+      await updatePaymentRequestStatus(id, 'approved', companyId);
       await loadData();
     } catch (e) {
       console.error(e);
@@ -134,17 +133,33 @@ export default function Admin() {
                   className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
                 >
                   <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                      <Building2 size={32} />
+                    <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 overflow-hidden">
+                      {req.screenshot_url ? (
+                        <img 
+                          src={req.screenshot_url} 
+                          alt="Proof" 
+                          className="w-full h-full object-cover cursor-pointer" 
+                          onClick={() => window.open(req.screenshot_url, '_blank')}
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <Building2 size={32} />
+                      )}
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">{req.company_name}</h3>
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">{req.user_name || req.company_name}</h3>
                       <div className="flex flex-wrap gap-4 mt-2">
                         <div className="flex items-center gap-1.5 text-sm text-slate-500">
                           <Mail size={14} /> {req.user_email}
                         </div>
+                        <div className="flex items-center gap-1.5 text-sm text-slate-500">
+                          <Building2 size={14} /> {req.company_name}
+                        </div>
                         <div className="flex items-center gap-1.5 text-sm font-bold text-indigo-600 dark:text-indigo-400">
                           <DollarSign size={14} /> {formatCurrency(req.amount, settings.currency)}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-slate-50">
+                          <Clock size={14} /> {req.plan === 'yearly' ? 'Yearly' : 'Monthly'}
                         </div>
                         <div className={cn(
                           "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
@@ -155,6 +170,9 @@ export default function Admin() {
                           {req.status}
                         </div>
                       </div>
+                      {req.phone && (
+                        <p className="text-xs text-slate-400 mt-2 font-mono">Phone: {req.phone} | Account: {req.account_name}</p>
+                      )}
                     </div>
                   </div>
 
@@ -164,7 +182,7 @@ export default function Admin() {
                         onClick={() => handleApprove(req.id, req.company_id)}
                         className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
                       >
-                        <Check size={18} /> Approve & Key
+                        <Check size={18} /> Approve
                       </button>
                       <button 
                         onClick={() => handleReject(req.id, req.company_id)}
@@ -174,10 +192,9 @@ export default function Admin() {
                       </button>
                     </div>
                   )}
-                  {req.status === 'approved' && req.license_key && (
-                    <div className="bg-slate-50 dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Generated Key</p>
-                      <p className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{req.license_key}</p>
+                  {req.status === 'approved' && (
+                    <div className="bg-emerald-50 dark:bg-emerald-900/20 px-4 py-2 rounded-xl border border-emerald-100 dark:border-emerald-800">
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase font-bold">Subscription Active</p>
                     </div>
                   )}
                 </motion.div>
