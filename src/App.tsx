@@ -255,14 +255,21 @@ function PaymentScreen({ company }: { company: Company }) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
       <div className="max-w-xl w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 relative">
-        {step !== 'plan' && step !== 'success' && (
+        {(step !== 'plan' && step !== 'success') ? (
           <button 
             onClick={() => setStep(step === 'payment' ? 'plan' : 'payment')}
             className="absolute top-8 left-8 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all z-20"
           >
             <ArrowLeft size={24} />
           </button>
-        )}
+        ) : step === 'plan' ? (
+          <button 
+            onClick={() => window.location.reload()}
+            className="absolute top-8 left-8 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all z-20"
+          >
+            <X size={24} />
+          </button>
+        ) : null}
         <div className="p-10">
           <AnimatePresence mode="wait">
             {step === 'plan' && (

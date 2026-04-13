@@ -124,49 +124,56 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [companies, setCompanies] = useState<Company[]>(() => {
-    const saved = localStorage.getItem('companies');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [currentCompany, setCurrentCompany] = useState<Company | null>(() => {
-    const saved = localStorage.getItem('currentCompany');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [parties, setParties] = useState<Party[]>(() => {
-    const company = localStorage.getItem('currentCompany');
-    if (!company) return [];
-    const id = JSON.parse(company).id;
-    const saved = localStorage.getItem(`parties_${id}`);
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [banks, setBanks] = useState<BankAccount[]>(() => {
-    const company = localStorage.getItem('currentCompany');
-    if (!company) return [];
-    const id = JSON.parse(company).id;
-    const saved = localStorage.getItem(`banks_${id}`);
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [items, setItems] = useState<Item[]>(() => {
-    const company = localStorage.getItem('currentCompany');
-    if (!company) return [];
-    const id = JSON.parse(company).id;
-    const saved = localStorage.getItem(`items_${id}`);
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const company = localStorage.getItem('currentCompany');
-    if (!company) return [];
-    const id = JSON.parse(company).id;
-    const saved = localStorage.getItem(`transactions_${id}`);
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    const company = localStorage.getItem('currentCompany');
-    if (!company) return [];
-    const id = JSON.parse(company).id;
-    const saved = localStorage.getItem(`invoices_${id}`);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
+  
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
+  const [parties, setParties] = useState<Party[]>([]);
+  const [banks, setBanks] = useState<BankAccount[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  
+  // Load data when user or company changes
+  useEffect(() => {
+    if (!currentUser) {
+      setCompanies([]);
+      setCurrentCompany(null);
+      return;
+    }
+
+    const savedCompanies = localStorage.getItem(`companies_${currentUser}`);
+    const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
+    setCompanies(loadedCompanies);
+
+    const savedCurrent = localStorage.getItem(`currentCompany_${currentUser}`);
+    const loadedCurrent = savedCurrent ? JSON.parse(savedCurrent) : (loadedCompanies[0] || null);
+    setCurrentCompany(loadedCurrent);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentCompany || !currentUser) {
+      setParties([]);
+      setBanks([]);
+      setItems([]);
+      setTransactions([]);
+      setInvoices([]);
+      return;
+    }
+
+    const id = currentCompany.id;
+    const load = (key: string) => {
+      const saved = localStorage.getItem(`${key}_${id}`);
+      return saved ? JSON.parse(saved) : [];
+    };
+
+    setParties(load('parties'));
+    setBanks(load('banks'));
+    setItems(load('items'));
+    setTransactions(load('transactions'));
+    setInvoices(load('invoices'));
+  }, [currentCompany, currentUser]);
+
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('app_settings');
     const defaultSettings: AppSettings = {
@@ -415,9 +422,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const syncToCloud = async (table: string, data: any, isNew: boolean = false) => {
-    const email = settings.user_email;
-    if (!settings.sync_enabled || !email) {
-        console.log(`[Sync Skip] Sync disabled or no email for ${table}`);
+    const email = settings.user_email || currentCompany?.user_email || (currentCompany?.username ? `${currentCompany.username}@bugzy.app` : null);
+    const isUsernameAccount = !!currentCompany?.username;
+    
+    if (!settings.sync_enabled && !isUsernameAccount) {
+        console.log(`[Sync Skip] Sync disabled and not a username account for ${table}`);
+        return;
+    }
+
+    if (!email) {
+        console.log(`[Sync Skip] No email or username found for ${table}`);
         return;
     }
     
@@ -981,42 +995,49 @@ const deleteFromCloud = async (table: string, id: string) => {
   };
 
   const loginWithUsername = async (username: string) => {
-    // 1. Check local storage first
-    const localCompanies = JSON.parse(localStorage.getItem('companies') || '[]');
-    const localMatch = localCompanies.find((c: Company) => c.username?.toLowerCase() === username.toLowerCase());
+    const normalizedUsername = username.toLowerCase().trim();
     
-    if (localMatch) {
-      setCurrentCompany(localMatch);
-      return true;
-    }
-
-    // 2. Check cloud
-    console.log('Searching for username in cloud:', username.toLowerCase());
+    // 1. Check cloud first to see if user exists
+    console.log('Searching for username in cloud:', normalizedUsername);
     const { data, error } = await supabase
       .from('companies')
       .select('*')
-      .eq('username', username.toLowerCase());
+      .eq('username', normalizedUsername);
 
     console.log('Cloud search result:', { data, error });
 
     if (data && data.length > 0) {
-      const company = data[0];
-      setCurrentCompany(company);
-      // Save to local
-      const updated = [...localCompanies, company];
-      localStorage.setItem('companies', JSON.stringify(updated));
+      // User exists in cloud
+      const userCompanies = data;
+      localStorage.setItem('currentUser', normalizedUsername);
+      localStorage.setItem(`companies_${normalizedUsername}`, JSON.stringify(userCompanies));
+      localStorage.setItem(`currentCompany_${normalizedUsername}`, JSON.stringify(userCompanies[0]));
+      setCurrentUser(normalizedUsername);
       return true;
     }
 
-    return false;
+    // 2. Check local storage
+    const localCompanies = localStorage.getItem(`companies_${normalizedUsername}`);
+    if (localCompanies) {
+      localStorage.setItem('currentUser', normalizedUsername);
+      setCurrentUser(normalizedUsername);
+      return true;
+    }
+
+    // 3. Create new user session
+    localStorage.setItem('currentUser', normalizedUsername);
+    setCurrentUser(normalizedUsername);
+    return true; // Will trigger SetupCompany if no companies found
   };
 
   const addCompany = async (company: Omit<Company, 'id' | 'created_at'>) => {
+    if (!currentUser) return;
     const now = new Date().toISOString();
     const newCompany: Company = {
       ...company,
       id: crypto.randomUUID(),
       user_email: settings.user_email || '',
+      username: currentUser,
       trial_start: now,
       is_paid: false,
       created_at: now,
@@ -1024,9 +1045,15 @@ const deleteFromCloud = async (table: string, id: string) => {
       linked_emails: [],
     };
     
-    setCompanies(prev => [...prev, newCompany]);
+    const updatedCompanies = [...companies, newCompany];
+    setCompanies(updatedCompanies);
     setCurrentCompany(newCompany);
+    localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updatedCompanies));
+    localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(newCompany));
     
+    // Enable sync by default for username accounts
+    updateSettings({ sync_enabled: true });
+
     // Always try to sync to cloud if we have a connection
     try {
       await supabase.from('companies').insert(newCompany);
@@ -1036,42 +1063,64 @@ const deleteFromCloud = async (table: string, id: string) => {
   };
 
   const backupData = () => {
-    const data: Record<string, string | null> = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key) data[key] = localStorage.getItem(key);
-    }
+    if (!currentUser) return;
+    
+    const data: any = {
+      username: currentUser,
+      companies: JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]'),
+      settings: JSON.parse(localStorage.getItem('app_settings') || '{}'),
+      device_license: localStorage.getItem('device_license'),
+      active_license_key: localStorage.getItem('active_license_key'),
+      companyData: {}
+    };
+
+    data.companies.forEach((c: any) => {
+      data.companyData[c.id] = {
+        parties: JSON.parse(localStorage.getItem(`parties_${c.id}`) || '[]'),
+        banks: JSON.parse(localStorage.getItem(`banks_${c.id}`) || '[]'),
+        items: JSON.parse(localStorage.getItem(`items_${c.id}`) || '[]'),
+        transactions: JSON.parse(localStorage.getItem(`transactions_${c.id}`) || '[]'),
+        invoices: JSON.parse(localStorage.getItem(`invoices_${c.id}`) || '[]'),
+      };
+    });
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `bugzy_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `backup_${currentUser}_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
   const restoreData = async (json: string) => {
     try {
       const data = JSON.parse(json);
-      // FULL OVERWRITE - No merging, no cloud sync triggering
+      if (!data.username) throw new Error('Invalid backup file');
+
+      // REPLACE ALL DATA
       localStorage.clear();
-      Object.entries(data).forEach(([key, value]) => {
-        if (typeof value === 'string') {
-          let finalValue = value;
-          // Force disable sync on restore to prevent auto-fetching cloud data
-          if (key === 'app_settings') {
-            const settings = JSON.parse(value);
-            settings.sync_enabled = false;
-            finalValue = JSON.stringify(settings);
-          }
-          localStorage.setItem(key, finalValue);
-        }
+      
+      localStorage.setItem('currentUser', data.username);
+      localStorage.setItem(`companies_${data.username}`, JSON.stringify(data.companies));
+      localStorage.setItem('app_settings', JSON.stringify(data.settings));
+      if (data.device_license) localStorage.setItem('device_license', data.device_license);
+      if (data.active_license_key) localStorage.setItem('active_license_key', data.active_license_key);
+
+      Object.keys(data.companyData).forEach(companyId => {
+        const cData = data.companyData[companyId];
+        localStorage.setItem(`parties_${companyId}`, JSON.stringify(cData.parties));
+        localStorage.setItem(`banks_${companyId}`, JSON.stringify(cData.banks));
+        localStorage.setItem(`items_${companyId}`, JSON.stringify(cData.items));
+        localStorage.setItem(`transactions_${companyId}`, JSON.stringify(cData.transactions));
+        localStorage.setItem(`invoices_${companyId}`, JSON.stringify(cData.invoices));
       });
-      // Force reload to apply new state without any sync events
-      window.location.href = '/';
-    } catch (e) {
-      console.error('Restore failed:', e);
-      throw new Error('Invalid backup file');
+
+      window.location.reload();
+    } catch (e: any) {
+      alert('Restore failed: ' + e.message);
     }
   };
 
@@ -1284,31 +1333,44 @@ const deleteFromCloud = async (table: string, id: string) => {
     
     if (reqError) throw reqError;
 
-    // 2. If approved, update company subscription
+    // 2. If approved, generate license
     if (status === 'approved' && reqData) {
-      const plan = reqData.plan;
-      const duration = plan === 'monthly' ? 30 : 365;
-      const startDate = new Date().toISOString();
-      const endDate = new Date(Date.now() + duration * 24 * 60 * 60 * 1000).toISOString();
+      const licenseKey = generateLicenseKey();
+      
+      const { error: licenseError } = await supabase
+        .from('licenses')
+        .insert({
+          license_key: licenseKey,
+          is_active: true,
+          created_at: now,
+          updated_at: now
+        });
 
-      const subscription: Subscription = {
-        plan,
-        start_date: startDate,
-        end_date: endDate,
-        status: 'active'
-      };
+      if (licenseError) throw licenseError;
 
-      // Also set device license locally for the user who paid
-      // Since this is manual, we assume the admin approval unlocks the app for the user
-      // In a real SaaS, we might send a signal, but here we'll just update the company
+      // Update the request with the generated license key so admin can see it
+      await supabase
+        .from('payment_requests')
+        .update({ license_key: licenseKey })
+        .eq('id', id);
+
+      // Also update company status
       await updateCompany(companyId, { 
         is_paid: true,
-        subscription 
+        subscription: {
+          plan: reqData.plan,
+          start_date: now,
+          end_date: new Date(Date.now() + (reqData.plan === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toISOString(),
+          status: 'active'
+        }
       });
-
-      // If we want to support device-based licensing via admin approval:
-      // We could store a flag that the client checks on next sync
     }
+  };
+
+  const generateLicenseKey = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const segment = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    return `${segment()}-${segment()}-${segment()}-${segment()}`;
   };
 
   const activateLicense = async (key: string) => {
@@ -1321,8 +1383,6 @@ const deleteFromCloud = async (table: string, id: string) => {
       return;
     }
 
-    if (!settings.user_email) throw new Error('Please link your email in Settings first');
-    
     // 1. Get Device ID (Simple fingerprint)
     const deviceId = navigator.userAgent + (navigator as any).deviceMemory + (navigator as any).hardwareConcurrency;
     
@@ -1330,7 +1390,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     const { data: license, error: fetchError } = await supabase
       .from('licenses')
       .select('*')
-      .eq('license_key', key)
+      .eq('license_key', key.toUpperCase())
       .single();
     
     if (fetchError || !license) throw new Error('Invalid License Key');
@@ -1350,7 +1410,12 @@ const deleteFromCloud = async (table: string, id: string) => {
     
     if (updateError) throw updateError;
     
-    // 5. Unlock Company
+    // 5. Unlock Device Globally
+    localStorage.setItem('device_license', 'true');
+    localStorage.setItem('active_license_key', key.toUpperCase());
+    setIsDeviceLicensed(true);
+    
+    // 6. Unlock Company
     await updateCompany(currentCompany.id, { is_paid: true });
   };
 
@@ -1388,11 +1453,11 @@ const deleteFromCloud = async (table: string, id: string) => {
   }, [isAdmin, settings.user_email, session?.user?.email]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem('currentUser');
+    setCurrentUser(null);
+    setCurrentCompany(null);
+    setCompanies([]);
     setSession(null);
-    updateSettings({ user_email: '', is_verified: false, sync_enabled: false });
-    localStorage.clear();
-    window.location.reload();
   };
 
   return (

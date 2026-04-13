@@ -32,7 +32,8 @@ export default function Settings() {
   const { 
     settings, updateSettings, companies, currentCompany, setCurrentCompany, 
     refreshData, addCompany, deleteCompany, pullCompanies, syncStatus,
-    linkDevice, signOut, updateCompany, isAdmin, backupData, restoreData
+    linkDevice, signOut, updateCompany, isAdmin, backupData, restoreData,
+    isDeviceLicensed
   } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [emailInput, setEmailInput] = React.useState(settings.user_email || '');
@@ -587,6 +588,61 @@ NOTIFY pgrst, 'reload schema';
         </div>
       </section>
 
+      {/* Licensing Section */}
+      <section>
+        <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
+          <Shield size={24} className="text-indigo-600" />
+          Licensing
+        </h3>
+        <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 p-8 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <p className="font-bold mb-1">Device License</p>
+              <p className="text-xs text-slate-500">
+                {isDeviceLicensed 
+                  ? `Your device is licensed with key: ${localStorage.getItem('active_license_key') || 'MASTER'}` 
+                  : 'Your device is currently in trial mode.'}
+              </p>
+            </div>
+            {isDeviceLicensed && (
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => {
+                    const key = localStorage.getItem('active_license_key') || 'MASTER';
+                    const text = `My Bugzy App License Key: ${key}`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+                >
+                  <Plus size={18} />
+                  Share WhatsApp
+                </button>
+                <button 
+                  onClick={() => {
+                    const key = localStorage.getItem('active_license_key') || 'MASTER';
+                    const subject = 'Bugzy App License Key';
+                    const body = `My Bugzy App License Key is: ${key}`;
+                    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                  }}
+                  className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2"
+                >
+                  <FileText size={18} />
+                  Send Email
+                </button>
+              </div>
+            )}
+            {!isDeviceLicensed && (
+              <button 
+                onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'activation' }))}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+              >
+                Activate License
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* Recovery Code Section */}
       {currentCompany && (
         <section>
@@ -1060,7 +1116,7 @@ NOTIFY pgrst, 'reload schema';
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-bold">Sign Out</p>
-                <p className="text-sm text-slate-500">Sign out and clear local data. Use recovery code to restore.</p>
+                <p className="text-sm text-slate-500">Sign out of your current account. Your data will remain safe on this device.</p>
               </div>
               <button 
                 onClick={signOut}
