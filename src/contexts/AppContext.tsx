@@ -1323,24 +1323,26 @@ const deleteFromCloud = async (table: string, id: string) => {
   const updatePaymentRequestStatus = async (id: string, status: 'approved' | 'rejected', companyId: string) => {
     const now = new Date().toISOString();
     
-    // 1. Update request status
-    const { data: reqData, error: reqError } = await supabase
-      .from('payment_requests')
-      .update({ status, updated_at: now })
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (reqError) throw reqError;
-
-    // 2. If approved, generate license
-    if (status === 'approved' && reqData) {
-      const licenseKey = generateLicenseKey();
+    // 1. If approved, generate license first
+    let licenseKey = null;
+    if (status === 'approved') {
+      licenseKey = generateLicenseKey();
       
+      // Fetch request data first to get user_email
+      const { data: reqData, error: fetchError } = await supabase
+        .from('payment_requests')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (fetchError) throw fetchError;
+
+      // Insert license
       const { error: licenseError } = await supabase
         .from('licenses')
         .insert({
           license_key: licenseKey,
+          user_email: reqData.user_email,
           is_active: true,
           created_at: now,
           updated_at: now
@@ -1348,13 +1350,7 @@ const deleteFromCloud = async (table: string, id: string) => {
 
       if (licenseError) throw licenseError;
 
-      // Update the request with the generated license key so admin can see it
-      await supabase
-        .from('payment_requests')
-        .update({ license_key: licenseKey })
-        .eq('id', id);
-
-      // Also update company status
+      // Update company status
       await updateCompany(companyId, { 
         is_paid: true,
         subscription: {
@@ -1365,6 +1361,17 @@ const deleteFromCloud = async (table: string, id: string) => {
         }
       });
     }
+
+    // 2. Update request status (and license key if approved)
+    const updateData: any = { status, updated_at: now };
+    if (licenseKey) updateData.license_key = licenseKey;
+
+    const { error: reqError } = await supabase
+      .from('payment_requests')
+      .update(updateData)
+      .eq('id', id);
+    
+    if (reqError) throw reqError;
   };
 
   const generateLicenseKey = () => {

@@ -266,7 +266,42 @@ CREATE TABLE IF NOT EXISTS invoices (
   deleted_at TIMESTAMPTZ
 );
 
--- 8. Enable RLS
+-- 8. Create Payment Requests Table
+CREATE TABLE IF NOT EXISTS payment_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL,
+  user_id TEXT,
+  username TEXT,
+  user_name TEXT,
+  user_email TEXT,
+  company_name TEXT,
+  account_name TEXT,
+  phone TEXT,
+  amount NUMERIC,
+  plan TEXT,
+  screenshot_url TEXT,
+  license_key TEXT,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE payment_requests ADD COLUMN IF NOT EXISTS license_key TEXT;
+
+-- 9. Create Licenses Table
+CREATE TABLE IF NOT EXISTS licenses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  license_key TEXT UNIQUE NOT NULL,
+  user_email TEXT,
+  device_id TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS user_email TEXT;
+
+-- 10. Enable RLS
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE banks ENABLE ROW LEVEL SECURITY;
@@ -274,6 +309,8 @@ ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 
 -- 9. Create Comprehensive Access Policies
 -- This allows authenticated users full access as requested
@@ -281,7 +318,7 @@ DO $$
 DECLARE
     t text;
 BEGIN
-    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'expenses', 'invoices')
+    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'expenses', 'invoices', 'payment_requests', 'licenses')
     LOOP
         EXECUTE format('DROP POLICY IF EXISTS "Full Access" ON %I', t);
         -- Allowing both authenticated and anon to ensure sync works even if session is pending, 
@@ -335,7 +372,7 @@ END $$;
 DO $$
 DECLARE
     tbl text;
-    tables_to_add text[] := ARRAY['companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'expenses'];
+    tables_to_add text[] := ARRAY['companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'expenses', 'payment_requests', 'licenses'];
 BEGIN
     FOREACH tbl IN ARRAY tables_to_add
     LOOP
@@ -359,6 +396,8 @@ ALTER TABLE inventory REPLICA IDENTITY FULL;
 ALTER TABLE transactions REPLICA IDENTITY FULL;
 ALTER TABLE invoices REPLICA IDENTITY FULL;
 ALTER TABLE expenses REPLICA IDENTITY FULL;
+ALTER TABLE payment_requests REPLICA IDENTITY FULL;
+ALTER TABLE licenses REPLICA IDENTITY FULL;
 
 -- 15. Final Schema Reload
 NOTIFY pgrst, 'reload schema';

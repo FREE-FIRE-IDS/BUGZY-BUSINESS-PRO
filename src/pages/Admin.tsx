@@ -44,9 +44,9 @@ export default function Admin() {
     try {
       await updatePaymentRequestStatus(id, 'approved', companyId);
       await loadData();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('Failed to approve');
+      alert('Failed to approve: ' + (e.message || 'Unknown error'));
     }
   };
 
