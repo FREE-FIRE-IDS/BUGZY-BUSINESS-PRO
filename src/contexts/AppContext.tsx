@@ -991,16 +991,19 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
 
     // 2. Check cloud
+    console.log('Searching for username in cloud:', username.toLowerCase());
     const { data, error } = await supabase
       .from('companies')
       .select('*')
-      .eq('username', username.toLowerCase())
-      .single();
+      .eq('username', username.toLowerCase());
 
-    if (data && !error) {
-      setCurrentCompany(data);
+    console.log('Cloud search result:', { data, error });
+
+    if (data && data.length > 0) {
+      const company = data[0];
+      setCurrentCompany(company);
       // Save to local
-      const updated = [...localCompanies, data];
+      const updated = [...localCompanies, company];
       localStorage.setItem('companies', JSON.stringify(updated));
       return true;
     }
@@ -1024,8 +1027,11 @@ const deleteFromCloud = async (table: string, id: string) => {
     setCompanies(prev => [...prev, newCompany]);
     setCurrentCompany(newCompany);
     
-    if (settings.sync_enabled && settings.user_email) {
-      await syncToCloud('companies', newCompany);
+    // Always try to sync to cloud if we have a connection
+    try {
+      await supabase.from('companies').insert(newCompany);
+    } catch (e) {
+      console.error('Cloud sync failed on creation:', e);
     }
   };
 

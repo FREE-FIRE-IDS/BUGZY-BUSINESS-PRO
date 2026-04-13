@@ -438,36 +438,51 @@ function PaymentScreen({ company }: { company: Company }) {
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Payment Screenshot</label>
-                    <div className="flex gap-4">
-                      <div className="flex-1 relative">
-                        <input 
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileUpload}
-                          className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                          disabled={uploading}
-                        />
-                        <div className={cn(
-                          "w-full bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 flex items-center justify-center gap-2 transition-all",
-                          uploading ? "opacity-50" : "hover:border-indigo-400"
-                        )}>
-                          {uploading ? (
-                            <Loader2 className="animate-spin text-indigo-600" size={20} />
-                          ) : formData.screenshot_url ? (
-                            <Check className="text-emerald-600" size={20} />
-                          ) : (
-                            <Plus className="text-slate-400" size={20} />
-                          )}
-                          <span className="text-sm font-bold text-slate-500">
-                            {uploading ? 'Uploading...' : formData.screenshot_url ? 'Image Uploaded' : 'Upload Screenshot'}
-                          </span>
+                    <div className="space-y-3">
+                      <div className="flex gap-4">
+                        <div className="flex-1 relative">
+                          <input 
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileUpload}
+                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                            disabled={uploading}
+                          />
+                          <div className={cn(
+                            "w-full bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 flex items-center justify-center gap-2 transition-all",
+                            uploading ? "opacity-50" : "hover:border-indigo-400"
+                          )}>
+                            {uploading ? (
+                              <Loader2 className="animate-spin text-indigo-600" size={20} />
+                            ) : formData.screenshot_url ? (
+                              <Check className="text-emerald-600" size={20} />
+                            ) : (
+                              <Plus className="text-slate-400" size={20} />
+                            )}
+                            <span className="text-sm font-bold text-slate-500">
+                              {uploading ? 'Uploading...' : formData.screenshot_url ? 'Image Uploaded' : 'Upload Screenshot'}
+                            </span>
+                          </div>
                         </div>
+                        {formData.screenshot_url && (
+                          <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-slate-100 dark:border-slate-800 shrink-0">
+                            <img src={formData.screenshot_url} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          </div>
+                        )}
                       </div>
-                      {formData.screenshot_url && (
-                        <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-slate-100 dark:border-slate-800 shrink-0">
-                          <img src={formData.screenshot_url} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <FileText size={16} className="text-slate-400" />
                         </div>
-                      )}
+                        <input 
+                          type="url"
+                          value={formData.screenshot_url}
+                          onChange={e => setFormData({...formData, screenshot_url: e.target.value})}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-11 pr-5 py-3 focus:border-indigo-600 outline-none transition-all text-sm"
+                          placeholder="Or paste image URL here..."
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -554,8 +569,8 @@ function ShortcutHelper({ show }: { show: boolean }) {
   );
 }
 
-function TrialBanner({ company, onUpgrade }: { company: Company, onUpgrade: () => void }) {
-  if (company.is_paid && company.subscription?.status === 'active') return null;
+function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onUpgrade: () => void, isLicensed?: boolean }) {
+  if (company.is_paid || company.subscription?.status === 'active' || isLicensed) return null;
   
   const trialStart = new Date(company.trial_start || company.created_at);
   const trialEnd = addDays(trialStart, 20);
@@ -809,7 +824,7 @@ export default function App() {
         "transition-all duration-300 min-h-screen pb-20 md:pb-0 flex flex-col",
         isSidebarOpen ? "md:pl-64" : "md:pl-20"
       )}>
-        {currentCompany && <TrialBanner company={currentCompany} onUpgrade={() => setForceUpgrade(true)} />}
+        {currentCompany && <TrialBanner company={currentCompany} isLicensed={isDeviceLicensed} onUpgrade={() => setForceUpgrade(true)} />}
         
         {/* Topbar */}
         <header className={cn(
