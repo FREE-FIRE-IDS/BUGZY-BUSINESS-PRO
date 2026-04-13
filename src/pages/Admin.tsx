@@ -147,7 +147,7 @@ export default function Admin() {
                       )}
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">{req.user_name || req.company_name}</h3>
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">{req.user_name} (@{req.username})</h3>
                       <div className="flex flex-wrap gap-4 mt-2">
                         <div className="flex items-center gap-1.5 text-sm text-slate-500">
                           <Mail size={14} /> {req.user_email}

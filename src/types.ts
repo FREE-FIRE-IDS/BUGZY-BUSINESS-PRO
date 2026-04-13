@@ -24,6 +24,7 @@ export interface Subscription {
 export interface Company {
   id: string;
   name: string;
+  username?: string;
   address: string;
   logo_url?: string;
   currency: string;
@@ -128,6 +129,7 @@ export interface PaymentRequest {
   id: string;
   company_id: string;
   user_id: string;
+  username?: string;
   user_name: string;
   user_email: string;
   company_name: string;

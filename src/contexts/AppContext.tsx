@@ -40,6 +40,7 @@ interface AppContextType {
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
   submitPaymentRequest: (data: {
     user_name: string;
+    username?: string;
     account_name: string;
     phone: string;
     amount: number;
@@ -51,6 +52,8 @@ interface AppContextType {
   activateLicense: (key: string) => Promise<void>;
   fetchLicenses: () => Promise<License[]>;
   resetLicenseDevice: (id: string) => Promise<void>;
+  isDeviceLicensed: boolean;
+  loginWithUsername: (username: string) => Promise<boolean>;
   isAdmin: boolean;
   selectedPartyId: string | null;
   setSelectedPartyId: (id: string | null) => void;
@@ -977,6 +980,34 @@ const deleteFromCloud = async (table: string, id: string) => {
       await recalculateBalances(updatedTransactions, parties, banks, items, invoices);
   };
 
+  const loginWithUsername = async (username: string) => {
+    // 1. Check local storage first
+    const localCompanies = JSON.parse(localStorage.getItem('companies') || '[]');
+    const localMatch = localCompanies.find((c: Company) => c.username?.toLowerCase() === username.toLowerCase());
+    
+    if (localMatch) {
+      setCurrentCompany(localMatch);
+      return true;
+    }
+
+    // 2. Check cloud
+    const { data, error } = await supabase
+      .from('companies')
+      .select('*')
+      .eq('username', username.toLowerCase())
+      .single();
+
+    if (data && !error) {
+      setCurrentCompany(data);
+      // Save to local
+      const updated = [...localCompanies, data];
+      localStorage.setItem('companies', JSON.stringify(updated));
+      return true;
+    }
+
+    return false;
+  };
+
   const addCompany = async (company: Omit<Company, 'id' | 'created_at'>) => {
     const now = new Date().toISOString();
     const newCompany: Company = {
@@ -1195,6 +1226,7 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   const submitPaymentRequest = async (data: {
     user_name: string;
+    username?: string;
     account_name: string;
     phone: string;
     amount: number;
@@ -1206,6 +1238,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     const request: Omit<PaymentRequest, 'id'> = {
       company_id: currentCompany.id,
       user_id: session?.user?.id || 'anonymous',
+      username: data.username || currentCompany.username,
       user_name: data.user_name,
       user_email: settings.user_email || session?.user?.email || '',
       company_name: currentCompany.name,
@@ -1259,10 +1292,16 @@ const deleteFromCloud = async (table: string, id: string) => {
         status: 'active'
       };
 
+      // Also set device license locally for the user who paid
+      // Since this is manual, we assume the admin approval unlocks the app for the user
+      // In a real SaaS, we might send a signal, but here we'll just update the company
       await updateCompany(companyId, { 
         is_paid: true,
         subscription 
       });
+
+      // If we want to support device-based licensing via admin approval:
+      // We could store a flag that the client checks on next sync
     }
   };
 
@@ -1271,7 +1310,8 @@ const deleteFromCloud = async (table: string, id: string) => {
     
     // MASTER LICENSE CHECK
     if (key === '16897463890072') {
-      await updateCompany(currentCompany.id, { is_paid: true });
+      localStorage.setItem('device_license', 'true');
+      setIsDeviceLicensed(true);
       return;
     }
 
@@ -1325,6 +1365,13 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (error) throw error;
   };
 
+  const [isDeviceLicensed, setIsDeviceLicensed] = useState(false);
+
+  useEffect(() => {
+    const licensed = localStorage.getItem('device_license') === 'true';
+    setIsDeviceLicensed(licensed);
+  }, []);
+
   const isAdmin = (settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') || 
                   (session?.user?.email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com');
 
@@ -1357,6 +1404,8 @@ const deleteFromCloud = async (table: string, id: string) => {
       addInvoice, updateInvoice, deleteInvoice,
       submitPaymentRequest, fetchPaymentRequests, updatePaymentRequestStatus,
       activateLicense, fetchLicenses, resetLicenseDevice,
+      isDeviceLicensed,
+      loginWithUsername,
       isAdmin,
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
       session, signOut

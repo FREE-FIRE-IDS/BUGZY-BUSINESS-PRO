@@ -25,7 +25,8 @@ import {
   Sparkles,
   Clock,
   Loader2,
-  Check
+  Check,
+  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -154,6 +155,7 @@ function PaymentScreen({ company }: { company: Company }) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [formData, setFormData] = useState({
     user_name: '',
+    username: company.username || '',
     account_name: '',
     phone: '',
     screenshot_url: ''
@@ -252,7 +254,15 @@ function PaymentScreen({ company }: { company: Company }) {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
-      <div className="max-w-xl w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
+      <div className="max-w-xl w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 relative">
+        {step !== 'plan' && step !== 'success' && (
+          <button 
+            onClick={() => setStep(step === 'payment' ? 'plan' : 'payment')}
+            className="absolute top-8 left-8 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all z-20"
+          >
+            <ArrowLeft size={24} />
+          </button>
+        )}
         <div className="p-10">
           <AnimatePresence mode="wait">
             {step === 'plan' && (
@@ -379,6 +389,16 @@ function PaymentScreen({ company }: { company: Company }) {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Username</label>
+                    <input 
+                      type="text"
+                      value={formData.username}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none transition-all font-bold opacity-70"
+                      readOnly
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Your Name</label>
@@ -568,7 +588,7 @@ function TrialBanner({ company, onUpgrade }: { company: Company, onUpgrade: () =
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { currentCompany, companies, setCurrentCompany, addCompany, updateCompany, settings, updateSettings, isAdmin } = useApp();
+  const { currentCompany, companies, setCurrentCompany, addCompany, updateCompany, settings, updateSettings, isAdmin, isDeviceLicensed } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
   const [forceUpgrade, setForceUpgrade] = useState(false);
@@ -683,7 +703,7 @@ export default function App() {
 
   // Trial Check
   if (currentCompany) {
-    const isPaid = currentCompany.is_paid || currentCompany.subscription?.status === 'active';
+    const isPaid = currentCompany.is_paid || currentCompany.subscription?.status === 'active' || isDeviceLicensed;
     const trialStart = new Date(currentCompany.trial_start || currentCompany.created_at);
     const trialEnd = addDays(trialStart, 20);
     const isExpired = isAfter(new Date(), trialEnd);
@@ -939,18 +959,27 @@ export default function App() {
 }
 
 function SetupCompany() {
-  const { addCompany, restoreCompany, syncStatus } = useApp();
+  const { addCompany, loginWithUsername, syncStatus } = useApp();
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [currency, setCurrency] = useState('PKR');
+  const [isLogin, setIsLogin] = useState(false);
 
-  const handleCreate = async () => {
-    if (!name.trim()) return;
-    await addCompany({
-      name: name.trim(),
-      address: '',
-      currency,
-      user_id: 'default',
-    });
+  const handleAction = async () => {
+    if (isLogin) {
+      if (!username.trim()) return alert('Please enter username');
+      const success = await loginWithUsername(username.trim());
+      if (!success) alert('Username not found');
+    } else {
+      if (!name.trim() || !username.trim()) return alert('Please fill all fields');
+      await addCompany({
+        name: name.trim(),
+        username: username.trim().toLowerCase(),
+        address: '',
+        currency,
+        user_id: 'default',
+      });
+    }
   };
 
   return (
@@ -965,41 +994,63 @@ function SetupCompany() {
           </svg>
         </div>
         <h1 className="text-2xl font-bold text-center mb-2 text-slate-900 dark:text-slate-50">Bugzy Pro</h1>
+        <p className="text-slate-500 text-center text-sm mb-8">{isLogin ? 'Login to your account' : 'Create your business profile'}</p>
         
-        <div className="space-y-4 mt-8">
+        <div className="space-y-4">
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Company Name</label>
+              <input 
+                type="text" 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50"
+                placeholder="e.g. Acme Corp"
+              />
+            </div>
+          )}
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Company Name</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Username</label>
             <input 
               type="text" 
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50"
-              placeholder="e.g. Acme Corp"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50 font-mono"
+              placeholder="unique_username"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Currency</label>
-            <select 
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50"
-            >
-              <option value="PKR">Pakistan Rupee (PKR)</option>
-              <option value="USD">US Dollar (USD)</option>
-              <option value="None">None</option>
-            </select>
-          </div>
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Currency</label>
+              <select 
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50"
+              >
+                <option value="PKR">Pakistan Rupee (PKR)</option>
+                <option value="USD">US Dollar (USD)</option>
+                <option value="None">None</option>
+              </select>
+            </div>
+          )}
           
           {syncStatus.error && (
             <p className="text-red-500 text-xs bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-800">{syncStatus.error}</p>
           )}
 
           <button 
-            onClick={handleCreate}
+            onClick={handleAction}
             disabled={syncStatus.loading}
             className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
           >
-            {syncStatus.loading ? 'Creating...' : 'Create Company'}
+            {syncStatus.loading ? 'Processing...' : isLogin ? 'Login' : 'Create Company'}
+          </button>
+
+          <button 
+            onClick={() => setIsLogin(!isLogin)}
+            className="w-full text-indigo-600 text-sm font-bold hover:underline"
+          >
+            {isLogin ? "Don't have an account? Create one" : "Already have an account? Login"}
           </button>
         </div>
       </div>
