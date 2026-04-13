@@ -53,7 +53,7 @@ interface AppContextType {
   fetchLicenses: () => Promise<License[]>;
   resetLicenseDevice: (id: string) => Promise<void>;
   isDeviceLicensed: boolean;
-  loginWithUsername: (username: string) => Promise<boolean>;
+  loginWithUsername: (username: string, isLogin?: boolean) => Promise<boolean>;
   isAdmin: boolean;
   selectedPartyId: string | null;
   setSelectedPartyId: (id: string | null) => void;
@@ -261,7 +261,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshData = async (emailOverride?: string, force = false) => {
     const email = emailOverride || settings.user_email;
-    if (!settings.sync_enabled || !email) return;
+    const username = currentUser;
+    
+    if (!settings.sync_enabled || (!email && !username)) return;
     
     // Prevent redundant syncs unless forced
     if (!force && currentCompany && hasInitialSynced.current[currentCompany.id]) {
@@ -272,10 +274,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSyncStatus(prev => ({ ...prev, loading: true, error: null }));
     try {
       // 1. Pull Companies
-      const { data: cloudCompanies, error: compError } = await supabase
-        .from('companies')
-        .select('*')
-        .or(`user_email.eq.${email},linked_emails.cs.{${email}}`);
+      let query = supabase.from('companies').select('*');
+      
+      if (email) {
+        query = query.or(`user_email.eq.${email},linked_emails.cs.{${email}}`);
+      } else if (username) {
+        query = query.eq('username', username);
+      }
+
+      const { data: cloudCompanies, error: compError } = await query;
       
       if (compError) throw compError;
       
@@ -994,44 +1001,61 @@ const deleteFromCloud = async (table: string, id: string) => {
       await recalculateBalances(updatedTransactions, parties, banks, items, invoices);
   };
 
-  const loginWithUsername = async (username: string) => {
+  const loginWithUsername = async (username: string, isLogin: boolean = true) => {
     const normalizedUsername = username.toLowerCase().trim();
+    setSyncStatus({ loading: true, error: null, success: null });
     
-    // 1. Check cloud first to see if user exists
-    console.log('Searching for username in cloud:', normalizedUsername);
-    const { data, error } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('username', normalizedUsername);
+    try {
+      // 1. Check cloud first to see if user exists
+      const { data, error } = await supabase
+        .from('companies')
+        .select('*')
+        .eq('username', normalizedUsername);
 
-    console.log('Cloud search result:', { data, error });
+      if (error) throw error;
 
-    if (data && data.length > 0) {
-      // User exists in cloud
-      const userCompanies = data;
+      if (data && data.length > 0) {
+        // User exists in cloud
+        const userCompanies = data;
+        localStorage.setItem('currentUser', normalizedUsername);
+        localStorage.setItem(`companies_${normalizedUsername}`, JSON.stringify(userCompanies));
+        localStorage.setItem(`currentCompany_${normalizedUsername}`, JSON.stringify(userCompanies[0]));
+        setCurrentUser(normalizedUsername);
+        setSyncStatus({ loading: false, error: null, success: 'Login successful' });
+        return true;
+      }
+
+      // 2. Check local storage
+      const localCompanies = localStorage.getItem(`companies_${normalizedUsername}`);
+      if (localCompanies) {
+        localStorage.setItem('currentUser', normalizedUsername);
+        setCurrentUser(normalizedUsername);
+        setSyncStatus({ loading: false, error: null, success: 'Login successful' });
+        return true;
+      }
+
+      // 3. If it's a login attempt and not found, return false
+      if (isLogin) {
+        setSyncStatus({ loading: false, error: 'Username not found ❌', success: null });
+        return false;
+      }
+
+      // 4. Create new user session (for signup)
       localStorage.setItem('currentUser', normalizedUsername);
-      localStorage.setItem(`companies_${normalizedUsername}`, JSON.stringify(userCompanies));
-      localStorage.setItem(`currentCompany_${normalizedUsername}`, JSON.stringify(userCompanies[0]));
       setCurrentUser(normalizedUsername);
+      setSyncStatus({ loading: false, error: null, success: null });
       return true;
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setSyncStatus({ loading: false, error: err.message || 'Login failed', success: null });
+      return false;
     }
-
-    // 2. Check local storage
-    const localCompanies = localStorage.getItem(`companies_${normalizedUsername}`);
-    if (localCompanies) {
-      localStorage.setItem('currentUser', normalizedUsername);
-      setCurrentUser(normalizedUsername);
-      return true;
-    }
-
-    // 3. Create new user session
-    localStorage.setItem('currentUser', normalizedUsername);
-    setCurrentUser(normalizedUsername);
-    return true; // Will trigger SetupCompany if no companies found
   };
 
   const addCompany = async (company: Omit<Company, 'id' | 'created_at'>) => {
     if (!currentUser) return;
+    setSyncStatus({ loading: true, error: null, success: null });
+    
     const now = new Date().toISOString();
     const newCompany: Company = {
       ...company,
@@ -1045,20 +1069,25 @@ const deleteFromCloud = async (table: string, id: string) => {
       linked_emails: [],
     };
     
-    const updatedCompanies = [...companies, newCompany];
-    setCompanies(updatedCompanies);
-    setCurrentCompany(newCompany);
-    localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updatedCompanies));
-    localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(newCompany));
-    
-    // Enable sync by default for username accounts
-    updateSettings({ sync_enabled: true });
-
-    // Always try to sync to cloud if we have a connection
     try {
-      await supabase.from('companies').insert(newCompany);
-    } catch (e) {
-      console.error('Cloud sync failed on creation:', e);
+      // 1. Save to cloud first to ensure uniqueness/persistence
+      const { error } = await supabase.from('companies').insert(newCompany);
+      if (error) throw error;
+
+      // 2. Update local state only after successful cloud insert
+      const updatedCompanies = [...companies, newCompany];
+      setCompanies(updatedCompanies);
+      setCurrentCompany(newCompany);
+      localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updatedCompanies));
+      localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(newCompany));
+      
+      // Enable sync by default for username accounts
+      updateSettings({ sync_enabled: true });
+      setSyncStatus({ loading: false, error: null, success: 'Company created successfully' });
+    } catch (e: any) {
+      console.error('Failed to create company:', e);
+      setSyncStatus({ loading: false, error: e.message || 'Failed to create company', success: null });
+      throw e;
     }
   };
 
