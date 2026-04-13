@@ -14,6 +14,13 @@ export type TransactionType =
   | 'Stock In'
   | 'Stock Out';
 
+export interface Subscription {
+  plan: 'monthly' | 'yearly' | 'trial';
+  start_date: string;
+  end_date: string;
+  status: 'active' | 'expired' | 'trial';
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -24,6 +31,7 @@ export interface Company {
   user_email?: string;
   trial_start?: string; // ISO date
   is_paid?: boolean;
+  subscription?: Subscription;
   created_at: string;
   updated_at?: string;
   deleted_at?: string;
@@ -119,11 +127,16 @@ export interface Invoice {
 export interface PaymentRequest {
   id: string;
   company_id: string;
+  user_id: string;
+  user_name: string;
   user_email: string;
   company_name: string;
+  account_name: string;
+  phone: string;
   amount: number;
+  plan: 'monthly' | 'yearly';
+  screenshot_url?: string;
   status: 'pending' | 'approved' | 'rejected';
-  license_key?: string;
   created_at: string;
   updated_at: string;
 }

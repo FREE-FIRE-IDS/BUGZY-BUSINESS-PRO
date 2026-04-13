@@ -38,9 +38,16 @@ interface AppContextType {
   addInvoice: (invoice: Omit<Invoice, 'id' | 'created_at'>) => Promise<void>;
   updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
-  submitPaymentRequest: (amount: number) => Promise<void>;
+  submitPaymentRequest: (data: {
+    user_name: string;
+    account_name: string;
+    phone: string;
+    amount: number;
+    plan: 'monthly' | 'yearly';
+    screenshot_url?: string;
+  }) => Promise<void>;
   fetchPaymentRequests: () => Promise<PaymentRequest[]>;
-  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected', companyId: string, licenseKey?: string) => Promise<void>;
+  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected', companyId: string) => Promise<void>;
   activateLicense: (key: string) => Promise<void>;
   fetchLicenses: () => Promise<License[]>;
   resetLicenseDevice: (id: string) => Promise<void>;
