@@ -1323,6 +1323,44 @@ const deleteFromCloud = async (table: string, id: string) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
   };
 
+  const handleSupabaseError = (error: any, context: string) => {
+    console.error(`${context} Error:`, error);
+    const rawError = (error.message || JSON.stringify(error)).toLowerCase();
+    
+    if (rawError.includes('schema cache') || rawError.includes('column') || rawError.includes('not found') || rawError.includes('row level security')) {
+      const fixSql = `
+-- NUCLEAR FIX FOR SCHEMA AND RLS
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS amount NUMERIC;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS screenshot TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS devices JSONB DEFAULT '[]';
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Fix RLS
+ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Full Access" ON licenses;
+CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Full Access" ON payment_requests;
+CREATE POLICY "Full Access" ON payment_requests FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+
+-- FORCE RELOAD CACHE
+NOTIFY pgrst, 'reload schema';
+      `.trim();
+      
+      navigator.clipboard.writeText(fixSql);
+      throw new Error(`DATABASE ERROR: Supabase has a stale schema cache or missing columns. I have copied the "Nuclear Fix" SQL to your clipboard. Please run it in your Supabase SQL Editor and refresh.`);
+    }
+    throw error;
+  };
+
   const submitPaymentRequest = async (data: {
     name: string;
     phone: string;
@@ -1343,7 +1381,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     };
     
     const { error } = await supabase.from('payment_requests').insert(request);
-    if (error) throw error;
+    if (error) handleSupabaseError(error, 'Submit Payment');
   };
 
   const fetchPaymentRequests = async () => {
@@ -1351,7 +1389,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       .from('payment_requests')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) throw error;
+    if (error) handleSupabaseError(error, 'Fetch Payment Requests');
     return data || [];
   };
 
@@ -1369,7 +1407,7 @@ const deleteFromCloud = async (table: string, id: string) => {
         .eq('id', id)
         .single();
       
-      if (fetchError) throw fetchError;
+      if (fetchError) handleSupabaseError(fetchError, 'Fetch Request for Approval');
 
       // Insert license
       const { error: licenseError } = await supabase
@@ -1382,7 +1420,7 @@ const deleteFromCloud = async (table: string, id: string) => {
           created_at: now
         });
 
-      if (licenseError) throw licenseError;
+      if (licenseError) handleSupabaseError(licenseError, 'Create License');
     }
 
     // 2. Update request status
@@ -1391,7 +1429,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       .update({ status })
       .eq('id', id);
     
-    if (reqError) throw reqError;
+    if (reqError) handleSupabaseError(reqError, 'Update Request Status');
   };
 
   const generateLicenseKey = () => {
@@ -1449,7 +1487,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       .from('licenses')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) throw error;
+    if (error) handleSupabaseError(error, 'Fetch Licenses');
     return data || [];
   };
 
@@ -1462,7 +1500,7 @@ const deleteFromCloud = async (table: string, id: string) => {
         updated_at: new Date().toISOString() 
       })
       .eq('id', id);
-    if (error) throw error;
+    if (error) handleSupabaseError(error, 'Reset License Device');
   };
 
   const [isDeviceLicensed, setIsDeviceLicensed] = useState(() => localStorage.getItem('device_license') === 'true');

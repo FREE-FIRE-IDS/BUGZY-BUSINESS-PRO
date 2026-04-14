@@ -330,6 +330,9 @@ BEGIN
     END IF;
 END $$;
 
+-- FORCE RELOAD SCHEMA CACHE
+NOTIFY pgrst, 'reload schema';
+
 -- 10. Fix Companies Username Constraint
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS username TEXT;
 DROP INDEX IF EXISTS idx_companies_username;
