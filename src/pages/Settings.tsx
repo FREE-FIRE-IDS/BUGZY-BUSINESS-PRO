@@ -307,12 +307,28 @@ CREATE TABLE IF NOT EXISTS licenses (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
-ALTER TABLE licenses ADD COLUMN IF NOT EXISTS devices JSONB DEFAULT '[]';
-ALTER TABLE licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
-ALTER TABLE licenses ADD COLUMN IF NOT EXISTS devices_limit INTEGER DEFAULT 1;
-ALTER TABLE licenses ADD COLUMN IF NOT EXISTS plan TEXT;
-ALTER TABLE licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
+-- Aggressively ensure columns exist
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='status') THEN
+        ALTER TABLE licenses ADD COLUMN status TEXT DEFAULT 'pending';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='user_id') THEN
+        ALTER TABLE licenses ADD COLUMN user_id TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='devices') THEN
+        ALTER TABLE licenses ADD COLUMN devices JSONB DEFAULT '[]';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='devices_limit') THEN
+        ALTER TABLE licenses ADD COLUMN devices_limit INTEGER DEFAULT 1;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='plan') THEN
+        ALTER TABLE licenses ADD COLUMN plan TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='license_key') THEN
+        ALTER TABLE licenses ADD COLUMN license_key TEXT;
+    END IF;
+END $$;
 
 -- 10. Fix Companies Username Constraint
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS username TEXT;
