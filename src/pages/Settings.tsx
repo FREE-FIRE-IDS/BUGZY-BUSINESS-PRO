@@ -33,7 +33,7 @@ export default function Settings() {
     settings, updateSettings, companies, currentCompany, setCurrentCompany, 
     refreshData, addCompany, deleteCompany, pullCompanies, syncStatus,
     linkDevice, signOut, updateCompany, isAdmin, backupData, restoreData,
-    isDeviceLicensed
+    isDeviceLicensed, isLicensed
   } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [emailInput, setEmailInput] = React.useState(settings.user_email || '');
@@ -294,14 +294,19 @@ ALTER TABLE payment_requests ADD COLUMN IF NOT EXISTS license_key TEXT;
 CREATE TABLE IF NOT EXISTS licenses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   license_key TEXT UNIQUE NOT NULL,
+  user_id TEXT,
   user_email TEXT,
   device_id TEXT,
+  devices INTEGER DEFAULT 1,
+  status TEXT DEFAULT 'active',
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE licenses ADD COLUMN IF NOT EXISTS user_email TEXT;
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS devices INTEGER DEFAULT 1;
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 
 -- 10. Enable RLS
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
@@ -673,14 +678,14 @@ NOTIFY pgrst, 'reload schema';
             <div>
               <p className="font-bold mb-1">Device License</p>
               <p className="text-xs text-slate-500">
-                {isDeviceLicensed 
+                {isLicensed() 
                   ? (localStorage.getItem('active_license_key') 
                       ? `Your device is licensed with key: ${localStorage.getItem('active_license_key')}`
                       : 'Your device is licensed with a Master Key.')
                   : 'Your device is currently in trial mode.'}
               </p>
             </div>
-            {isDeviceLicensed && (
+            {isLicensed() && (
               <div className="flex gap-3">
                 <button 
                   onClick={() => {

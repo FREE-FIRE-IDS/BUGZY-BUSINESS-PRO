@@ -53,6 +53,7 @@ interface AppContextType {
   fetchLicenses: () => Promise<License[]>;
   resetLicenseDevice: (id: string) => Promise<void>;
   isDeviceLicensed: boolean;
+  isLicensed: () => boolean;
   loginWithUsername: (username: string, isLogin?: boolean) => Promise<boolean>;
   isAdmin: boolean;
   selectedPartyId: string | null;
@@ -1366,7 +1367,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (status === 'approved') {
       licenseKey = generateLicenseKey();
       
-      // Fetch request data first to get user_email
+      // Fetch request data first to get user_id (username)
       const { data: reqData, error: fetchError } = await supabase
         .from('payment_requests')
         .select('*')
@@ -1380,7 +1381,9 @@ const deleteFromCloud = async (table: string, id: string) => {
         .from('licenses')
         .insert({
           license_key: licenseKey,
+          user_id: reqData.username || reqData.user_email, // Use username if available
           user_email: reqData.user_email,
+          status: 'active',
           is_active: true,
           created_at: now,
           updated_at: now
@@ -1388,7 +1391,8 @@ const deleteFromCloud = async (table: string, id: string) => {
 
       if (licenseError) throw licenseError;
 
-      // Update company status
+      // Note: We no longer strictly need to update company.is_paid 
+      // as the system is now device-based, but we keep it for cloud metadata
       await updateCompany(companyId, { 
         is_paid: true,
         subscription: {
@@ -1422,6 +1426,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     // MASTER LICENSE CHECK
     if (key === '16897463890072') {
       localStorage.setItem('device_license', 'true');
+      localStorage.setItem('active_license_key', 'MASTER-KEY');
       setIsDeviceLicensed(true);
       return;
     }
@@ -1437,7 +1442,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       .single();
     
     if (fetchError || !license) throw new Error('Invalid License Key ❌');
-    if (!license.is_active) throw new Error('License is inactive ❌');
+    if (license.status !== 'active' && !license.is_active) throw new Error('License is inactive ❌');
     
     // 3. Check Device Binding
     if (license.device_id && license.device_id !== deviceId) {
@@ -1448,7 +1453,11 @@ const deleteFromCloud = async (table: string, id: string) => {
     const now = new Date().toISOString();
     const { error: updateError } = await supabase
       .from('licenses')
-      .update({ device_id: deviceId, updated_at: now })
+      .update({ 
+        device_id: deviceId, 
+        status: 'active',
+        updated_at: now 
+      })
       .eq('id', license.id);
     
     if (updateError) throw updateError;
@@ -1518,6 +1527,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       submitPaymentRequest, fetchPaymentRequests, updatePaymentRequestStatus,
       activateLicense, fetchLicenses, resetLicenseDevice,
       isDeviceLicensed,
+      isLicensed: () => isDeviceLicensed,
       loginWithUsername,
       isAdmin,
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,

@@ -37,18 +37,18 @@ import { getBusinessInsights } from '../services/geminiService';
 import { differenceInDays, addDays } from 'date-fns';
 
 export default function Dashboard() {
-  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData, isDeviceLicensed } = useApp();
+  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData, isDeviceLicensed, isLicensed } = useApp();
   const [aiInsights, setAiInsights] = useState<string[]>([]);
   const [aiError, setAiError] = useState<string | null>(null);
 
   const trialInfo = useMemo(() => {
-    const isPaid = currentCompany?.is_paid || isDeviceLicensed;
+    const isPaid = currentCompany?.is_paid || isLicensed();
     if (!currentCompany || isPaid) return null;
     const start = new Date(currentCompany.trial_start || currentCompany.created_at);
     const end = addDays(start, 20);
     const daysLeft = differenceInDays(end, new Date());
     return { daysLeft: Math.max(0, daysLeft), end };
-  }, [currentCompany]);
+  }, [currentCompany, isLicensed]);
 
   const handleRestore = () => {
     const input = document.createElement('input');
@@ -146,7 +146,7 @@ export default function Dashboard() {
               <span className="text-sm font-bold">{trialInfo.daysLeft} Days Left in Trial</span>
             </div>
           )}
-          {(currentCompany?.is_paid || isDeviceLicensed) && (
+          {(currentCompany?.is_paid || isLicensed()) && (
             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-100 dark:border-emerald-800">
               <Sparkles size={16} />
               <span className="text-sm font-bold">Pro Account Active</span>

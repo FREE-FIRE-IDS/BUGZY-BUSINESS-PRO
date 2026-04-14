@@ -626,7 +626,18 @@ function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onU
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { currentCompany, companies, setCurrentCompany, addCompany, updateCompany, settings, updateSettings, isAdmin, isDeviceLicensed } = useApp();
+  const { 
+    currentCompany, 
+    companies, 
+    setCurrentCompany, 
+    addCompany, 
+    updateCompany, 
+    settings, 
+    updateSettings, 
+    isAdmin, 
+    isDeviceLicensed,
+    isLicensed
+  } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
   const [forceUpgrade, setForceUpgrade] = useState(false);
@@ -666,7 +677,7 @@ export default function App() {
     { id: 'expenses', label: 'Expenses', icon: Receipt },
     { id: 'reports', label: 'Reports', icon: History },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
-    ...(currentCompany && !currentCompany.is_paid && !isDeviceLicensed ? [{ id: 'upgrade', label: 'Buy Now', icon: Sparkles }] : []),
+    ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Buy Now', icon: Sparkles }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2 }] : []),
   ];
 
@@ -741,23 +752,41 @@ export default function App() {
 
   // Trial Check
   if (currentCompany) {
-    const isPaid = currentCompany.is_paid || currentCompany.subscription?.status === 'active' || isDeviceLicensed;
-    const trialStart = new Date(currentCompany.trial_start || currentCompany.created_at);
-    const trialEnd = addDays(trialStart, 20);
-    const isExpired = isAfter(new Date(), trialEnd);
+    const isPaid = isLicensed() || currentCompany.is_paid || currentCompany.subscription?.status === 'active';
+    
+    // Only check trial if NOT licensed
+    if (!isPaid) {
+      const trialStart = new Date(currentCompany.trial_start || currentCompany.created_at);
+      const trialEnd = addDays(trialStart, 20);
+      const isExpired = isAfter(new Date(), trialEnd);
 
-    if ((isExpired && !isPaid) || forceUpgrade) {
+      if (isExpired || forceUpgrade) {
+        return (
+          <div className="relative">
+            <PaymentScreen company={currentCompany} />
+            {forceUpgrade && (
+              <button 
+                onClick={() => setForceUpgrade(false)}
+                className="fixed top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all z-[60]"
+              >
+                <X size={24} />
+              </button>
+            )}
+          </div>
+        );
+      }
+    } else if (forceUpgrade) {
+      // If licensed but forceUpgrade is true (e.g. clicked "Buy Now" which shouldn't happen if licensed)
+      // We still show payment screen if they really want to see it, but usually we hide the button
       return (
         <div className="relative">
           <PaymentScreen company={currentCompany} />
-          {forceUpgrade && (
-            <button 
-              onClick={() => setForceUpgrade(false)}
-              className="fixed top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all z-[60]"
-            >
-              <X size={24} />
-            </button>
-          )}
+          <button 
+            onClick={() => setForceUpgrade(false)}
+            className="fixed top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all z-[60]"
+          >
+            <X size={24} />
+          </button>
         </div>
       );
     }
@@ -822,7 +851,7 @@ export default function App() {
             </button>
           ))}
 
-          {currentCompany && !currentCompany.is_paid && !isDeviceLicensed && (
+          {currentCompany && !currentCompany.is_paid && !isLicensed() && (
             <button
               onClick={() => setForceUpgrade(true)}
               className={cn(
@@ -847,7 +876,7 @@ export default function App() {
         "transition-all duration-300 min-h-screen pb-20 md:pb-0 flex flex-col",
         isSidebarOpen ? "md:pl-64" : "md:pl-20"
       )}>
-        {currentCompany && <TrialBanner company={currentCompany} isLicensed={isDeviceLicensed} onUpgrade={() => setForceUpgrade(true)} />}
+        {currentCompany && <TrialBanner company={currentCompany} isLicensed={isLicensed()} onUpgrade={() => setForceUpgrade(true)} />}
         
         {/* Topbar */}
         <header className={cn(
