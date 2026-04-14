@@ -292,7 +292,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       const nonDeletedCompanies = mergedCompanies.filter(c => !c.deleted_at);
       setCompanies(nonDeletedCompanies);
-      localStorage.setItem('companies', JSON.stringify(mergedCompanies));
+      localStorage.setItem(`companies_${username || email}`, JSON.stringify(mergedCompanies));
 
       if (companiesToUpload.length > 0) {
         await syncToCloud('companies', companiesToUpload);
@@ -1004,13 +1004,15 @@ const deleteFromCloud = async (table: string, id: string) => {
 
   const loginWithUsername = async (username: string, isLogin: boolean = true) => {
     const normalizedUsername = username.toLowerCase().trim();
+    if (!normalizedUsername) return false;
+    
     setSyncStatus({ loading: true, error: null, success: null });
     
     try {
       // 1. Check cloud first to see if user exists
       const { data, error } = await supabase
         .from('companies')
-        .select('*')
+        .select('id, username')
         .eq('username', normalizedUsername);
 
       if (error) throw error;
@@ -1020,15 +1022,14 @@ const deleteFromCloud = async (table: string, id: string) => {
         if (!isLogin) {
           setSyncStatus({ 
             loading: false, 
-            error: 'Username already taken ❌. If you already have an account, please use the Login tab.', 
+            error: `Username "${normalizedUsername}" is already taken ❌. Please choose another or login.`, 
             success: null 
           });
           return false;
         }
-        const userCompanies = data;
+        
+        // Login logic
         localStorage.setItem('currentUser', normalizedUsername);
-        localStorage.setItem(`companies_${normalizedUsername}`, JSON.stringify(userCompanies));
-        localStorage.setItem(`currentCompany_${normalizedUsername}`, JSON.stringify(userCompanies[0]));
         setCurrentUser(normalizedUsername);
         setSyncStatus({ loading: false, error: null, success: 'Login successful' });
         return true;
@@ -1049,14 +1050,14 @@ const deleteFromCloud = async (table: string, id: string) => {
         return false;
       }
 
-      // 4. Create new user session (for signup)
+      // 4. For signup: username is available
       localStorage.setItem('currentUser', normalizedUsername);
       setCurrentUser(normalizedUsername);
       setSyncStatus({ loading: false, error: null, success: null });
       return true;
     } catch (err: any) {
-      console.error('Login error:', err);
-      setSyncStatus({ loading: false, error: err.message || 'Login failed', success: null });
+      console.error('Login/Check error:', err);
+      setSyncStatus({ loading: false, error: err.message || 'Operation failed', success: null });
       return false;
     }
   };
@@ -1323,31 +1324,22 @@ const deleteFromCloud = async (table: string, id: string) => {
   };
 
   const submitPaymentRequest = async (data: {
-    user_name: string;
-    username?: string;
-    account_name: string;
+    name: string;
     phone: string;
     amount: number;
-    plan: 'monthly' | 'yearly';
-    screenshot_url?: string;
+    plan: string;
+    screenshot: string;
   }) => {
-    if (!currentCompany) return;
     const now = new Date().toISOString();
     const request: Omit<PaymentRequest, 'id'> = {
-      company_id: currentCompany.id,
       user_id: session?.user?.id || 'anonymous',
-      username: data.username || currentCompany.username,
-      user_name: data.user_name,
-      user_email: settings.user_email || session?.user?.email || '',
-      company_name: currentCompany.name,
-      account_name: data.account_name,
+      name: data.name,
       phone: data.phone,
       amount: data.amount,
       plan: data.plan,
-      screenshot_url: data.screenshot_url,
+      screenshot: data.screenshot,
       status: 'pending',
       created_at: now,
-      updated_at: now,
     };
     
     const { error } = await supabase.from('payment_requests').insert(request);
@@ -1363,15 +1355,14 @@ const deleteFromCloud = async (table: string, id: string) => {
     return data || [];
   };
 
-  const updatePaymentRequestStatus = async (id: string, status: 'approved' | 'rejected', companyId: string) => {
+  const updatePaymentRequestStatus = async (id: string, status: 'approved' | 'rejected') => {
     const now = new Date().toISOString();
     
     // 1. If approved, generate license first
-    let licenseKey = null;
     if (status === 'approved') {
-      licenseKey = generateLicenseKey();
+      const licenseKey = generateLicenseKey();
       
-      // Fetch request data first to get user_id (username)
+      // Fetch request data first to get user_id
       const { data: reqData, error: fetchError } = await supabase
         .from('payment_requests')
         .select('*')
@@ -1385,37 +1376,19 @@ const deleteFromCloud = async (table: string, id: string) => {
         .from('licenses')
         .insert({
           license_key: licenseKey,
-          user_id: reqData.username || reqData.user_email, // Use username if available
-          user_email: reqData.user_email,
+          user_id: reqData.user_id,
           status: 'active',
-          plan: reqData.plan,
-          is_active: true,
-          created_at: now,
-          updated_at: now
+          devices: [],
+          created_at: now
         });
 
       if (licenseError) throw licenseError;
-
-      // Note: We no longer strictly need to update company.is_paid 
-      // as the system is now device-based, but we keep it for cloud metadata
-      await updateCompany(companyId, { 
-        is_paid: true,
-        subscription: {
-          plan: reqData.plan,
-          start_date: now,
-          end_date: new Date(Date.now() + (reqData.plan === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toISOString(),
-          status: 'active'
-        }
-      });
     }
 
-    // 2. Update request status (and license key if approved)
-    const updateData: any = { status, updated_at: now };
-    if (licenseKey) updateData.license_key = licenseKey;
-
+    // 2. Update request status
     const { error: reqError } = await supabase
       .from('payment_requests')
-      .update(updateData)
+      .update({ status })
       .eq('id', id);
     
     if (reqError) throw reqError;
@@ -1436,8 +1409,12 @@ const deleteFromCloud = async (table: string, id: string) => {
       return;
     }
 
-    // 1. Get Device ID (Simple fingerprint)
-    const deviceId = navigator.userAgent + (navigator as any).deviceMemory + (navigator as any).hardwareConcurrency;
+    // 1. Get/Create Device ID
+    let deviceId = localStorage.getItem('device_id');
+    if (!deviceId) {
+      deviceId = 'dev_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('device_id', deviceId);
+    }
     
     // 2. Fetch License
     const { data: license, error: fetchError } = await supabase
@@ -1447,37 +1424,21 @@ const deleteFromCloud = async (table: string, id: string) => {
       .single();
     
     if (fetchError || !license) throw new Error('Invalid License Key ❌');
-    if (license.status !== 'active' && !license.is_active) throw new Error('License is inactive ❌');
+    if (license.status !== 'active') throw new Error('License is inactive ❌');
     
-    // 3. Check Device Binding
+    // 3. Bind Device
     const devices = Array.isArray(license.devices) ? license.devices : [];
-    if (devices.length > 0 && !devices.includes(deviceId)) {
-      // For now, let's limit to 1 device or handle multiple if needed
-      // The user said "License works on DEVICE level", usually implies binding.
-      // If we want to allow multiple, we just add it. If we want to restrict, we check length.
-      // Let's allow adding it if the user hasn't reached a limit (default 1 for now)
-      if (devices.length >= (license.devices_limit || 1)) {
-        throw new Error('License already bound to another device ❌');
-      }
+    if (!devices.includes(deviceId)) {
+      const updatedDevices = [...devices, deviceId];
+      const { error: updateError } = await supabase
+        .from('licenses')
+        .update({ devices: updatedDevices })
+        .eq('id', license.id);
+      
+      if (updateError) throw updateError;
     }
     
-    // 4. Bind Device and Activate
-    const now = new Date().toISOString();
-    const updatedDevices = devices.includes(deviceId) ? devices : [...devices, deviceId];
-    
-    const { error: updateError } = await supabase
-      .from('licenses')
-      .update({ 
-        device_id: deviceId, // Keep for legacy
-        devices: updatedDevices,
-        status: 'active',
-        updated_at: now 
-      })
-      .eq('id', license.id);
-    
-    if (updateError) throw updateError;
-    
-    // 5. Unlock Device Globally
+    // 4. Unlock Device Globally
     localStorage.setItem('device_license', 'true');
     localStorage.setItem('active_license_key', key.toUpperCase());
     setIsDeviceLicensed(true);

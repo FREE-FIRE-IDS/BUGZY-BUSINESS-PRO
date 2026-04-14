@@ -272,67 +272,61 @@ CREATE TABLE IF NOT EXISTS invoices (
 -- 8. Create Payment Requests Table
 CREATE TABLE IF NOT EXISTS payment_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID NOT NULL,
   user_id TEXT,
-  username TEXT,
-  user_name TEXT,
-  user_email TEXT,
-  company_name TEXT,
-  account_name TEXT,
+  name TEXT,
   phone TEXT,
-  amount NUMERIC,
   plan TEXT,
-  screenshot_url TEXT,
-  license_key TEXT,
+  amount NUMERIC,
+  screenshot TEXT,
   status TEXT DEFAULT 'pending',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
-ALTER TABLE payment_requests ADD COLUMN IF NOT EXISTS license_key TEXT;
 
 -- 9. Create Licenses Table
 CREATE TABLE IF NOT EXISTS licenses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  license_key TEXT UNIQUE,
   user_id TEXT,
-  user_email TEXT,
-  device_id TEXT,
+  license_key TEXT UNIQUE,
+  status TEXT DEFAULT 'active',
   devices JSONB DEFAULT '[]',
-  devices_limit INTEGER DEFAULT 1,
-  status TEXT DEFAULT 'pending',
-  plan TEXT,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Aggressively ensure columns exist
+-- Aggressively ensure columns exist and fix schema cache
 DO $$ 
 BEGIN 
+    -- Payment Requests Columns
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='status') THEN
+        ALTER TABLE payment_requests ADD COLUMN status TEXT DEFAULT 'pending';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='screenshot') THEN
+        ALTER TABLE payment_requests ADD COLUMN screenshot TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='name') THEN
+        ALTER TABLE payment_requests ADD COLUMN name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='phone') THEN
+        ALTER TABLE payment_requests ADD COLUMN phone TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='plan') THEN
+        ALTER TABLE payment_requests ADD COLUMN plan TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='amount') THEN
+        ALTER TABLE payment_requests ADD COLUMN amount NUMERIC;
+    END IF;
+
+    -- Licenses Columns
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='status') THEN
-        ALTER TABLE licenses ADD COLUMN status TEXT DEFAULT 'pending';
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='user_id') THEN
-        ALTER TABLE licenses ADD COLUMN user_id TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='user_email') THEN
-        ALTER TABLE licenses ADD COLUMN user_email TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='devices') THEN
-        ALTER TABLE licenses ADD COLUMN devices JSONB DEFAULT '[]';
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='devices_limit') THEN
-        ALTER TABLE licenses ADD COLUMN devices_limit INTEGER DEFAULT 1;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='plan') THEN
-        ALTER TABLE licenses ADD COLUMN plan TEXT;
+        ALTER TABLE licenses ADD COLUMN status TEXT DEFAULT 'active';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='license_key') THEN
         ALTER TABLE licenses ADD COLUMN license_key TEXT;
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='is_active') THEN
-        ALTER TABLE licenses ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='user_id') THEN
+        ALTER TABLE licenses ADD COLUMN user_id TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='devices') THEN
+        ALTER TABLE licenses ADD COLUMN devices JSONB DEFAULT '[]';
     END IF;
 END $$;
 

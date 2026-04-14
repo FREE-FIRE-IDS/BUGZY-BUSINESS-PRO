@@ -127,34 +127,23 @@ export interface Invoice {
 
 export interface PaymentRequest {
   id: string;
-  company_id: string;
   user_id: string;
-  username?: string;
-  user_name: string;
-  user_email: string;
-  company_name: string;
-  account_name: string;
+  name: string;
   phone: string;
+  plan: string;
   amount: number;
-  plan: 'monthly' | 'yearly';
-  screenshot_url?: string;
+  screenshot: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
-  updated_at: string;
 }
 
 export interface License {
   id: string;
-  user_id?: string;
-  user_email: string;
+  user_id: string;
   license_key: string;
-  device_id: string | null;
+  status: 'active' | 'inactive';
   devices: string[];
-  status: 'pending' | 'active' | 'expired';
-  plan?: string;
-  is_active: boolean;
   created_at: string;
-  updated_at: string;
 }
 
 export interface AppSettings {

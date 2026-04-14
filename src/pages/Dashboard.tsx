@@ -137,19 +137,18 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 pb-24 md:pb-8">
-      {/* Trial & Backup Bar */}
+      {/* License Status & Backup Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-4">
-          {trialInfo && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-100 dark:border-amber-800">
-              <Clock size={16} />
-              <span className="text-sm font-bold">{trialInfo.daysLeft} Days Left in Trial</span>
-            </div>
-          )}
-          {(currentCompany?.is_paid || isLicensed()) && (
+          {isLicensed() ? (
             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-100 dark:border-emerald-800">
               <Sparkles size={16} />
-              <span className="text-sm font-bold">Pro Account Active</span>
+              <span className="text-sm font-bold">Pro Active</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-100 dark:border-amber-800">
+              <Clock size={16} />
+              <span className="text-sm font-bold">Trial Mode</span>
             </div>
           )}
         </div>

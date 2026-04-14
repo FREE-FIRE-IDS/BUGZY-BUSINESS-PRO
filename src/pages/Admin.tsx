@@ -38,11 +38,11 @@ export default function Admin() {
     return `${segment()}-${segment()}-${segment()}`;
   };
 
-  const handleApprove = async (id: string, companyId: string) => {
+  const handleApprove = async (id: string) => {
     if (!confirm(`Approve this payment and activate subscription?`)) return;
     
     try {
-      await updatePaymentRequestStatus(id, 'approved', companyId);
+      await updatePaymentRequestStatus(id, 'approved');
       await loadData();
     } catch (e: any) {
       console.error('Approval Error:', e);
@@ -51,21 +51,26 @@ export default function Admin() {
       if (rawError.includes('schema cache') || rawError.includes('column "status"') || rawError.includes('column "license_key"') || rawError.includes('row level security')) {
         const fixSql = `
 -- NUCLEAR FIX FOR SCHEMA AND RLS
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_email TEXT;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS devices JSONB DEFAULT '[]';
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS devices_limit INTEGER DEFAULT 1;
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS plan TEXT;
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS screenshot TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS amount NUMERIC;
 
 -- Fix RLS
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Full Access" ON licenses;
 CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Full Access" ON payment_requests;
+CREATE POLICY "Full Access" ON payment_requests FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
 
 NOTIFY pgrst, 'reload schema';
         `.trim();
@@ -79,10 +84,10 @@ NOTIFY pgrst, 'reload schema';
     }
   };
 
-  const handleReject = async (id: string, companyId: string) => {
+  const handleReject = async (id: string) => {
     if (!confirm('Reject this payment request?')) return;
     try {
-      await updatePaymentRequestStatus(id, 'rejected', companyId);
+      await updatePaymentRequestStatus(id, 'rejected');
       await loadData();
     } catch (e) {
       console.error(e);
@@ -113,26 +118,31 @@ NOTIFY pgrst, 'reload schema';
             onClick={() => {
               const sql = `
 -- NUCLEAR FIX FOR SCHEMA AND RLS
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_email TEXT;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS devices JSONB DEFAULT '[]';
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS devices_limit INTEGER DEFAULT 1;
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS plan TEXT;
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
-ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS screenshot TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS amount NUMERIC;
 
 -- Fix RLS
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Full Access" ON licenses;
 CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Full Access" ON payment_requests;
+CREATE POLICY "Full Access" ON payment_requests FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
 
 NOTIFY pgrst, 'reload schema';
               `.trim();
               navigator.clipboard.writeText(sql);
-              alert("NUCLEAR FIX COPIED!\n\n1. Go to Supabase SQL Editor\n2. Paste and RUN these commands\n3. Refresh this page\n\nThis will force-add all missing columns to the licenses table.");
+              alert("NUCLEAR FIX COPIED!\n\n1. Go to Supabase SQL Editor\n2. Paste and RUN these commands\n3. Refresh this page\n\nThis will force-add all missing columns and fix RLS permissions.");
             }}
             className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold border border-rose-100 dark:border-rose-800 hover:bg-rose-100 transition-all animate-pulse"
             title="Fix schema cache errors"
@@ -195,12 +205,12 @@ NOTIFY pgrst, 'reload schema';
                 >
                   <div className="flex items-center gap-6">
                     <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 overflow-hidden">
-                      {req.screenshot_url ? (
+                      {req.screenshot ? (
                         <img 
-                          src={req.screenshot_url} 
+                          src={req.screenshot} 
                           alt="Proof" 
                           className="w-full h-full object-cover cursor-pointer" 
-                          onClick={() => window.open(req.screenshot_url, '_blank')}
+                          onClick={() => window.open(req.screenshot, '_blank')}
                           referrerPolicy="no-referrer"
                         />
                       ) : (
@@ -208,19 +218,16 @@ NOTIFY pgrst, 'reload schema';
                       )}
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">{req.user_name} (@{req.username})</h3>
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">{req.name}</h3>
                       <div className="flex flex-wrap gap-4 mt-2">
                         <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                          <Mail size={14} /> {req.user_email}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                          <Building2 size={14} /> {req.company_name}
+                          <Mail size={14} /> {req.user_id}
                         </div>
                         <div className="flex items-center gap-1.5 text-sm font-bold text-indigo-600 dark:text-indigo-400">
                           <DollarSign size={14} /> {formatCurrency(req.amount, settings.currency)}
                         </div>
                         <div className="flex items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-slate-50">
-                          <Clock size={14} /> {req.plan === 'yearly' ? 'Yearly' : 'Monthly'}
+                          <Clock size={14} /> {req.plan}
                         </div>
                         <div className={cn(
                           "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
@@ -232,7 +239,7 @@ NOTIFY pgrst, 'reload schema';
                         </div>
                       </div>
                       {req.phone && (
-                        <p className="text-xs text-slate-400 mt-2 font-mono">Phone: {req.phone} | Account: {req.account_name}</p>
+                        <p className="text-xs text-slate-400 mt-2 font-mono">Phone: {req.phone}</p>
                       )}
                     </div>
                   </div>
@@ -240,13 +247,13 @@ NOTIFY pgrst, 'reload schema';
                   {req.status === 'pending' && (
                     <div className="flex items-center gap-3 w-full md:w-auto">
                       <button 
-                        onClick={() => handleApprove(req.id, req.company_id)}
+                        onClick={() => handleApprove(req.id)}
                         className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
                       >
                         <Check size={18} /> Approve
                       </button>
                       <button 
-                        onClick={() => handleReject(req.id, req.company_id)}
+                        onClick={() => handleReject(req.id)}
                         className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl font-bold hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-all"
                       >
                         <X size={18} /> Reject
@@ -295,15 +302,12 @@ NOTIFY pgrst, 'reload schema';
                       <h3 className="text-xl font-mono font-bold text-slate-900 dark:text-slate-50">{lic.license_key}</h3>
                       <div className="flex flex-wrap gap-4 mt-2">
                         <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                          <Mail size={14} /> {lic.user_email}
+                          <Mail size={14} /> {lic.user_id}
                         </div>
                         <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                          <Key size={14} /> {lic.plan || 'Standard'}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                          {(Array.isArray(lic.devices) && lic.devices.length > 0) || lic.device_id ? (
+                          {Array.isArray(lic.devices) && lic.devices.length > 0 ? (
                             <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
-                              <ShieldCheck size={14} /> {Array.isArray(lic.devices) ? lic.devices.length : 1} Device(s) Bound
+                              <ShieldCheck size={14} /> {lic.devices.length} Device(s) Bound
                             </span>
                           ) : (
                             <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold">
@@ -315,7 +319,7 @@ NOTIFY pgrst, 'reload schema';
                     </div>
                   </div>
 
-                  {(lic.device_id || (Array.isArray(lic.devices) && lic.devices.length > 0)) && (
+                  {Array.isArray(lic.devices) && lic.devices.length > 0 && (
                     <button 
                       onClick={() => handleResetDevice(lic.id)}
                       className="flex items-center gap-2 px-6 py-3 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-100 dark:border-slate-700"

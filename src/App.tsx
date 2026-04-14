@@ -155,11 +155,9 @@ function PaymentScreen({ company }: { company: Company }) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [formData, setFormData] = useState({
-    user_name: '',
-    username: company.username || '',
-    account_name: '',
+    name: '',
     phone: '',
-    screenshot_url: ''
+    screenshot: ''
   });
   const [licenseKey, setLicenseKey] = useState('');
 
@@ -190,7 +188,7 @@ function PaymentScreen({ company }: { company: Company }) {
         .from('payment-proofs')
         .getPublicUrl(filePath);
 
-      setFormData({ ...formData, screenshot_url: publicUrl });
+      setFormData({ ...formData, screenshot: publicUrl });
     } catch (err: any) {
       console.error('Upload error:', err);
       alert('Failed to upload image. Please try again or use a URL.');
@@ -201,6 +199,10 @@ function PaymentScreen({ company }: { company: Company }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.screenshot) {
+      alert('Please upload a payment screenshot ❌');
+      return;
+    }
     setStatus('loading');
     try {
       await submitPaymentRequest({
@@ -400,38 +402,15 @@ function PaymentScreen({ company }: { company: Company }) {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Username</label>
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Your Name</label>
                     <input 
+                      required
                       type="text"
-                      value={formData.username}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none transition-all font-bold opacity-70"
-                      readOnly
+                      value={formData.name}
+                      onChange={e => setFormData({...formData, name: e.target.value})}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3.5 focus:border-indigo-600 outline-none transition-all font-bold"
+                      placeholder="Full Name"
                     />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Your Name</label>
-                      <input 
-                        required
-                        type="text"
-                        value={formData.user_name}
-                        onChange={e => setFormData({...formData, user_name: e.target.value})}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3.5 focus:border-indigo-600 outline-none transition-all font-bold"
-                        placeholder="Full Name"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Account Name</label>
-                      <input 
-                        required
-                        type="text"
-                        value={formData.account_name}
-                        onChange={e => setFormData({...formData, account_name: e.target.value})}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3.5 focus:border-indigo-600 outline-none transition-all font-bold"
-                        placeholder="JazzCash/EasyPaisa Name"
-                      />
-                    </div>
                   </div>
 
                   <div className="space-y-1.5">
@@ -464,19 +443,19 @@ function PaymentScreen({ company }: { company: Company }) {
                           )}>
                             {uploading ? (
                               <Loader2 className="animate-spin text-indigo-600" size={20} />
-                            ) : formData.screenshot_url ? (
+                            ) : formData.screenshot ? (
                               <Check className="text-emerald-600" size={20} />
                             ) : (
                               <Plus className="text-slate-400" size={20} />
                             )}
                             <span className="text-sm font-bold text-slate-500">
-                              {uploading ? 'Uploading...' : formData.screenshot_url ? 'Image Uploaded' : 'Upload Screenshot'}
+                              {uploading ? 'Uploading...' : formData.screenshot ? 'Image Uploaded' : 'Upload Screenshot'}
                             </span>
                           </div>
                         </div>
-                        {formData.screenshot_url && (
+                        {formData.screenshot && (
                           <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-slate-100 dark:border-slate-800 shrink-0">
-                            <img src={formData.screenshot_url} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <img src={formData.screenshot} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           </div>
                         )}
                       </div>
@@ -487,8 +466,8 @@ function PaymentScreen({ company }: { company: Company }) {
                         </div>
                         <input 
                           type="url"
-                          value={formData.screenshot_url}
-                          onChange={e => setFormData({...formData, screenshot_url: e.target.value})}
+                          value={formData.screenshot}
+                          onChange={e => setFormData({...formData, screenshot: e.target.value})}
                           className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-11 pr-5 py-3 focus:border-indigo-600 outline-none transition-all text-sm"
                           placeholder="Or paste image URL here..."
                         />
@@ -593,13 +572,13 @@ function ShortcutHelper({ show }: { show: boolean }) {
 }
 
 function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onUpgrade: () => void, isLicensed?: boolean }) {
-  if (company.is_paid || company.subscription?.status === 'active' || isLicensed) return null;
+  if (isLicensed) return null;
   
   const trialStart = new Date(company.trial_start || company.created_at);
   const trialEnd = addDays(trialStart, 20);
   const daysLeft = Math.max(0, differenceInDays(trialEnd, new Date()));
 
-  const isExpired = daysLeft <= 0 && !company.is_paid;
+  const isExpired = daysLeft <= 0;
 
   return (
     <div className={cn(
@@ -752,7 +731,7 @@ export default function App() {
 
   // Trial Check
   if (currentCompany) {
-    const isPaid = isLicensed() || currentCompany.is_paid || currentCompany.subscription?.status === 'active';
+    const isPaid = isLicensed();
     
     // Only check trial if NOT licensed
     if (!isPaid) {
@@ -776,8 +755,6 @@ export default function App() {
         );
       }
     } else if (forceUpgrade) {
-      // If licensed but forceUpgrade is true (e.g. clicked "Buy Now" which shouldn't happen if licensed)
-      // We still show payment screen if they really want to see it, but usually we hide the button
       return (
         <div className="relative">
           <PaymentScreen company={currentCompany} />
@@ -1040,21 +1017,23 @@ function SetupCompany() {
     } else {
       if (!name.trim() || !username.trim()) return;
       
-      // 1. Check if username is available and set currentUser
-      const available = await loginWithUsername(username.trim().toLowerCase(), false);
+      const normalizedUsername = username.trim().toLowerCase();
+      
+      // 1. Check if username is available
+      const available = await loginWithUsername(normalizedUsername, false);
       if (!available) return;
 
       // 2. Add company
       try {
         await addCompany({
           name: name.trim(),
-          username: username.trim().toLowerCase(),
+          username: normalizedUsername,
           address: '',
           currency,
-          user_id: 'default',
+          user_id: session?.user?.id || 'default',
         });
-      } catch (e) {
-        // Error handled by addCompany setting syncStatus
+      } catch (e: any) {
+        console.error('Add company error:', e);
       }
     }
   };
