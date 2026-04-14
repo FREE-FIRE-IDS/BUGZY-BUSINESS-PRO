@@ -48,9 +48,9 @@ export default function Admin() {
       console.error('Approval Error:', e);
       const rawError = e.message || JSON.stringify(e);
       
-      if (rawError.includes('schema cache') || rawError.includes('column "status"') || rawError.includes('column "license_key"')) {
+      if (rawError.includes('schema cache') || rawError.includes('column "status"') || rawError.includes('column "license_key"') || rawError.includes('row level security')) {
         const fixSql = `
--- NUCLEAR FIX FOR SCHEMA CACHE
+-- NUCLEAR FIX FOR SCHEMA AND RLS
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
@@ -61,10 +61,17 @@ ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS plan TEXT;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Fix RLS
+ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Full Access" ON licenses;
+CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+
 NOTIFY pgrst, 'reload schema';
         `.trim();
         
-        alert(`SCHEMA ERROR DETECTED!\n\nSupabase cannot find the required columns. This is a common cache issue.\n\nRAW ERROR: ${rawError}\n\nI have copied a "Nuclear Fix" SQL to your clipboard. Please run it in your Supabase SQL Editor.`);
+        const errorType = rawError.includes('row level security') ? 'RLS (PERMISSION) ERROR' : 'SCHEMA ERROR';
+        alert(`${errorType} DETECTED!\n\nSupabase is blocking the license creation.\n\nRAW ERROR: ${rawError}\n\nI have copied a "Nuclear Fix" SQL to your clipboard. Please run it in your Supabase SQL Editor.`);
         navigator.clipboard.writeText(fixSql);
       } else {
         alert('Failed to approve: ' + rawError);
@@ -105,7 +112,7 @@ NOTIFY pgrst, 'reload schema';
           <button 
             onClick={() => {
               const sql = `
--- NUCLEAR FIX FOR SCHEMA CACHE
+-- NUCLEAR FIX FOR SCHEMA AND RLS
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
@@ -116,6 +123,12 @@ ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS plan TEXT;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Fix RLS
+ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Full Access" ON licenses;
+CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+
 NOTIFY pgrst, 'reload schema';
               `.trim();
               navigator.clipboard.writeText(sql);
