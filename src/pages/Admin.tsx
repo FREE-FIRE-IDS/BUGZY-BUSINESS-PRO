@@ -265,12 +265,6 @@ NOTIFY pgrst, 'reload schema';
                       <div className="bg-emerald-50 dark:bg-emerald-900/20 px-4 py-2 rounded-xl border border-emerald-100 dark:border-emerald-800">
                         <p className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase font-bold">Subscription Active</p>
                       </div>
-                      {req.license_key && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-100 dark:border-indigo-800">
-                          <Key size={12} className="text-indigo-600" />
-                          <span className="text-xs font-mono font-bold text-indigo-700 dark:text-indigo-300">{req.license_key}</span>
-                        </div>
-                      )}
                     </div>
                   )}
                 </motion.div>

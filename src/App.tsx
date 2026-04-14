@@ -1003,7 +1003,7 @@ export default function App() {
 }
 
 function SetupCompany() {
-  const { addCompany, loginWithUsername, syncStatus } = useApp();
+  const { addCompany, loginWithUsername, syncStatus, session } = useApp();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [currency, setCurrency] = useState('PKR');
