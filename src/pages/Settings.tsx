@@ -294,20 +294,25 @@ ALTER TABLE payment_requests ADD COLUMN IF NOT EXISTS license_key TEXT;
 -- 9. Create Licenses Table
 CREATE TABLE IF NOT EXISTS licenses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  license_key TEXT UNIQUE NOT NULL,
+  license_key TEXT UNIQUE,
   user_id TEXT,
   user_email TEXT,
   device_id TEXT,
-  devices INTEGER DEFAULT 1,
-  status TEXT DEFAULT 'active',
+  devices JSONB DEFAULT '[]',
+  devices_limit INTEGER DEFAULT 1,
+  status TEXT DEFAULT 'pending',
+  plan TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
-ALTER TABLE licenses ADD COLUMN IF NOT EXISTS devices INTEGER DEFAULT 1;
-ALTER TABLE licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS devices JSONB DEFAULT '[]';
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS devices_limit INTEGER DEFAULT 1;
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
 
 -- 10. Fix Companies Username Constraint
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS username TEXT;
@@ -682,7 +687,14 @@ NOTIFY pgrst, 'reload schema';
         <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 p-8 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
-              <p className="font-bold mb-1">Device License</p>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="font-bold">Device License</p>
+                {isLicensed() ? (
+                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase rounded-md">Pro Active</span>
+                ) : (
+                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-black uppercase rounded-md">Trial Mode</span>
+                )}
+              </div>
               <p className="text-xs text-slate-500">
                 {isLicensed() 
                   ? (localStorage.getItem('active_license_key') 

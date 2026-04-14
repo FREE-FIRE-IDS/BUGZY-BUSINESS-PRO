@@ -46,7 +46,11 @@ export default function Admin() {
       await loadData();
     } catch (e: any) {
       console.error(e);
-      alert('Failed to approve: ' + (e.message || 'Unknown error'));
+      if (e.message?.includes('schema cache') || e.message?.includes('column "status"')) {
+        alert('SCHEMA ERROR: The "status" column was not found in Supabase. \n\nPlease go to Settings > Cloud Sync > Database Setup, copy the SQL script, and run it in your Supabase SQL Editor to fix this.');
+      } else {
+        alert('Failed to approve: ' + (e.message || 'Unknown error'));
+      }
     }
   };
 
@@ -79,12 +83,25 @@ export default function Admin() {
           <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Admin Dashboard</h1>
           <p className="text-slate-500 dark:text-slate-400">Manage payments and license keys</p>
         </div>
-        <button 
-          onClick={loadData}
-          className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-        >
-          <RefreshCw size={20} className={cn("text-slate-500", loading && "animate-spin")} />
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => {
+              const sql = "NOTIFY pgrst, 'reload schema';";
+              navigator.clipboard.writeText(sql);
+              alert("SQL Copied: " + sql + "\n\nPaste this into your Supabase SQL Editor and run it to refresh the schema cache.");
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl text-sm font-bold border border-amber-100 dark:border-amber-800 hover:bg-amber-100 transition-all"
+            title="Fix schema cache errors"
+          >
+            <ShieldAlert size={18} /> Fix Schema
+          </button>
+          <button 
+            onClick={loadData}
+            className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+          >
+            <RefreshCw size={20} className={cn("text-slate-500", loading && "animate-spin")} />
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/50 rounded-2xl w-fit">
@@ -237,9 +254,12 @@ export default function Admin() {
                           <Mail size={14} /> {lic.user_email}
                         </div>
                         <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                          {lic.device_id ? (
+                          <Key size={14} /> {lic.plan || 'Standard'}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-sm text-slate-500">
+                          {(Array.isArray(lic.devices) && lic.devices.length > 0) || lic.device_id ? (
                             <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
-                              <ShieldCheck size={14} /> Bound to Device
+                              <ShieldCheck size={14} /> {Array.isArray(lic.devices) ? lic.devices.length : 1} Device(s) Bound
                             </span>
                           ) : (
                             <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold">
@@ -251,7 +271,7 @@ export default function Admin() {
                     </div>
                   </div>
 
-                  {lic.device_id && (
+                  {(lic.device_id || (Array.isArray(lic.devices) && lic.devices.length > 0)) && (
                     <button 
                       onClick={() => handleResetDevice(lic.id)}
                       className="flex items-center gap-2 px-6 py-3 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-100 dark:border-slate-700"

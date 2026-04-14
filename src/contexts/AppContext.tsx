@@ -1388,6 +1388,7 @@ const deleteFromCloud = async (table: string, id: string) => {
           user_id: reqData.username || reqData.user_email, // Use username if available
           user_email: reqData.user_email,
           status: 'active',
+          plan: reqData.plan,
           is_active: true,
           created_at: now,
           updated_at: now
@@ -1449,16 +1450,26 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (license.status !== 'active' && !license.is_active) throw new Error('License is inactive ❌');
     
     // 3. Check Device Binding
-    if (license.device_id && license.device_id !== deviceId) {
-      throw new Error('License already bound to another device ❌');
+    const devices = Array.isArray(license.devices) ? license.devices : [];
+    if (devices.length > 0 && !devices.includes(deviceId)) {
+      // For now, let's limit to 1 device or handle multiple if needed
+      // The user said "License works on DEVICE level", usually implies binding.
+      // If we want to allow multiple, we just add it. If we want to restrict, we check length.
+      // Let's allow adding it if the user hasn't reached a limit (default 1 for now)
+      if (devices.length >= (license.devices_limit || 1)) {
+        throw new Error('License already bound to another device ❌');
+      }
     }
     
     // 4. Bind Device and Activate
     const now = new Date().toISOString();
+    const updatedDevices = devices.includes(deviceId) ? devices : [...devices, deviceId];
+    
     const { error: updateError } = await supabase
       .from('licenses')
       .update({ 
-        device_id: deviceId, 
+        device_id: deviceId, // Keep for legacy
+        devices: updatedDevices,
         status: 'active',
         updated_at: now 
       })
@@ -1484,7 +1495,11 @@ const deleteFromCloud = async (table: string, id: string) => {
   const resetLicenseDevice = async (id: string) => {
     const { error } = await supabase
       .from('licenses')
-      .update({ device_id: null, updated_at: new Date().toISOString() })
+      .update({ 
+        device_id: null, 
+        devices: [], 
+        updated_at: new Date().toISOString() 
+      })
       .eq('id', id);
     if (error) throw error;
   };

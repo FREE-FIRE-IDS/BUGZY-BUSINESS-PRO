@@ -145,9 +145,13 @@ export interface PaymentRequest {
 
 export interface License {
   id: string;
+  user_id?: string;
   user_email: string;
   license_key: string;
   device_id: string | null;
+  devices: string[];
+  status: 'pending' | 'active' | 'expired';
+  plan?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
