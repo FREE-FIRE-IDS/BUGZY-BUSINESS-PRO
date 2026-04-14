@@ -218,24 +218,44 @@ function PaymentScreen({ company }: { company: Company }) {
       
       if (rawError.includes('schema cache') || rawError.includes('column') || rawError.includes('not found')) {
         const fixSql = `
--- Aggressively ensure columns exist and fix schema cache
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS name TEXT;
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS phone TEXT;
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS plan TEXT;
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS amount NUMERIC;
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS screenshot TEXT;
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+-- 1. DROP AND RECREATE (The most reliable fix)
+-- WARNING: This will delete existing payment requests/licenses!
+DROP TABLE IF EXISTS payment_requests;
+CREATE TABLE payment_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT,
+  name TEXT,
+  phone TEXT,
+  plan TEXT,
+  amount NUMERIC,
+  screenshot TEXT,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- Fix RLS
+DROP TABLE IF EXISTS licenses;
+CREATE TABLE licenses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT,
+  license_key TEXT UNIQUE,
+  status TEXT DEFAULT 'active',
+  devices JSONB DEFAULT '[]',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Fix Permissions
 ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Full Access" ON payment_requests;
 CREATE POLICY "Full Access" ON payment_requests FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Full Access" ON licenses;
+CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
 
--- FORCE RELOAD CACHE
+-- 3. FORCE RELOAD CACHE
 NOTIFY pgrst, 'reload schema';
         `.trim();
         
-        setErrorMsg('DATABASE ERROR: Supabase is missing columns or has a stale cache. I have copied the fix SQL to your clipboard. Please run it in your Supabase SQL Editor.');
+        setErrorMsg('DATABASE ERROR: Supabase is stuck on an old table structure. I have copied a "Deep Clean" SQL script to your clipboard. Please run it in your Supabase SQL Editor and refresh.');
         navigator.clipboard.writeText(fixSql);
       } else {
         setErrorMsg(err.message || 'Failed to submit request');

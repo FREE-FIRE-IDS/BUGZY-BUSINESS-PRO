@@ -270,7 +270,8 @@ CREATE TABLE IF NOT EXISTS invoices (
 );
 
 -- 8. Create Payment Requests Table
-CREATE TABLE IF NOT EXISTS payment_requests (
+DROP TABLE IF EXISTS payment_requests;
+CREATE TABLE payment_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT,
   name TEXT,
@@ -283,7 +284,8 @@ CREATE TABLE IF NOT EXISTS payment_requests (
 );
 
 -- 9. Create Licenses Table
-CREATE TABLE IF NOT EXISTS licenses (
+DROP TABLE IF EXISTS licenses;
+CREATE TABLE licenses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT,
   license_key TEXT UNIQUE,
@@ -292,45 +294,7 @@ CREATE TABLE IF NOT EXISTS licenses (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Aggressively ensure columns exist and fix schema cache
-DO $$ 
-BEGIN 
-    -- Payment Requests Columns
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='status') THEN
-        ALTER TABLE payment_requests ADD COLUMN status TEXT DEFAULT 'pending';
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='screenshot') THEN
-        ALTER TABLE payment_requests ADD COLUMN screenshot TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='name') THEN
-        ALTER TABLE payment_requests ADD COLUMN name TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='phone') THEN
-        ALTER TABLE payment_requests ADD COLUMN phone TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='plan') THEN
-        ALTER TABLE payment_requests ADD COLUMN plan TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='amount') THEN
-        ALTER TABLE payment_requests ADD COLUMN amount NUMERIC;
-    END IF;
-
-    -- Licenses Columns
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='status') THEN
-        ALTER TABLE licenses ADD COLUMN status TEXT DEFAULT 'active';
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='license_key') THEN
-        ALTER TABLE licenses ADD COLUMN license_key TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='user_id') THEN
-        ALTER TABLE licenses ADD COLUMN user_id TEXT;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='devices') THEN
-        ALTER TABLE licenses ADD COLUMN devices JSONB DEFAULT '[]';
-    END IF;
-END $$;
-
--- FORCE RELOAD SCHEMA CACHE
+-- Aggressively fix schema cache
 NOTIFY pgrst, 'reload schema';
 
 -- 10. Fix Companies Username Constraint
