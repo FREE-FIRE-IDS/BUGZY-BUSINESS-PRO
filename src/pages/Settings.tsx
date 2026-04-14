@@ -316,6 +316,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='user_id') THEN
         ALTER TABLE licenses ADD COLUMN user_id TEXT;
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='user_email') THEN
+        ALTER TABLE licenses ADD COLUMN user_email TEXT;
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='devices') THEN
         ALTER TABLE licenses ADD COLUMN devices JSONB DEFAULT '[]';
     END IF;
@@ -327,6 +330,9 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='license_key') THEN
         ALTER TABLE licenses ADD COLUMN license_key TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='is_active') THEN
+        ALTER TABLE licenses ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
     END IF;
 END $$;
 

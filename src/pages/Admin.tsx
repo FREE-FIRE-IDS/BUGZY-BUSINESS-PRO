@@ -45,11 +45,29 @@ export default function Admin() {
       await updatePaymentRequestStatus(id, 'approved', companyId);
       await loadData();
     } catch (e: any) {
-      console.error(e);
-      if (e.message?.includes('schema cache') || e.message?.includes('column "status"')) {
-        alert('SCHEMA ERROR: The "status" column was not found in Supabase. \n\nPlease go to Settings > Cloud Sync > Database Setup, copy the SQL script, and run it in your Supabase SQL Editor to fix this.');
+      console.error('Approval Error:', e);
+      const rawError = e.message || JSON.stringify(e);
+      
+      if (rawError.includes('schema cache') || rawError.includes('column "status"') || rawError.includes('column "license_key"')) {
+        const fixSql = `
+-- NUCLEAR FIX FOR SCHEMA CACHE
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_email TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS devices JSONB DEFAULT '[]';
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS devices_limit INTEGER DEFAULT 1;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+NOTIFY pgrst, 'reload schema';
+        `.trim();
+        
+        alert(`SCHEMA ERROR DETECTED!\n\nSupabase cannot find the required columns. This is a common cache issue.\n\nRAW ERROR: ${rawError}\n\nI have copied a "Nuclear Fix" SQL to your clipboard. Please run it in your Supabase SQL Editor.`);
+        navigator.clipboard.writeText(fixSql);
       } else {
-        alert('Failed to approve: ' + (e.message || 'Unknown error'));
+        alert('Failed to approve: ' + rawError);
       }
     }
   };
@@ -86,14 +104,27 @@ export default function Admin() {
         <div className="flex items-center gap-3">
           <button 
             onClick={() => {
-              const sql = `ALTER TABLE licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';\nNOTIFY pgrst, 'reload schema';`;
+              const sql = `
+-- NUCLEAR FIX FOR SCHEMA CACHE
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_email TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS devices JSONB DEFAULT '[]';
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS devices_limit INTEGER DEFAULT 1;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+NOTIFY pgrst, 'reload schema';
+              `.trim();
               navigator.clipboard.writeText(sql);
-              alert("FIX COMMANDS COPIED!\n\n1. Go to Supabase SQL Editor\n2. Paste and RUN these commands\n3. Refresh this page\n\nCommands:\n" + sql);
+              alert("NUCLEAR FIX COPIED!\n\n1. Go to Supabase SQL Editor\n2. Paste and RUN these commands\n3. Refresh this page\n\nThis will force-add all missing columns to the licenses table.");
             }}
             className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl text-sm font-bold border border-rose-100 dark:border-rose-800 hover:bg-rose-100 transition-all animate-pulse"
             title="Fix schema cache errors"
           >
-            <ShieldAlert size={18} /> CRITICAL: Fix Status Column
+            <ShieldAlert size={18} /> NUCLEAR FIX: Status Column
           </button>
           <button 
             onClick={loadData}
