@@ -56,6 +56,8 @@ interface AppContextType {
   isLicensed: () => boolean;
   loginWithUsername: (username: string, isLogin?: boolean) => Promise<boolean>;
   isAdmin: boolean;
+  installApp: () => Promise<void>;
+  canInstall: boolean;
   selectedPartyId: string | null;
   setSelectedPartyId: (id: string | null) => void;
   selectedBankId: string | null;
@@ -1573,6 +1575,32 @@ NOTIFY pgrst, 'reload schema';
   };
 
   const [isDeviceLicensed, setIsDeviceLicensed] = useState(() => localStorage.getItem('device_license') === 'true');
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [canInstall, setCanInstall] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setCanInstall(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const installApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setCanInstall(false);
+    }
+    setDeferredPrompt(null);
+  };
 
   useEffect(() => {
     const licensed = localStorage.getItem('device_license') === 'true';
@@ -1622,6 +1650,8 @@ NOTIFY pgrst, 'reload schema';
       isLicensed: () => isDeviceLicensed,
       loginWithUsername,
       isAdmin,
+      installApp,
+      canInstall,
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
       session, signOut
     }}>

@@ -20,7 +20,10 @@ import {
   Database,
   ShieldAlert,
   Download,
-  Upload
+  Upload,
+  Smartphone,
+  Monitor,
+  Share
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -33,7 +36,7 @@ export default function Settings() {
     settings, updateSettings, companies, currentCompany, setCurrentCompany, 
     refreshData, addCompany, deleteCompany, pullCompanies, syncStatus,
     linkDevice, signOut, updateCompany, isAdmin, backupData, restoreData,
-    isDeviceLicensed, isLicensed
+    isDeviceLicensed, isLicensed, installApp, canInstall
   } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [emailInput, setEmailInput] = React.useState(settings.user_email || '');
@@ -45,6 +48,12 @@ export default function Settings() {
   const [newCompanyCode, setNewCompanyCode] = React.useState('');
   const [showSqlSetup, setShowSqlSetup] = React.useState(false);
   const [isDeleteCompanyModalOpen, setIsDeleteCompanyModalOpen] = React.useState<string | null>(null);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    setIsIOS(/iphone|ipad|ipod/.test(userAgent));
+  }, []);
 
   useEffect(() => {
     if (isAddCompanyModalOpen) {
@@ -1129,6 +1138,62 @@ NOTIFY pgrst, 'reload schema';
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Install App Section */}
+      <section>
+        <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-indigo-600">
+          <Smartphone size={24} />
+          Install App
+        </h3>
+        <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 p-8 shadow-sm">
+          <div className="flex flex-col md:flex-row items-center gap-8">
+            <div className="flex-1 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                  <Monitor size={24} />
+                </div>
+                <div>
+                  <p className="font-bold">Install on this device</p>
+                  <p className="text-sm text-slate-500">Get a faster, more reliable experience by installing Bugzy Pro as an app.</p>
+                </div>
+              </div>
+              
+              {canInstall ? (
+                <button 
+                  onClick={installApp}
+                  className="w-full md:w-auto px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
+                >
+                  <Download size={18} />
+                  Install Now
+                </button>
+              ) : isIOS ? (
+                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-3">
+                  <div className="flex items-center gap-2 text-amber-700 font-bold">
+                    <Share size={18} />
+                    How to install on iOS:
+                  </div>
+                  <ol className="text-sm text-amber-800 space-y-1 list-decimal ml-5">
+                    <li>Tap the <strong>Share</strong> button in Safari</li>
+                    <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
+                    <li>Tap <strong>Add</strong> in the top right corner</li>
+                  </ol>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-sm text-slate-600">
+                    This app is already installed or your browser doesn't support one-click installation. 
+                    You can still use it directly in your browser or check your browser menu for "Install" or "Add to Home Screen".
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="w-32 h-32 bg-slate-100 rounded-3xl flex items-center justify-center relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10" />
+              <img src="/icon-192.png" alt="App Icon" className="w-20 h-20 object-contain relative z-10" referrerPolicy="no-referrer" />
             </div>
           </div>
         </div>
