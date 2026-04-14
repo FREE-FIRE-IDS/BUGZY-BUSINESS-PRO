@@ -1100,6 +1100,36 @@ NOTIFY pgrst, 'reload schema';
                 </div>
               )}
             </div>
+
+            {/* License Status */}
+            <div className="p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <p className="font-bold">License Status</p>
+                  <p className="text-xs text-slate-500">
+                    {isDeviceLicensed ? 'Pro Version Active' : 'Free Version'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {isDeviceLicensed ? (
+                  <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-xl text-xs font-bold border border-emerald-100 dark:border-emerald-800/50 flex items-center gap-2">
+                    <CheckCircle2 size={14} />
+                    Licensed
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'payment' }))}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+                  >
+                    Upgrade to Pro
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </section>

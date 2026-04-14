@@ -195,6 +195,60 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
 
+  // Real-time license listener
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const checkLicense = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('licenses')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (data) {
+          localStorage.setItem('device_license', 'true');
+          localStorage.setItem('active_license_key', data.license_key);
+          setIsDeviceLicensed(true);
+        }
+      } catch (err) {
+        console.error('License check error:', err);
+      }
+    };
+
+    checkLicense();
+
+    // Subscribe to changes in licenses table for this user
+    const channel = supabase
+      .channel(`user-license-${session.user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'licenses',
+          filter: `user_id=eq.${session.user.id}`
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const newLicense = payload.new as License;
+            if (newLicense.status === 'active') {
+              localStorage.setItem('device_license', 'true');
+              localStorage.setItem('active_license_key', newLicense.license_key);
+              setIsDeviceLicensed(true);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id]);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -1538,10 +1592,14 @@ NOTIFY pgrst, 'reload schema';
 
   const signOut = async () => {
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('device_license');
+    localStorage.removeItem('active_license_key');
+    setIsDeviceLicensed(false);
     setCurrentUser(null);
     setCurrentCompany(null);
     setCompanies([]);
     setSession(null);
+    await supabase.auth.signOut();
   };
 
   return (
