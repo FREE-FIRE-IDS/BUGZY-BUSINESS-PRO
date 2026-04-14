@@ -212,9 +212,34 @@ function PaymentScreen({ company }: { company: Company }) {
       });
       setStep('success');
     } catch (err: any) {
-      console.error(err);
+      console.error('Submit Error:', err);
       setStatus('error');
-      setErrorMsg(err.message || 'Failed to submit request');
+      const rawError = (err.message || JSON.stringify(err)).toLowerCase();
+      
+      if (rawError.includes('schema cache') || rawError.includes('column') || rawError.includes('not found')) {
+        const fixSql = `
+-- Aggressively ensure columns exist and fix schema cache
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS amount NUMERIC;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS screenshot TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+
+-- Fix RLS
+ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Full Access" ON payment_requests;
+CREATE POLICY "Full Access" ON payment_requests FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+
+-- FORCE RELOAD CACHE
+NOTIFY pgrst, 'reload schema';
+        `.trim();
+        
+        setErrorMsg('DATABASE ERROR: Supabase is missing columns or has a stale cache. I have copied the fix SQL to your clipboard. Please run it in your Supabase SQL Editor.');
+        navigator.clipboard.writeText(fixSql);
+      } else {
+        setErrorMsg(err.message || 'Failed to submit request');
+      }
     }
   };
 

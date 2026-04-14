@@ -21,8 +21,40 @@ export default function Admin() {
       ]);
       setRequests(reqData);
       setLicenses(licData);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('Admin Load Error:', e);
+      const rawError = (e.message || JSON.stringify(e)).toLowerCase();
+      
+      if (rawError.includes('schema cache') || rawError.includes('column') || rawError.includes('not found')) {
+        const fixSql = `
+-- Aggressively ensure columns exist and fix schema cache
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS amount NUMERIC;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS screenshot TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS devices JSONB DEFAULT '[]';
+
+-- Fix RLS
+ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Full Access" ON licenses;
+CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Full Access" ON payment_requests;
+CREATE POLICY "Full Access" ON payment_requests FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+
+-- FORCE RELOAD CACHE
+NOTIFY pgrst, 'reload schema';
+        `.trim();
+        
+        alert(`DATABASE ERROR DETECTED!\n\nSupabase is missing columns or has a stale schema cache.\n\nERROR: ${e.message}\n\nI have copied the fix SQL to your clipboard. Please run it in your Supabase SQL Editor.`);
+        navigator.clipboard.writeText(fixSql);
+      }
     } finally {
       setLoading(false);
     }
@@ -48,21 +80,21 @@ export default function Admin() {
       console.error('Approval Error:', e);
       const rawError = e.message || JSON.stringify(e);
       
-      if (rawError.includes('schema cache') || rawError.includes('column "status"') || rawError.includes('column "license_key"') || rawError.includes('row level security')) {
+      if (rawError.includes('schema cache') || rawError.includes('column') || rawError.includes('not found') || rawError.includes('row level security')) {
         const fixSql = `
 -- NUCLEAR FIX FOR SCHEMA AND RLS
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS amount NUMERIC;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS screenshot TEXT;
+ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS license_key TEXT;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS devices JSONB DEFAULT '[]';
 ALTER TABLE IF EXISTS licenses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
-
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS screenshot TEXT;
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS name TEXT;
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS phone TEXT;
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS plan TEXT;
-ALTER TABLE IF EXISTS payment_requests ADD COLUMN IF NOT EXISTS amount NUMERIC;
 
 -- Fix RLS
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
@@ -72,11 +104,12 @@ CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (tr
 DROP POLICY IF EXISTS "Full Access" ON payment_requests;
 CREATE POLICY "Full Access" ON payment_requests FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
 
+-- FORCE RELOAD CACHE
 NOTIFY pgrst, 'reload schema';
         `.trim();
         
         const errorType = rawError.includes('row level security') ? 'RLS (PERMISSION) ERROR' : 'SCHEMA ERROR';
-        alert(`${errorType} DETECTED!\n\nSupabase is blocking the license creation.\n\nRAW ERROR: ${rawError}\n\nI have copied a "Nuclear Fix" SQL to your clipboard. Please run it in your Supabase SQL Editor.`);
+        alert(`${errorType} DETECTED!\n\nSupabase is blocking the operation.\n\nRAW ERROR: ${rawError}\n\nI have copied a "Nuclear Fix" SQL to your clipboard. Please run it in your Supabase SQL Editor.`);
         navigator.clipboard.writeText(fixSql);
       } else {
         alert('Failed to approve: ' + rawError);
