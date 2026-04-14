@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS companies (
   user_id TEXT,
   user_email TEXT,
   linked_emails TEXT[],
+  username TEXT,
   recovery_code TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -308,7 +309,12 @@ ALTER TABLE licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
 ALTER TABLE licenses ADD COLUMN IF NOT EXISTS devices INTEGER DEFAULT 1;
 ALTER TABLE licenses ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 
--- 10. Enable RLS
+-- 10. Fix Companies Username Constraint
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS username TEXT;
+DROP INDEX IF EXISTS idx_companies_username;
+ALTER TABLE companies DROP CONSTRAINT IF EXISTS companies_username_key;
+
+-- 11. Enable RLS
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE banks ENABLE ROW LEVEL SECURITY;

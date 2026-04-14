@@ -1018,7 +1018,11 @@ const deleteFromCloud = async (table: string, id: string) => {
       if (data && data.length > 0) {
         // User exists in cloud
         if (!isLogin) {
-          setSyncStatus({ loading: false, error: 'Username already taken ❌', success: null });
+          setSyncStatus({ 
+            loading: false, 
+            error: 'Username already taken ❌. If you already have an account, please use the Login tab.', 
+            success: null 
+          });
           return false;
         }
         const userCompanies = data;
@@ -1079,7 +1083,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       const { error } = await supabase.from('companies').insert(newCompany);
       if (error) {
         if (error.message.includes('unique constraint') || error.code === '23505') {
-          throw new Error('Username already taken ❌');
+          throw new Error('This username or company ID is already in use ❌');
         }
         throw error;
       }
