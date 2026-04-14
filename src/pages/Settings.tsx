@@ -408,16 +408,20 @@ NOTIFY pgrst, 'reload schema';
   const handleAddCompany = async () => {
     if (!newCompanyName || !newCompanyCode) return;
     
-    await addCompany({
-      name: newCompanyName,
-      address: '',
-      currency: settings.currency,
-      user_id: settings.user_email || 'default',
-      recovery_code: newCompanyCode.toLowerCase(),
-    });
-    setNewCompanyName('');
-    setNewCompanyCode('');
-    setIsAddCompanyModalOpen(false);
+    try {
+      await addCompany({
+        name: newCompanyName,
+        address: '',
+        currency: settings.currency,
+        user_id: settings.user_email || 'default',
+        recovery_code: newCompanyCode.toLowerCase(),
+      });
+      setNewCompanyName('');
+      setNewCompanyCode('');
+      setIsAddCompanyModalOpen(false);
+    } catch (e) {
+      // Error is handled by syncStatus in AppContext
+    }
   };
 
   const isValidGmail = (email: string) => {
@@ -537,8 +541,14 @@ NOTIFY pgrst, 'reload schema';
                     <X size={20} />
                   </button>
                 </div>
-                <div className="p-8 space-y-6">
-                  <div>
+                  <div className="p-8 space-y-6">
+                    {syncStatus.error && (
+                      <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-sm font-bold flex items-center gap-2">
+                        <ShieldAlert size={18} />
+                        {syncStatus.error}
+                      </div>
+                    )}
+                    <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Company Name</label>
                     <input 
                       type="text" 
@@ -559,20 +569,29 @@ NOTIFY pgrst, 'reload schema';
                     />
                     <p className="text-[10px] text-slate-400 mt-1 italic">Set any 4-word code to restore this company later.</p>
                   </div>
-                  <div className="flex gap-3">
-                    <button 
-                      onClick={() => setIsAddCompanyModalOpen(false)}
-                      className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      onClick={handleAddCompany}
-                      className="flex-1 px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
-                    >
-                      Create
-                    </button>
-                  </div>
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={() => setIsAddCompanyModalOpen(false)}
+                        disabled={syncStatus.loading}
+                        className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={handleAddCompany}
+                        disabled={syncStatus.loading || !newCompanyName.trim()}
+                        className="flex-1 px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {syncStatus.loading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          'Create'
+                        )}
+                      </button>
+                    </div>
                 </div>
               </motion.div>
             </div>

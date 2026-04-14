@@ -1476,11 +1476,13 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (error) throw error;
   };
 
-  const [isDeviceLicensed, setIsDeviceLicensed] = useState(false);
+  const [isDeviceLicensed, setIsDeviceLicensed] = useState(() => localStorage.getItem('device_license') === 'true');
 
   useEffect(() => {
     const licensed = localStorage.getItem('device_license') === 'true';
-    setIsDeviceLicensed(licensed);
+    if (licensed !== isDeviceLicensed) {
+      setIsDeviceLicensed(licensed);
+    }
   }, []);
 
   const isAdmin = (settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') || 
