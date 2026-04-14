@@ -1005,18 +1005,28 @@ function SetupCompany() {
 
   const handleAction = async () => {
     if (isLogin) {
-      if (!username.trim()) return alert('Please enter username');
+      if (!username.trim()) return;
       const success = await loginWithUsername(username.trim());
-      if (!success) alert('Username not found');
+      if (!success) return;
     } else {
-      if (!name.trim() || !username.trim()) return alert('Please fill all fields');
-      await addCompany({
-        name: name.trim(),
-        username: username.trim().toLowerCase(),
-        address: '',
-        currency,
-        user_id: 'default',
-      });
+      if (!name.trim() || !username.trim()) return;
+      
+      // 1. Check if username is available and set currentUser
+      const available = await loginWithUsername(username.trim().toLowerCase(), false);
+      if (!available) return;
+
+      // 2. Add company
+      try {
+        await addCompany({
+          name: name.trim(),
+          username: username.trim().toLowerCase(),
+          address: '',
+          currency,
+          user_id: 'default',
+        });
+      } catch (e) {
+        // Error handled by addCompany setting syncStatus
+      }
     }
   };
 

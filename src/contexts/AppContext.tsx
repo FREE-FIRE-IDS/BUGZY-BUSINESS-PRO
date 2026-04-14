@@ -1016,6 +1016,10 @@ const deleteFromCloud = async (table: string, id: string) => {
 
       if (data && data.length > 0) {
         // User exists in cloud
+        if (!isLogin) {
+          setSyncStatus({ loading: false, error: 'Username already taken ❌', success: null });
+          return false;
+        }
         const userCompanies = data;
         localStorage.setItem('currentUser', normalizedUsername);
         localStorage.setItem(`companies_${normalizedUsername}`, JSON.stringify(userCompanies));
@@ -1072,7 +1076,12 @@ const deleteFromCloud = async (table: string, id: string) => {
     try {
       // 1. Save to cloud first to ensure uniqueness/persistence
       const { error } = await supabase.from('companies').insert(newCompany);
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('unique constraint') || error.code === '23505') {
+          throw new Error('Username already taken ❌');
+        }
+        throw error;
+      }
 
       // 2. Update local state only after successful cloud insert
       const updatedCompanies = [...companies, newCompany];
