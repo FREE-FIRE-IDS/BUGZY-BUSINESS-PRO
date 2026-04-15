@@ -1435,7 +1435,11 @@ CREATE POLICY "Full Access" ON payment_requests FOR ALL TO authenticated, anon U
 DROP POLICY IF EXISTS "Full Access" ON licenses;
 CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
 
--- 3. FORCE RELOAD CACHE
+-- 3. Enable Realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE payment_requests;
+ALTER PUBLICATION supabase_realtime ADD TABLE licenses;
+
+-- 4. FORCE RELOAD CACHE
 NOTIFY pgrst, 'reload schema';
       `.trim();
       
@@ -1598,7 +1602,16 @@ NOTIFY pgrst, 'reload schema';
     if (licensed !== isDeviceLicensed) {
       setIsDeviceLicensed(licensed);
     }
-  }, []);
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'device_license') {
+        setIsDeviceLicensed(e.newValue === 'true');
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [isDeviceLicensed]);
 
   const isAdmin = (settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') || 
                   (session?.user?.email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') ||
@@ -1613,9 +1626,6 @@ NOTIFY pgrst, 'reload schema';
 
   const signOut = async () => {
     localStorage.removeItem('currentUser');
-    localStorage.removeItem('device_license');
-    localStorage.removeItem('active_license_key');
-    setIsDeviceLicensed(false);
     setCurrentUser(null);
     setCurrentCompany(null);
     setCompanies([]);

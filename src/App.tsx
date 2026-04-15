@@ -251,7 +251,11 @@ CREATE POLICY "Full Access" ON payment_requests FOR ALL TO authenticated, anon U
 DROP POLICY IF EXISTS "Full Access" ON licenses;
 CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
 
--- 3. FORCE RELOAD CACHE
+-- 3. Enable Realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE payment_requests;
+ALTER PUBLICATION supabase_realtime ADD TABLE licenses;
+
+-- 4. FORCE RELOAD CACHE
 NOTIFY pgrst, 'reload schema';
         `.trim();
         
