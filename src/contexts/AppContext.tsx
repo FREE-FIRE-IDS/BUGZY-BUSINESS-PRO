@@ -197,14 +197,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Real-time license listener
   useEffect(() => {
-    if (!session?.user?.id) return;
+    const userId = session?.user?.id || currentUser;
+    if (!userId) return;
 
     const checkLicense = async () => {
       try {
         const { data, error } = await supabase
           .from('licenses')
           .select('*')
-          .eq('user_id', session.user.id)
+          .eq('user_id', userId)
           .eq('status', 'active')
           .maybeSingle();
 
@@ -222,14 +223,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Subscribe to changes in licenses table for this user
     const channel = supabase
-      .channel(`user-license-${session.user.id}`)
+      .channel(`user-license-${userId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'licenses',
-          filter: `user_id=eq.${session.user.id}`
+          filter: `user_id=eq.${userId}`
         },
         (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
@@ -247,7 +248,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, currentUser]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -428,17 +429,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const pullCompanies = async (email: string) => {
-    if (!email) {
-      setSyncStatus({ loading: false, error: 'Please enter an email address', success: null });
+  const pullCompanies = async (email?: string) => {
+    const targetEmail = email || settings.user_email;
+    const username = currentUser;
+    
+    if (!targetEmail && !username) {
+      setSyncStatus({ loading: false, error: 'No email or username found to pull data', success: null });
       return false;
     }
+    
     setSyncStatus({ loading: true, error: null, success: null });
     try {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .or(`user_email.eq.${email},linked_emails.cs.{${email}}`);
+      let query = supabase.from('companies').select('*');
+      
+      if (targetEmail) {
+        query = query.or(`user_email.eq.${targetEmail},linked_emails.cs.{${targetEmail}}`);
+      } else {
+        query = query.eq('username', username);
+      }
+      
+      const { data, error } = await query;
       
       if (error) throw error;
       
@@ -461,7 +471,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } else {
         setSyncStatus({ 
           loading: false, 
-          error: 'No companies found in the cloud for this email. If you have data on this device, click "Sync Now" to push it to the cloud.', 
+          error: 'No companies found in the cloud. If you have data on this device, click "Sync Now" to push it to the cloud.', 
           success: null 
         });
         return false;
@@ -1066,7 +1076,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       // 1. Check cloud first to see if user exists
       const { data, error } = await supabase
         .from('companies')
-        .select('id, username')
+        .select('*')
         .eq('username', normalizedUsername);
 
       if (error) throw error;
@@ -1082,8 +1092,17 @@ const deleteFromCloud = async (table: string, id: string) => {
           return false;
         }
         
-        // Login logic
+        // Login logic: Save fetched companies to localStorage so useEffect can pick them up
+        localStorage.setItem(`companies_${normalizedUsername}`, JSON.stringify(data));
         localStorage.setItem('currentUser', normalizedUsername);
+        
+        // Also set state directly to avoid "empty frame"
+        setCompanies(data);
+        if (data.length > 0) {
+          setCurrentCompany(data[0]);
+          localStorage.setItem('currentCompany', JSON.stringify(data[0]));
+        }
+        
         setCurrentUser(normalizedUsername);
         setSyncStatus({ loading: false, error: null, success: 'Login successful' });
         return true;
@@ -1439,7 +1458,7 @@ NOTIFY pgrst, 'reload schema';
   }) => {
     const now = new Date().toISOString();
     const request: Omit<PaymentRequest, 'id'> = {
-      user_id: session?.user?.id || 'anonymous',
+      user_id: session?.user?.id || currentUser || 'anonymous',
       name: data.name,
       phone: data.phone,
       amount: data.amount,
@@ -1583,7 +1602,8 @@ NOTIFY pgrst, 'reload schema';
 
   const isAdmin = (settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') || 
                   (session?.user?.email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') ||
-                  (settings.user_email === '16897463890072@1689746389007200');
+                  (settings.user_email === '16897463890072@1689746389007200') ||
+                  (currentUser?.toLowerCase() === 'sudaiskamran31');
 
   useEffect(() => {
     if (isAdmin) {
