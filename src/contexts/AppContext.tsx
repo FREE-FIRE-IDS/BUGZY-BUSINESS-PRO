@@ -1077,9 +1077,14 @@ const deleteFromCloud = async (table: string, id: string) => {
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .eq('username', normalizedUsername);
+        .ilike('username', normalizedUsername);
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('permission denied') || error.code === '42501') {
+          throw new Error('Permission denied ❌. Please go to Settings > Cloud Sync > Database Setup and run the SQL script to fix permissions.');
+        }
+        throw error;
+      }
 
       if (data && data.length > 0) {
         // User exists in cloud
@@ -1140,11 +1145,22 @@ const deleteFromCloud = async (table: string, id: string) => {
     setSyncStatus({ loading: true, error: null, success: null });
     
     const now = new Date().toISOString();
+    const generateId = () => {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    };
+
     const newCompany: Company = {
       ...company,
-      id: crypto.randomUUID(),
+      id: generateId(),
       user_email: settings.user_email || '',
-      username: currentUser,
+      username: company.username || currentUser || '',
       trial_start: now,
       is_paid: false,
       created_at: now,
@@ -1157,7 +1173,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       const { error } = await supabase.from('companies').insert(newCompany);
       if (error) {
         if (error.message.includes('unique constraint') || error.code === '23505') {
-          throw new Error('This username or company ID is already in use ❌');
+          throw new Error('This username is already in use ❌. If this is your account, please try to "Login" instead of "Create Company".');
         }
         throw error;
       }
