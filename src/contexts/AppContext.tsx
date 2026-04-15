@@ -266,8 +266,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const isInternalUpdate = React.useRef(false);
 
   useEffect(() => {
-    localStorage.setItem('companies', JSON.stringify(companies));
-  }, [companies]);
+    if (currentUser) {
+      localStorage.setItem(`companies_${currentUser}`, JSON.stringify(companies));
+    }
+  }, [companies, currentUser]);
 
   useEffect(() => {
     if (currentCompany) {
@@ -342,12 +344,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       if (compError) throw compError;
       
-      const localCompanies = JSON.parse(localStorage.getItem('companies') || '[]');
+      const localCompanies = companies;
       const { merged: mergedCompanies, toUpload: companiesToUpload } = mergeData(localCompanies, cloudCompanies || []);
       
       const nonDeletedCompanies = mergedCompanies.filter(c => !c.deleted_at);
       setCompanies(nonDeletedCompanies);
-      localStorage.setItem(`companies_${username || email}`, JSON.stringify(mergedCompanies));
+      localStorage.setItem(`companies_${username || email || currentUser}`, JSON.stringify(mergedCompanies));
 
       if (companiesToUpload.length > 0) {
         await syncToCloud('companies', companiesToUpload);
@@ -683,7 +685,7 @@ const deleteFromCloud = async (table: string, id: string) => {
                     else if (table === 'companies') {
                         isInternalUpdate.current = true;
                         setCompanies(prev => {
-                            const localAll = JSON.parse(localStorage.getItem('companies') || '[]');
+                            const localAll = JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]');
                             let updatedAll = [...localAll];
                             if (eventType === 'INSERT' || eventType === 'UPDATE') {
                                 const index = updatedAll.findIndex(c => c.id === record.id);
@@ -705,7 +707,9 @@ const deleteFromCloud = async (table: string, id: string) => {
                                 if (!id) return prev;
                                 updatedAll = updatedAll.filter(c => c.id !== id);
                             }
-                            localStorage.setItem('companies', JSON.stringify(updatedAll));
+                            if (currentUser) {
+                                localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updatedAll));
+                            }
                             return updatedAll.filter(c => !c.deleted_at);
                         });
                         setTimeout(() => { isInternalUpdate.current = false; }, 100);
@@ -1141,7 +1145,6 @@ const deleteFromCloud = async (table: string, id: string) => {
   };
 
   const addCompany = async (company: Omit<Company, 'id' | 'created_at'>) => {
-    if (!currentUser) return;
     setSyncStatus({ loading: true, error: null, success: null });
     
     const now = new Date().toISOString();
@@ -1182,8 +1185,14 @@ const deleteFromCloud = async (table: string, id: string) => {
       const updatedCompanies = [...companies, newCompany];
       setCompanies(updatedCompanies);
       setCurrentCompany(newCompany);
-      localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updatedCompanies));
-      localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(newCompany));
+      localStorage.setItem(`companies_${newCompany.username}`, JSON.stringify(updatedCompanies));
+      localStorage.setItem(`currentCompany_${newCompany.username}`, JSON.stringify(newCompany));
+      
+      // Also update currentUser if it's not set
+      if (!currentUser) {
+        setCurrentUser(newCompany.username);
+        localStorage.setItem('currentUser', newCompany.username);
+      }
       
       // Enable sync by default for username accounts
       updateSettings({ sync_enabled: true });
@@ -1275,17 +1284,21 @@ const deleteFromCloud = async (table: string, id: string) => {
     const updatedCompanies = companies.filter(c => c.id !== id);
     setCompanies(updatedCompanies);
     
-    const localAll = JSON.parse(localStorage.getItem('companies') || '[]');
+    const localAll = companies;
     
     if (hard) {
       const filteredAll = localAll.filter((c: any) => c.id !== id);
-      localStorage.setItem('companies', JSON.stringify(filteredAll));
+      if (currentUser) {
+        localStorage.setItem(`companies_${currentUser}`, JSON.stringify(filteredAll));
+      }
       if (settings.sync_enabled) {
         await deleteFromCloud('companies', id);
       }
     } else {
       const updatedAll = localAll.map((c: any) => c.id === id ? { ...c, deleted_at: now, updated_at: now } : c);
-      localStorage.setItem('companies', JSON.stringify(updatedAll));
+      if (currentUser) {
+        localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updatedAll));
+      }
       if (settings.sync_enabled) {
         await syncToCloud('companies', { ...companyToDelete, deleted_at: now, updated_at: now });
       }
