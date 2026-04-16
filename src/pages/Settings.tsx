@@ -42,15 +42,13 @@ export default function Settings() {
   const [linkEmailError, setLinkEmailError] = React.useState('');
   const [isAddCompanyModalOpen, setIsAddCompanyModalOpen] = React.useState(false);
   const [newCompanyName, setNewCompanyName] = React.useState('');
-  const [newCompanyCode, setNewCompanyCode] = React.useState('');
+  const [newCompanyUsername, setNewCompanyUsername] = React.useState('');
   const [showSqlSetup, setShowSqlSetup] = React.useState(false);
   const [isDeleteCompanyModalOpen, setIsDeleteCompanyModalOpen] = React.useState<string | null>(null);
 
   useEffect(() => {
     if (isAddCompanyModalOpen) {
-      const words = ['blue', 'fast', 'smart', 'gold', 'cool', 'bold', 'safe', 'rich', 'pure', 'kind'];
-      const code = Array.from({ length: 4 }, () => words[Math.floor(Math.random() * words.length)]).join('-');
-      setNewCompanyCode(code);
+      setNewCompanyUsername('');
     }
   }, [isAddCompanyModalOpen]);
 
@@ -301,6 +299,8 @@ NOTIFY pgrst, 'reload schema';
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS username TEXT;
 DROP INDEX IF EXISTS idx_companies_username;
 ALTER TABLE companies DROP CONSTRAINT IF EXISTS companies_username_key;
+ALTER TABLE companies DROP CONSTRAINT IF EXISTS companies_username_unique;
+DROP INDEX IF EXISTS companies_username_idx;
 
 -- 11. Enable RLS
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
@@ -405,7 +405,7 @@ NOTIFY pgrst, 'reload schema';
 `;
 
   const handleAddCompany = async () => {
-    if (!newCompanyName || !newCompanyCode) return;
+    if (!newCompanyName || !newCompanyUsername) return;
     
     try {
       await addCompany({
@@ -413,10 +413,10 @@ NOTIFY pgrst, 'reload schema';
         address: '',
         currency: settings.currency,
         user_id: settings.user_email || 'default',
-        recovery_code: newCompanyCode.toLowerCase(),
+        username: newCompanyUsername.toLowerCase().trim(),
       });
       setNewCompanyName('');
-      setNewCompanyCode('');
+      setNewCompanyUsername('');
       setIsAddCompanyModalOpen(false);
     } catch (e) {
       // Error is handled by syncStatus in AppContext
@@ -558,15 +558,15 @@ NOTIFY pgrst, 'reload schema';
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Recovery Code (4 words)</label>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Username</label>
                     <input 
                       type="text" 
-                      value={newCompanyCode}
-                      onChange={(e) => setNewCompanyCode(e.target.value.toLowerCase())}
-                      placeholder="word-word-word-word"
+                      value={newCompanyUsername}
+                      onChange={(e) => setNewCompanyUsername(e.target.value.toLowerCase())}
+                      placeholder="unique_username"
                       className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1 italic">Set any 4-word code to restore this company later.</p>
+                    <p className="text-[10px] text-slate-400 mt-1 italic">This username will be used to login and sync your data.</p>
                   </div>
                     <div className="flex gap-3">
                       <button 

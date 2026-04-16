@@ -209,10 +209,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           .eq('status', 'active')
           .maybeSingle();
 
+        if (error) {
+          console.log('Offline or error checking license, keeping local state');
+          return;
+        }
+
         if (data) {
           localStorage.setItem('device_license', 'true');
           localStorage.setItem('active_license_key', data.license_key);
           setIsDeviceLicensed(true);
+        } else {
+          // Only deactivate if we successfully reached the server and confirmed NO active license
+          localStorage.setItem('device_license', 'false');
+          setIsDeviceLicensed(false);
         }
       } catch (err) {
         console.error('License check error:', err);
@@ -1077,13 +1086,40 @@ const deleteFromCloud = async (table: string, id: string) => {
     setSyncStatus({ loading: true, error: null, success: null });
     
     try {
-      // 1. Check cloud first to see if user exists
+      // 1. Check local storage first (for offline support)
+      const localCompaniesStr = localStorage.getItem(`companies_${normalizedUsername}`);
+      if (localCompaniesStr) {
+        const localData = JSON.parse(localCompaniesStr);
+        if (isLogin) {
+          localStorage.setItem('currentUser', normalizedUsername);
+          setCurrentUser(normalizedUsername);
+          setCompanies(localData);
+          if (localData.length > 0) {
+            setCurrentCompany(localData[0]);
+            localStorage.setItem('currentCompany', JSON.stringify(localData[0]));
+          }
+          setSyncStatus({ loading: false, error: null, success: 'Login successful (Offline)' });
+          
+          // Try to sync in background if online
+          refreshData(undefined, true).catch(console.error);
+          return true;
+        } else {
+          // If signup attempt but exists locally, we still check cloud to be sure
+          // but we can warn early
+          console.log('Username exists locally, checking cloud...');
+        }
+      }
+
+      // 2. Check cloud
       const { data, error } = await supabase
         .from('companies')
         .select('*')
         .ilike('username', normalizedUsername);
 
       if (error) {
+        // If offline and we already logged in via local storage, we are fine
+        if (localCompaniesStr && isLogin) return true;
+        
         if (error.message.includes('permission denied') || error.code === '42501') {
           throw new Error('Permission denied ❌. Please go to Settings > Cloud Sync > Database Setup and run the SQL script to fix permissions.');
         }
@@ -1117,16 +1153,7 @@ const deleteFromCloud = async (table: string, id: string) => {
         return true;
       }
 
-      // 2. Check local storage
-      const localCompanies = localStorage.getItem(`companies_${normalizedUsername}`);
-      if (localCompanies) {
-        localStorage.setItem('currentUser', normalizedUsername);
-        setCurrentUser(normalizedUsername);
-        setSyncStatus({ loading: false, error: null, success: 'Login successful' });
-        return true;
-      }
-
-      // 3. If it's a login attempt and not found, return false
+      // 3. If it's a login attempt and not found in cloud or local, return false
       if (isLogin) {
         setSyncStatus({ loading: false, error: 'Username not found ❌', success: null });
         return false;
@@ -1139,7 +1166,14 @@ const deleteFromCloud = async (table: string, id: string) => {
       return true;
     } catch (err: any) {
       console.error('Login/Check error:', err);
-      setSyncStatus({ loading: false, error: err.message || 'Operation failed', success: null });
+      // If offline and we have local data, we already handled it. 
+      // If we reach here, it means we don't have local data or it's a real error.
+      const isOffline = !navigator.onLine || err.message?.includes('Failed to fetch');
+      if (isOffline && isLogin) {
+         setSyncStatus({ loading: false, error: 'You are offline and this account is not saved on this device ❌', success: null });
+      } else {
+         setSyncStatus({ loading: false, error: err.message || 'Operation failed', success: null });
+      }
       return false;
     }
   };
@@ -1172,11 +1206,18 @@ const deleteFromCloud = async (table: string, id: string) => {
     };
     
     try {
-      // 1. Save to cloud first to ensure uniqueness/persistence
+      // 1. Check if username is taken by ANOTHER account
+      // If we are adding a company to an existing account, we use the same username
+      const targetUsername = (company.username || currentUser || '').toLowerCase().trim();
+      
+      if (!targetUsername) throw new Error('Username is required');
+
+      // 2. Save to cloud first to ensure uniqueness/persistence
       const { error } = await supabase.from('companies').insert(newCompany);
       if (error) {
         if (error.message.includes('unique constraint') || error.code === '23505') {
-          throw new Error('This username is already in use ❌. If this is your account, please try to "Login" instead of "Create Company".');
+          // If the error is about username, it means someone else has it
+          throw new Error(`Username "${targetUsername}" is already in use by another account ❌. Please choose a different username.`);
         }
         throw error;
       }
