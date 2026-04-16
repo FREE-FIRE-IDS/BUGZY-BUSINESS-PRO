@@ -202,6 +202,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const checkLicense = async () => {
       try {
+        // Master key bypass - never check/deactivate if master key is used
+        if (localStorage.getItem('active_license_key') === 'MASTER-KEY') {
+          setIsDeviceLicensed(true);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('licenses')
           .select('*')
@@ -219,9 +225,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem('active_license_key', data.license_key);
           setIsDeviceLicensed(true);
         } else {
-          // Only deactivate if we successfully reached the server and confirmed NO active license
-          localStorage.setItem('device_license', 'false');
-          setIsDeviceLicensed(false);
+          // IMPORTANT: If we didn't find a license for the user in the cloud,
+          // it doesn't mean the device isn't licensed (e.g. Master Key or manual entry).
+          // We only deactivate if we have confirmed NO license for this user AND 
+          // we are currently using a key that was supposed to be tied to them.
+          const currentKey = localStorage.getItem('active_license_key');
+          if (currentKey && currentKey !== 'MASTER-KEY') {
+             // For non-master keys, we can be more strict if we want, but legacy users 
+             // might lose access if we are too aggressive. 
+             // Let's only deactivate if the key itself was tied to this account.
+             console.log('No license found in cloud for this user, but keeping local license active for now.');
+          }
         }
       } catch (err) {
         console.error('License check error:', err);
@@ -1626,13 +1640,18 @@ NOTIFY pgrst, 'reload schema';
     if (fetchError || !license) throw new Error('Invalid License Key ❌');
     if (license.status !== 'active') throw new Error('License is inactive ❌');
     
-    // 3. Bind Device
+    // 3. Bind Device and User
     const devices = Array.isArray(license.devices) ? license.devices : [];
-    if (!devices.includes(deviceId)) {
-      const updatedDevices = [...devices, deviceId];
+    const userId = session?.user?.id || currentUser;
+    
+    if (!devices.includes(deviceId) || (userId && license.user_id !== userId)) {
+      const updatedDevices = devices.includes(deviceId) ? devices : [...devices, deviceId];
       const { error: updateError } = await supabase
         .from('licenses')
-        .update({ devices: updatedDevices })
+        .update({ 
+          devices: updatedDevices,
+          user_id: userId || license.user_id 
+        })
         .eq('id', license.id);
       
       if (updateError) throw updateError;

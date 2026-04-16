@@ -45,7 +45,7 @@ export default function Dashboard() {
     const isPaid = currentCompany?.is_paid || isLicensed();
     if (!currentCompany || isPaid) return null;
     const start = new Date(currentCompany.trial_start || currentCompany.created_at);
-    const end = addDays(start, 20);
+    const end = addDays(start, 7);
     const daysLeft = differenceInDays(end, new Date());
     return { daysLeft: Math.max(0, daysLeft), end };
   }, [currentCompany, isLicensed]);

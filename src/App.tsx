@@ -69,7 +69,7 @@ function Onboarding({ onComplete }: { onComplete: () => void }) {
     },
     {
       title: "Ready to Grow?",
-      desc: "Set up your company in seconds and start your 20-day free trial today.",
+      desc: "Set up your company in seconds and start your 7-day free trial today.",
       icon: <Building2 size={48} className="text-indigo-500" />
     }
   ];
@@ -624,7 +624,7 @@ function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onU
   if (isLicensed) return null;
   
   const trialStart = new Date(company.trial_start || company.created_at);
-  const trialEnd = addDays(trialStart, 20);
+  const trialEnd = addDays(trialStart, 7);
   const daysLeft = Math.max(0, differenceInDays(trialEnd, new Date()));
 
   const isExpired = daysLeft <= 0;
@@ -785,7 +785,7 @@ export default function App() {
     // Only check trial if NOT licensed
     if (!isPaid) {
       const trialStart = new Date(currentCompany.trial_start || currentCompany.created_at);
-      const trialEnd = addDays(trialStart, 20);
+      const trialEnd = addDays(trialStart, 7);
       const isExpired = isAfter(new Date(), trialEnd);
 
       if (isExpired || forceUpgrade) {
