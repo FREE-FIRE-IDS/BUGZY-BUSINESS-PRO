@@ -35,37 +35,49 @@ export const generatePartyStatement = (
   doc.text(`Date: ${dateStr}`, 160, 52);
 
   // Table
-  let runningBalance = 0;
-  const tableData = transactions
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .map((t) => {
-      let debit = 0;
-      let credit = 0;
-      
-      // Party Perspective:
-      // Debit (Increase Balance/Receivable): Sale, Payment Out (to supplier), Bank To Party, Party To Party (destination)
-      // Credit (Decrease Balance/Payable): Purchase, Payment In (from customer), Party To Bank, Party To Party (source)
-      
-      const isDebit = (t.type === 'Sale' || t.type === 'Payment Out' || t.type === 'Bank To Party' || t.to_party_id === party.id);
-      const isCredit = (t.type === 'Purchase' || t.type === 'Payment In' || t.type === 'Expense' || t.type === 'Party To Bank' || t.type === 'Party To Party');
+  let runningBalance = party.opening_balance;
+  
+  const openingBalanceRow = {
+    date: '-',
+    description: 'Opening Balance',
+    debit: '-',
+    credit: '-',
+    balance: runningBalance.toFixed(2)
+  };
 
-      if (isDebit) {
-        debit = t.amount;
-        runningBalance += t.amount;
-      }
-      if (isCredit) {
-        credit = t.amount;
-        runningBalance -= t.amount;
-      }
-      
-      return {
-        date: format(new Date(t.date), 'dd-MM-yyyy'),
-        description: t.description || t.type.replace(/_/g, ' '),
-        debit: debit > 0 ? `${debit.toFixed(2)} DR` : '-',
-        credit: credit > 0 ? `${credit.toFixed(2)} CR` : '-',
-        balance: runningBalance.toFixed(2)
-      };
-    });
+  const tableData = [
+    openingBalanceRow,
+    ...transactions
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .map((t) => {
+        let debit = 0;
+        let credit = 0;
+        
+        // Party Perspective:
+        // Debit (Increase Balance/Receivable): Sale, Payment Out (to supplier), Bank To Party, Party To Party (destination)
+        // Credit (Decrease Balance/Payable): Purchase, Payment In (from customer), Party To Bank, Party To Party (source)
+        
+        const isDebit = (t.type === 'Sale' || t.type === 'Payment Out' || t.type === 'Bank To Party' || t.to_party_id === party.id);
+        const isCredit = (t.type === 'Purchase' || t.type === 'Payment In' || t.type === 'Expense' || t.type === 'Party To Bank' || t.type === 'Party To Party');
+
+        if (isDebit) {
+          debit = t.amount;
+          runningBalance += t.amount;
+        }
+        if (isCredit) {
+          credit = t.amount;
+          runningBalance -= t.amount;
+        }
+        
+        return {
+          date: format(new Date(t.date), 'dd-MM-yyyy'),
+          description: t.description || t.type.replace(/_/g, ' '),
+          debit: debit > 0 ? `${debit.toFixed(2)} DR` : '-',
+          credit: credit > 0 ? `${credit.toFixed(2)} CR` : '-',
+          balance: runningBalance.toFixed(2)
+        };
+      })
+  ];
 
   const totalDebit = transactions.reduce((sum, t) => {
     const isDebit = (t.type === 'Sale' || t.type === 'Payment Out' || t.type === 'Bank To Party' || t.to_party_id === party.id);
@@ -126,37 +138,49 @@ export const generateBankStatement = (
   doc.text(`Date: ${dateStr}`, 160, 52);
 
   // Table
-  let runningBalance = 0;
-  const tableData = transactions
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .map((t) => {
-      let debit = 0;
-      let credit = 0;
-      
-      // Bank Perspective:
-      // Credit (Increase Balance/Deposit): Payment In, Sale, Party To Bank, Bank To Bank (destination), Deposit
-      // Debit (Decrease Balance/Withdrawal): Payment Out, Purchase, Expense, Bank To Party, Bank To Bank (source), Withdraw
-      
-      const isCredit = (t.to_bank_id === bank.id) || (t.bank_id === bank.id && (t.type === 'Payment In' || t.type === 'Sale' || t.type === 'Party To Bank' || t.type === 'Deposit'));
-      const isDebit = (t.bank_id === bank.id && (t.type === 'Payment Out' || t.type === 'Purchase' || t.type === 'Expense' || t.type === 'Bank To Party' || t.type === 'Withdraw' || t.type === 'Bank To Bank'));
+  let runningBalance = bank.opening_balance;
 
-      if (isCredit) {
-        credit = t.amount;
-        runningBalance += t.amount;
-      }
-      if (isDebit) {
-        debit = t.amount;
-        runningBalance -= t.amount;
-      }
-      
-      return {
-        date: format(new Date(t.date), 'dd-MM-yyyy'),
-        description: t.description || t.type.replace(/_/g, ' '),
-        debit: debit > 0 ? `${debit.toFixed(2)} DR` : '-',
-        credit: credit > 0 ? `${credit.toFixed(2)} CR` : '-',
-        balance: runningBalance.toFixed(2)
-      };
-    });
+  const openingBalanceRow = {
+    date: '-',
+    description: 'Opening Balance',
+    debit: '-',
+    credit: '-',
+    balance: runningBalance.toFixed(2)
+  };
+
+  const tableData = [
+    openingBalanceRow,
+    ...transactions
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .map((t) => {
+        let debit = 0;
+        let credit = 0;
+        
+        // Bank Perspective:
+        // Credit (Increase Balance/Deposit): Payment In, Sale, Party To Bank, Bank To Bank (destination), Deposit
+        // Debit (Decrease Balance/Withdrawal): Payment Out, Purchase, Expense, Bank To Party, Bank To Bank (source), Withdraw
+        
+        const isCredit = (t.to_bank_id === bank.id) || (t.bank_id === bank.id && (t.type === 'Payment In' || t.type === 'Sale' || t.type === 'Party To Bank' || t.type === 'Deposit'));
+        const isDebit = (t.bank_id === bank.id && (t.type === 'Payment Out' || t.type === 'Purchase' || t.type === 'Expense' || t.type === 'Bank To Party' || t.type === 'Withdraw' || t.type === 'Bank To Bank'));
+
+        if (isCredit) {
+          credit = t.amount;
+          runningBalance += t.amount;
+        }
+        if (isDebit) {
+          debit = t.amount;
+          runningBalance -= t.amount;
+        }
+        
+        return {
+          date: format(new Date(t.date), 'dd-MM-yyyy'),
+          description: t.description || t.type.replace(/_/g, ' '),
+          debit: debit > 0 ? `${debit.toFixed(2)} DR` : '-',
+          credit: credit > 0 ? `${credit.toFixed(2)} CR` : '-',
+          balance: runningBalance.toFixed(2)
+        };
+      })
+  ];
 
   const totalDebit = transactions.reduce((sum, t) => {
     const isDebit = (t.bank_id === bank.id && (t.type === 'Payment Out' || t.type === 'Purchase' || t.type === 'Expense' || t.type === 'Bank To Party' || t.type === 'Withdraw' || t.type === 'Bank To Bank'));

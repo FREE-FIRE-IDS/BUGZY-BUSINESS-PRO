@@ -92,6 +92,7 @@ export default function Reports() {
         result = companyParties.map(p => ({ name: p.name, balance: p.balance, type: p.type }));
         break;
       case 'Single Party':
+        const selectedParty = parties.find(p => p.id === selectedEntity);
         const partyTxs = companyTransactions.filter(t => t.party_id === selectedEntity || t.to_party_id === selectedEntity);
         const partyInvoices = companyInvoices.filter(i => i.party_id === selectedEntity).map(i => ({
           id: i.id,
@@ -101,12 +102,22 @@ export default function Reports() {
           amount: i.total,
           party_id: i.party_id
         }));
-        result = filterByDate([...partyTxs, ...partyInvoices]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const baseData = filterByDate([...partyTxs, ...partyInvoices]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        if (selectedParty) {
+          result = [
+            { id: 'opening', date: selectedParty.created_at, type: 'Opening Balance', description: 'Opening Balance', amount: selectedParty.opening_balance, isOpening: true },
+            ...baseData
+          ];
+        } else {
+          result = baseData;
+        }
         break;
       case 'All Banks':
         result = companyBanks.map(b => ({ name: b.name, balance: b.balance, account: b.account_number }));
         break;
       case 'Single Bank':
+        const selectedBank = banks.find(b => b.id === selectedEntity);
         const bankTxs = companyTransactions.filter(t => t.bank_id === selectedEntity || t.to_bank_id === selectedEntity);
         const bankInvoices = companyInvoices.filter(i => i.bank_id === selectedEntity).map(i => ({
           id: i.id,
@@ -116,7 +127,16 @@ export default function Reports() {
           amount: i.total,
           bank_id: i.bank_id
         }));
-        result = filterByDate([...bankTxs, ...bankInvoices]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const baseBankData = filterByDate([...bankTxs, ...bankInvoices]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        if (selectedBank) {
+          result = [
+            { id: 'opening', date: selectedBank.created_at, type: 'Opening Balance', description: 'Opening Balance', amount: selectedBank.opening_balance, isOpening: true },
+            ...baseBankData
+          ];
+        } else {
+          result = baseBankData;
+        }
         break;
       case 'Stock':
         result = companyItems.map(i => ({ name: i.name, sku: i.sku, stock: i.stock, value: i.stock * i.price }));
@@ -242,16 +262,22 @@ export default function Reports() {
     } else if (activeReport === 'Single Party' || activeReport === 'Single Bank') {
       let runningBalance = 0;
       body = filteredData.map(d => {
-        const isDebit = d.type === 'Sale' || d.type === 'Payment In' || d.type === 'Deposit' || d.type === 'Party To Bank' || d.type === 'Bank To Party';
-        const amount = d.amount;
-        if (isDebit) runningBalance += amount;
-        else runningBalance -= amount;
+        let isDebit = false;
+        let amountValue = d.amount || 0;
+
+        if (d.isOpening) {
+          runningBalance = amountValue;
+        } else {
+          isDebit = d.type === 'Sale' || d.type === 'Payment In' || d.type === 'Deposit' || d.type === 'Party To Bank' || d.type === 'Bank To Party' || d.type === 'Stock Out';
+          if (isDebit) runningBalance += amountValue;
+          else runningBalance -= amountValue;
+        }
         
         const row: any[] = [];
-        if (selectedColumns.includes('Date')) row.push(formatDate(d.date));
+        if (selectedColumns.includes('Date')) row.push(d.isOpening ? '-' : formatDate(d.date));
         if (selectedColumns.includes('Description')) row.push(d.description || d.type);
-        if (selectedColumns.includes('Debit')) row.push(isDebit ? formatCurrency(amount, settings.currency) : '-');
-        if (selectedColumns.includes('Credit')) row.push(!isDebit ? formatCurrency(amount, settings.currency) : '-');
+        if (selectedColumns.includes('Debit')) row.push((!d.isOpening && isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
+        if (selectedColumns.includes('Credit')) row.push((!d.isOpening && !isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
         if (selectedColumns.includes('Balance')) row.push(`${formatCurrency(Math.abs(runningBalance), settings.currency)} ${runningBalance >= 0 ? 'DR' : 'CR'}`);
         return row;
       });
@@ -478,6 +504,10 @@ export default function Reports() {
                   if (activeReport === 'Single Party' || activeReport === 'Single Bank') {
                     for (let j = 0; j <= i; j++) {
                       const item = filteredData[j];
+                      if (item.isOpening) {
+                        currentBalance = item.amount;
+                        continue;
+                      }
                       const itemIsDebit = item.type === 'Sale' || item.type === 'Payment In' || item.type === 'Deposit' || item.type === 'Party To Bank' || item.type === 'Bank To Party';
                       if (itemIsDebit) currentBalance += (item.amount || item.total || 0);
                       else currentBalance -= (item.amount || item.total || 0);
