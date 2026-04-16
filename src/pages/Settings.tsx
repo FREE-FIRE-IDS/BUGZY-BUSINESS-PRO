@@ -289,6 +289,7 @@ CREATE TABLE licenses (
   license_key TEXT UNIQUE,
   status TEXT DEFAULT 'active',
   devices JSONB DEFAULT '[]',
+  expiry_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -1110,7 +1111,18 @@ NOTIFY pgrst, 'reload schema';
                 <div>
                   <p className="font-bold">License Status</p>
                   <p className="text-xs text-slate-500">
-                    {isDeviceLicensed ? 'Pro Version Active' : 'Free Version'}
+                    {isDeviceLicensed ? (
+                      (() => {
+                        const key = localStorage.getItem('active_license_key');
+                        const expiry = localStorage.getItem('license_expiry');
+                        if (key === 'MASTER-KEY') return 'Lifetime Pro Access';
+                        if (expiry) {
+                          const daysLeft = Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                          return `Pro Version Active • ${daysLeft} days left`;
+                        }
+                        return 'Pro Version Active';
+                      })()
+                    ) : 'Free Version'}
                   </p>
                 </div>
               </div>

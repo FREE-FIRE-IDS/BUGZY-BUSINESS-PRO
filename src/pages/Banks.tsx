@@ -36,9 +36,24 @@ export default function Banks() {
 
   const bankLedger = useMemo(() => {
     if (!selectedBank) return [];
-    return transactions
-      .filter(t => t.bank_id === selectedBank.id || t.to_bank_id === selectedBank.id)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    // Start with opening balance
+    const openingEntry = {
+      id: 'opening',
+      date: selectedBank.created_at,
+      type: 'Opening Balance' as any,
+      amount: selectedBank.opening_balance,
+      description: 'Initial balance at account creation',
+      source: 'opening',
+      company_id: selectedBank.company_id,
+      created_at: selectedBank.created_at
+    } as any;
+
+    const filtered = transactions
+      .filter(t => t.bank_id === selectedBank.id || t.to_bank_id === selectedBank.id);
+      
+    return [openingEntry, ...filtered]
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [selectedBank, transactions]);
 
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
@@ -46,7 +61,9 @@ export default function Banks() {
 
   const handleExportPDF = () => {
     if (currentCompany && selectedBank) {
-      generateBankStatement(currentCompany, selectedBank, bankLedger);
+      // Filter out pseudo-entry for opening balance
+      const transactionsOnly = bankLedger.filter(tx => tx.id !== 'opening');
+      generateBankStatement(currentCompany, selectedBank, transactionsOnly);
     }
   };
 
@@ -244,6 +261,7 @@ export default function Banks() {
                       <td className="px-6 py-4">
                         <span className={cn(
                           "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
+                          tx.type === 'Opening Balance' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
                           tx.to_bank_id === selectedBank.id ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                         )}>
                           {tx.type}
@@ -251,13 +269,16 @@ export default function Banks() {
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-500">{tx.description || '-'}</td>
                       <td className="px-6 py-4 text-sm font-bold text-right text-rose-600 dark:text-rose-400">
-                        {tx.bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
+                        {tx.type === 'Opening Balance' ? (tx.amount < 0 ? formatCurrency(Math.abs(tx.amount), settings.currency) : '-') :
+                         tx.bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-right text-emerald-600 dark:text-emerald-400">
-                        {tx.to_bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
+                        {tx.type === 'Opening Balance' ? (tx.amount >= 0 ? formatCurrency(tx.amount, settings.currency) : '-') :
+                         tx.to_bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
+                        {tx.id !== 'opening' && (
+                          <div className="flex justify-end gap-2">
                           <button 
                             onClick={() => handleEditTx(tx)}
                             className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
@@ -271,6 +292,7 @@ export default function Banks() {
                             <Trash2 size={16} />
                           </button>
                         </div>
+                        )}
                       </td>
                     </tr>
                   ))}

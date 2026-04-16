@@ -143,6 +143,7 @@ export interface License {
   license_key: string;
   status: 'active' | 'inactive';
   devices: string[];
+  expiry_at?: string;
   created_at: string;
 }
 

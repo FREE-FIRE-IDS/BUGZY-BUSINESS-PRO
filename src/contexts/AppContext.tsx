@@ -221,8 +221,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (data) {
+          // Check if expired
+          if (data.expiry_at && new Date(data.expiry_at) < new Date()) {
+            console.log('License expired in cloud');
+            localStorage.removeItem('device_license');
+            localStorage.removeItem('active_license_key');
+            localStorage.removeItem('license_expiry');
+            setIsDeviceLicensed(false);
+            return;
+          }
+
           localStorage.setItem('device_license', 'true');
           localStorage.setItem('active_license_key', data.license_key);
+          if (data.expiry_at) localStorage.setItem('license_expiry', data.expiry_at);
+          else localStorage.removeItem('license_expiry');
           setIsDeviceLicensed(true);
         } else {
           // IMPORTANT: If we didn't find a license for the user in the cloud,
@@ -1593,6 +1605,7 @@ NOTIFY pgrst, 'reload schema';
           user_id: reqData.user_id,
           status: 'active',
           devices: [],
+          expiry_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
           created_at: now
         });
 
@@ -1640,10 +1653,20 @@ NOTIFY pgrst, 'reload schema';
     if (fetchError || !license) throw new Error('Invalid License Key ❌');
     if (license.status !== 'active') throw new Error('License is inactive ❌');
     
+    // Check expiry
+    if (license.expiry_at && new Date(license.expiry_at) < new Date()) {
+      throw new Error('License has expired ❌');
+    }
+
     // 3. Bind Device and User
     const devices = Array.isArray(license.devices) ? license.devices : [];
     const userId = session?.user?.id || currentUser;
     
+    // Device Limit Check (Max 2 devices for standard keys, unlimited for master/special)
+    if (!devices.includes(deviceId) && devices.length >= 2) {
+      throw new Error('Device limit reached (Max 2 devices) ❌');
+    }
+
     if (!devices.includes(deviceId) || (userId && license.user_id !== userId)) {
       const updatedDevices = devices.includes(deviceId) ? devices : [...devices, deviceId];
       const { error: updateError } = await supabase
@@ -1660,6 +1683,7 @@ NOTIFY pgrst, 'reload schema';
     // 4. Unlock Device Globally
     localStorage.setItem('device_license', 'true');
     localStorage.setItem('active_license_key', key.toUpperCase());
+    if (license.expiry_at) localStorage.setItem('license_expiry', license.expiry_at);
     setIsDeviceLicensed(true);
   };
 

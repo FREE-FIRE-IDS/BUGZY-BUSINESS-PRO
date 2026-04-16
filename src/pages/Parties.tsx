@@ -59,6 +59,17 @@ export default function Parties() {
 
   const partyLedger = useMemo(() => {
     if (!currentSelectedParty) return [];
+    
+    // Start with opening balance
+    const openingEntry = {
+      id: 'opening',
+      date: currentSelectedParty.created_at,
+      type: 'Opening Balance' as any,
+      amount: currentSelectedParty.opening_balance,
+      description: 'Initial balance at account creation',
+      source: 'opening'
+    };
+
     const partyTransactions = transactions
       .filter(t => t.party_id === currentSelectedParty.id || t.to_party_id === currentSelectedParty.id)
       .map(t => ({ ...t, source: 'transaction' }));
@@ -74,7 +85,7 @@ export default function Parties() {
         source: 'invoice'
       }));
 
-    return [...partyTransactions, ...partyInvoices]
+    return [openingEntry, ...partyTransactions, ...partyInvoices]
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [currentSelectedParty, transactions, invoices]);
 
@@ -83,7 +94,9 @@ export default function Parties() {
 
   const handleExportPDF = () => {
     if (currentCompany && currentSelectedParty) {
-      generatePartyStatement(currentCompany, currentSelectedParty, partyLedger);
+      // Filter out the pseudo-entry for opening balance since the PDF generator adds its own
+      const transactionsOnly = partyLedger.filter(tx => tx.id !== 'opening');
+      generatePartyStatement(currentCompany, currentSelectedParty, transactionsOnly);
     }
   };
 
@@ -290,6 +303,7 @@ export default function Parties() {
                       <td className="px-6 py-4">
                         <span className={cn(
                           "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
+                          tx.type === 'Opening Balance' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
                           tx.type === 'Sale' || tx.type === 'Payment In' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                         )}>
                           {tx.type}
@@ -297,13 +311,16 @@ export default function Parties() {
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-500">{tx.description || '-'}</td>
                       <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-900">
-                        {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party')) || (tx.to_party_id === currentSelectedParty.id) ? formatCurrency(tx.amount, settings.currency) : '-'}
+                        {tx.type === 'Opening Balance' ? (tx.amount >= 0 ? formatCurrency(tx.amount, settings.currency) : '-') :
+                         (tx.party_id === currentSelectedParty.id && (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party')) || (tx.to_party_id === currentSelectedParty.id) ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-900">
-                        {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party')) ? formatCurrency(tx.amount, settings.currency) : '-'}
+                        {tx.type === 'Opening Balance' ? (tx.amount < 0 ? formatCurrency(Math.abs(tx.amount), settings.currency) : '-') :
+                         (tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party')) ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
+                        {tx.id !== 'opening' && (
+                          <div className="flex justify-end gap-2">
                           <button 
                             onClick={() => { setEditingTransaction(tx); setTxType(tx.type); }}
                             className="flex items-center gap-1 px-2 py-1 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors text-xs font-bold"
@@ -318,6 +335,7 @@ export default function Parties() {
                             <Trash2 size={14} />
                           </button>
                         </div>
+                        )}
                       </td>
                     </tr>
                   ))}
