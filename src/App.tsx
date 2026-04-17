@@ -642,6 +642,11 @@ export default function App() {
     return () => window.removeEventListener('navigate', handleNavigate);
   }, []);
 
+  const isLicensedUser = isLicensed();
+  const trialStart = currentCompany ? new Date(currentCompany.trial_start || currentCompany.created_at) : new Date();
+  const trialEnd = addDays(trialStart, 7);
+  const isTrialExpired = isAfter(new Date(), trialEnd);
+
   const menuItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'parties', label: 'Parties', icon: Users, premium: true },
@@ -663,14 +668,6 @@ export default function App() {
   const renderPage = () => {
     const tab = activeTab === 'more' ? 'settings' : activeTab;
     
-    // Feature Gate (Premium restricted tabs)
-    const premiumTabs = ['parties', 'banks', 'invoices', 'expenses', 'reports'];
-    if (premiumTabs.includes(tab) && !isLicensed()) {
-      setForceUpgrade(true);
-      setActiveTab('dashboard');
-      return <Dashboard />;
-    }
-
     if (tab === 'upgrade') {
       setForceUpgrade(true);
       setActiveTab('dashboard');
@@ -740,15 +737,9 @@ export default function App() {
 
   // Trial Check
   if (currentCompany) {
-    const isPaid = isLicensed();
-    
     // Only check trial if NOT licensed
-    if (!isPaid) {
-      const trialStart = new Date(currentCompany.trial_start || currentCompany.created_at);
-      const trialEnd = addDays(trialStart, 7);
-      const isExpired = isAfter(new Date(), trialEnd);
-
-      if (isExpired || forceUpgrade) {
+    if (!isLicensedUser) {
+      if (isTrialExpired || forceUpgrade) {
         return (
           <div className="relative">
             <PaymentScreen company={currentCompany} />
@@ -831,7 +822,7 @@ export default function App() {
               {isSidebarOpen && (
                 <div className="flex-1 flex items-center justify-between">
                   <span>{item.label}</span>
-                  {(item as any).premium && !isLicensed() && (
+                  {(item as any).premium && !isLicensed() && isTrialExpired && (
                     <Sparkles size={14} className="text-amber-400 animate-pulse" />
                   )}
                 </div>
@@ -953,7 +944,7 @@ export default function App() {
                     >
                       <div className="p-3 bg-indigo-100 dark:bg-indigo-100 text-indigo-600 dark:text-indigo-600 rounded-xl relative">
                         <item.icon size={24} />
-                        {(item as any).premium && !isLicensed() && (
+                        {(item as any).premium && !isLicensed() && isTrialExpired && (
                           <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white">
                             <Sparkles size={10} />
                           </div>
