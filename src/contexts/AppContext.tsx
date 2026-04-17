@@ -202,8 +202,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const checkLicense = async () => {
       try {
+        const currentKey = localStorage.getItem('active_license_key');
+        
         // Master key bypass - never check/deactivate if master key is used
-        if (localStorage.getItem('active_license_key') === 'MASTER-KEY') {
+        if (currentKey === 'MASTER-KEY' || currentKey === '16897463890072') {
           setIsDeviceLicensed(true);
           return;
         }
@@ -231,22 +233,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          localStorage.setItem('device_license', 'true');
-          localStorage.setItem('active_license_key', data.license_key);
-          if (data.expiry_at) localStorage.setItem('license_expiry', data.expiry_at);
-          else localStorage.removeItem('license_expiry');
-          setIsDeviceLicensed(true);
+          // Device Limit Enforcement during auto-check
+          const deviceId = localStorage.getItem('device_id');
+          const devices = Array.isArray(data.devices) ? data.devices : [];
+          
+          if (deviceId && (devices.includes(deviceId) || devices.length < 2)) {
+            localStorage.setItem('device_license', 'true');
+            localStorage.setItem('active_license_key', data.license_key);
+            if (data.expiry_at) localStorage.setItem('license_expiry', data.expiry_at);
+            else localStorage.removeItem('license_expiry');
+            setIsDeviceLicensed(true);
+            
+            // Auto-register device if within limit but not registered
+            if (deviceId && !devices.includes(deviceId) && devices.length < 2) {
+               supabase.from('licenses').update({ devices: [...devices, deviceId] }).eq('id', data.id).then();
+            }
+          } else {
+            // Device limit reached or device not recognized
+            console.log('Device limit reached for auto-activation');
+            setIsDeviceLicensed(false);
+            localStorage.removeItem('device_license');
+          }
         } else {
-          // IMPORTANT: If we didn't find a license for the user in the cloud,
-          // it doesn't mean the device isn't licensed (e.g. Master Key or manual entry).
-          // We only deactivate if we have confirmed NO license for this user AND 
-          // we are currently using a key that was supposed to be tied to them.
-          const currentKey = localStorage.getItem('active_license_key');
-          if (currentKey && currentKey !== 'MASTER-KEY') {
-             // For non-master keys, we can be more strict if we want, but legacy users 
-             // might lose access if we are too aggressive. 
-             // Let's only deactivate if the key itself was tied to this account.
-             console.log('No license found in cloud for this user, but keeping local license active for now.');
+          // If no cloud license for this user, check local storage for master key again
+          if (currentKey === 'MASTER-KEY') {
+            setIsDeviceLicensed(true);
+          } else {
+            setIsDeviceLicensed(false);
+            localStorage.removeItem('device_license');
           }
         }
       } catch (err) {

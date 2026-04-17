@@ -632,20 +632,20 @@ function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onU
   return (
     <div className={cn(
       "text-white px-4 py-2 flex items-center justify-between text-sm font-bold sticky top-0 z-[45] shadow-md transition-colors",
-      isExpired ? "bg-red-600" : "bg-indigo-600"
+      isExpired ? "bg-rose-600" : "bg-indigo-600"
     )}>
       <div className="flex items-center gap-2">
-        <Clock size={16} />
+        <Sparkles size={16} className={isExpired ? "" : "animate-pulse"} />
         <span className="hidden sm:inline">
-          {isExpired ? "Trial Expired" : `Trial Version: ${daysLeft} days remaining`}
+          {isExpired ? "Package Expired - Upgrade to Pro" : `Trial Mode: ${daysLeft} days remaining`}
         </span>
         <span className="sm:hidden">{isExpired ? "Expired" : `${daysLeft}d left`}</span>
       </div>
       <button 
         onClick={onUpgrade}
-        className="bg-white text-indigo-600 px-4 py-1 rounded-full text-xs font-black hover:bg-indigo-50 transition-all shadow-lg active:scale-95"
+        className="bg-white text-rose-600 px-4 py-1 rounded-full text-xs font-black hover:bg-white/90 transition-all shadow-lg active:scale-95"
       >
-        {isExpired ? "Subscribe Now" : "Buy Now"}
+        {isExpired ? "Payment Now" : "Unlock Pro"}
       </button>
     </div>
   );
@@ -693,17 +693,17 @@ export default function App() {
 
   const menuItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-    { id: 'parties', label: 'Parties', icon: Users },
-    { id: 'banks', label: 'Banks', icon: Building2 },
-    { id: 'invoices', label: 'Invoices', icon: FileText },
+    { id: 'parties', label: 'Parties', icon: Users, premium: true },
+    { id: 'banks', label: 'Banks', icon: Building2, premium: true },
+    { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2 }] : []),
     { id: 'more', label: 'More', icon: Menu },
   ];
 
   const moreItems = [
     { id: 'inventory', label: 'Inventory', icon: Package },
-    { id: 'expenses', label: 'Expenses', icon: Receipt },
-    { id: 'reports', label: 'Reports', icon: History },
+    { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
+    { id: 'reports', label: 'Reports', icon: History, premium: true },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
     ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Buy Now', icon: Sparkles }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2 }] : []),
@@ -711,6 +711,15 @@ export default function App() {
 
   const renderPage = () => {
     const tab = activeTab === 'more' ? 'settings' : activeTab;
+    
+    // Feature Gate (Premium restricted tabs)
+    const premiumTabs = ['parties', 'banks', 'invoices', 'expenses', 'reports'];
+    if (premiumTabs.includes(tab) && !isLicensed()) {
+      setForceUpgrade(true);
+      setActiveTab('dashboard');
+      return <Dashboard />;
+    }
+
     if (tab === 'upgrade') {
       setForceUpgrade(true);
       setActiveTab('dashboard');
@@ -868,7 +877,14 @@ export default function App() {
               )}
             >
               <item.icon size={22} />
-              {isSidebarOpen && <span>{item.label}</span>}
+              {isSidebarOpen && (
+                <div className="flex-1 flex items-center justify-between">
+                  <span>{item.label}</span>
+                  {(item as any).premium && !isLicensed() && (
+                    <Sparkles size={14} className="text-amber-400 animate-pulse" />
+                  )}
+                </div>
+              )}
               {!isSidebarOpen && (
                 <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
                   {item.label}
@@ -984,8 +1000,13 @@ export default function App() {
                         theme === 'dark' ? "bg-white border-slate-200 hover:bg-slate-50" : "bg-white border-slate-200 hover:bg-slate-50"
                       )}
                     >
-                      <div className="p-3 bg-indigo-100 dark:bg-indigo-100 text-indigo-600 dark:text-indigo-600 rounded-xl">
+                      <div className="p-3 bg-indigo-100 dark:bg-indigo-100 text-indigo-600 dark:text-indigo-600 rounded-xl relative">
                         <item.icon size={24} />
+                        {(item as any).premium && !isLicensed() && (
+                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white">
+                            <Sparkles size={10} />
+                          </div>
+                        )}
                       </div>
                       <span className="font-medium">{item.label}</span>
                     </button>
