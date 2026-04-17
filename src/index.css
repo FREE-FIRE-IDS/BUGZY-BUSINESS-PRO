@@ -28,6 +28,11 @@
   .dark body {
     @apply bg-slate-950 text-slate-50;
   }
+
+  /* Global Headings for Dark Mode */
+  .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+    @apply text-white;
+  }
 }
 
 @layer components {

@@ -19,7 +19,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 type ReportType = 
@@ -206,7 +206,7 @@ export default function Reports() {
     }
 
     return result;
-  }, [activeReport, selectedEntity, dateRange, searchQuery, transactions, parties, banks, items, invoices, currentCompany]);
+  }, [activeReport, selectedEntity, selectedCategory, dateRange, searchQuery, transactions, parties, banks, items, invoices, currentCompany]);
 
   const exportPDF = () => {
     const doc = new jsPDF();
@@ -415,7 +415,8 @@ export default function Reports() {
       );
     }
 
-    doc.save(`${activeReport.replace(/\s+/g, '_')}_Report_${new Date().getTime()}.pdf`);
+    doc.save(`${activeReport.replace(/\s+/g, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+    console.log(`PDF Generated: ${activeReport}`);
   };
 
   return (

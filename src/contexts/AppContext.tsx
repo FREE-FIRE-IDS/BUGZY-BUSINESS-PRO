@@ -243,24 +243,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          // Device Limit Enforcement during auto-check
+          // STRICT DEVICE ENFORCEMENT
+          // Only auto-activate if the current device is ALREADY in the authorized list
           const deviceId = localStorage.getItem('device_id');
           const devices = Array.isArray(data.devices) ? data.devices : [];
           
-          if (deviceId && (devices.includes(deviceId) || devices.length < 2)) {
+          if (deviceId && devices.includes(deviceId)) {
             localStorage.setItem('device_license', 'true');
             localStorage.setItem('active_license_key', data.license_key);
             if (data.expiry_at) localStorage.setItem('license_expiry', data.expiry_at);
             else localStorage.removeItem('license_expiry');
             setIsDeviceLicensed(true);
-            
-            // Auto-register device if within limit but not registered
-            if (deviceId && !devices.includes(deviceId) && devices.length < 2) {
-               supabase.from('licenses').update({ devices: [...devices, deviceId] }).eq('id', data.id).then();
-            }
           } else {
-            // Device limit reached or device not recognized
-            console.log('Device limit reached for auto-activation');
+            // New device or device limit reached - USER MUST ACTIVATE MANUALLY
+            // This prevents auto-licensing on login, as requested
+            console.log('Manual activation required for this device');
             setIsDeviceLicensed(false);
             localStorage.removeItem('device_license');
           }

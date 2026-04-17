@@ -26,7 +26,8 @@ import {
   Clock,
   Loader2,
   Check,
-  ArrowLeft
+  ArrowLeft,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -572,7 +573,23 @@ function ShortcutHelper({ show }: { show: boolean }) {
 }
 
 function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onUpgrade: () => void, isLicensed?: boolean }) {
-  if (isLicensed) return null;
+  const expiryStr = localStorage.getItem('license_expiry');
+  
+  if (isLicensed) {
+    if (!expiryStr) return null;
+    const expiryDate = new Date(expiryStr);
+    const daysLeft = Math.max(0, differenceInDays(expiryDate, new Date()));
+    
+    return (
+      <div className="bg-emerald-600 text-white px-4 py-2 flex items-center justify-between text-sm font-bold sticky top-0 z-[45] shadow-md">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={16} />
+          <span>Pro License: {daysLeft} days remaining</span>
+        </div>
+        <div className="text-[10px] uppercase font-black opacity-80">Device Authorized</div>
+      </div>
+    );
+  }
   
   const trialStart = new Date(company.trial_start || company.created_at);
   const trialEnd = addDays(trialStart, 7);

@@ -1,14 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { motion } from 'motion/react';
-import { Key, ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
+import { Key, ShieldCheck, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export default function Activation() {
-  const { activateLicense, currentCompany } = useApp();
+  const { activateLicense, fetchLicenses, currentCompany, session, isAdmin } = useApp();
   const [key, setKey] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
+  const [cloudLicense, setCloudLicense] = useState<any>(null);
+
+  useEffect(() => {
+    const checkCloud = async () => {
+      try {
+        const licenses = await fetchLicenses();
+        // Sort to get newest first if multiple
+        const myLicense = licenses.find(l => l.status === 'active');
+        if (myLicense) setCloudLicense(myLicense);
+      } catch (e) {
+        console.error('Failed to fetch cloud licenses:', e);
+      }
+    };
+    checkCloud();
+  }, [fetchLicenses]);
 
   const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,6 +97,27 @@ export default function Activation() {
             )}
           </button>
         </form>
+
+        {cloudLicense && (
+          <div className="mt-6 p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-2xl">
+            <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-3">License Found in Account</p>
+            <div className="flex items-center justify-between mb-4">
+              <span className="font-mono text-sm font-bold text-slate-700 dark:text-slate-300">{cloudLicense.license_key}</span>
+              <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-black uppercase">Active</span>
+            </div>
+            <button
+              onClick={() => {
+                setKey(cloudLicense.license_key);
+                // Trigger activation
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/10"
+            >
+              <RefreshCw size={14} />
+              Sync to this Device
+            </button>
+            <p className="mt-2 text-[10px] text-slate-400 leading-tight">Syncing will register this device. Device limit rules still apply.</p>
+          </div>
+        )}
 
         <div className="mt-10 pt-8 border-t border-slate-100 dark:border-slate-800">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">No License Key?</p>
