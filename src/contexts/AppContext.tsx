@@ -1512,32 +1512,38 @@ const deleteFromCloud = async (table: string, id: string) => {
     
     if (rawError.includes('schema cache') || rawError.includes('column') || rawError.includes('not found') || rawError.includes('row level security')) {
       const fixSql = `
--- 1. DROP AND RECREATE (The most reliable fix)
--- WARNING: This will delete existing payment requests/licenses!
-DROP TABLE IF EXISTS payment_requests;
-CREATE TABLE payment_requests (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id TEXT,
-  name TEXT,
-  phone TEXT,
-  plan TEXT,
-  amount NUMERIC,
-  screenshot TEXT,
-  status TEXT DEFAULT 'pending',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- OPTION 1: REPAIR (Safer - Adds missing columns)
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS expiry_at TIMESTAMPTZ;
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS devices JSONB DEFAULT '[]';
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS user_id TEXT;
 
-DROP TABLE IF EXISTS licenses;
-CREATE TABLE licenses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id TEXT,
-  license_key TEXT UNIQUE,
-  status TEXT DEFAULT 'active',
-  devices JSONB DEFAULT '[]',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- OPTION 2: FULL RECREATE (Only if Option 1 fails)
+-- WARNING: This deletes existing data!
+-- DROP TABLE IF EXISTS payment_requests;
+-- CREATE TABLE payment_requests (
+--   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--   user_id TEXT,
+--   name TEXT,
+--   phone TEXT,
+--   plan TEXT,
+--   amount NUMERIC,
+--   screenshot TEXT,
+--   status TEXT DEFAULT 'pending',
+--   created_at TIMESTAMPTZ DEFAULT NOW()
+-- );
 
--- 2. Fix Permissions
+-- DROP TABLE IF EXISTS licenses;
+-- CREATE TABLE licenses (
+--   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--   user_id TEXT,
+--   license_key TEXT UNIQUE,
+--   status TEXT DEFAULT 'active',
+--   devices JSONB DEFAULT '[]',
+--   expiry_at TIMESTAMPTZ,
+--   created_at TIMESTAMPTZ DEFAULT NOW()
+-- );
+
+-- Ensure Permissions
 ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Full Access" ON payment_requests;
@@ -1545,11 +1551,11 @@ CREATE POLICY "Full Access" ON payment_requests FOR ALL TO authenticated, anon U
 DROP POLICY IF EXISTS "Full Access" ON licenses;
 CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
 
--- 3. Enable Realtime
+-- Enable Realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE payment_requests;
 ALTER PUBLICATION supabase_realtime ADD TABLE licenses;
 
--- 4. FORCE RELOAD CACHE
+-- RELOAD CACHE
 NOTIFY pgrst, 'reload schema';
       `.trim();
       
@@ -1612,16 +1618,18 @@ NOTIFY pgrst, 'reload schema';
       if (fetchError) handleSupabaseError(fetchError, 'Fetch Request for Approval');
 
       // Insert license
+      const licensePayload: any = {
+        license_key: licenseKey,
+        user_id: reqData.user_id,
+        status: 'active',
+        devices: [],
+        expiry_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
+        created_at: now
+      };
+
       const { error: licenseError } = await supabase
         .from('licenses')
-        .insert({
-          license_key: licenseKey,
-          user_id: reqData.user_id,
-          status: 'active',
-          devices: [],
-          expiry_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
-          created_at: now
-        });
+        .insert(licensePayload);
 
       if (licenseError) handleSupabaseError(licenseError, 'Create License');
     }
