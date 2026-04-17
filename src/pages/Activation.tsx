@@ -88,7 +88,7 @@ export default function Activation() {
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 mb-6 text-left">
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">Pay <span className="font-bold text-indigo-600">Rs. 5,000</span> to:</p>
             <div className="flex justify-between items-center">
-              <span className="text-xs font-bold">JazzCash/EasyPaisa</span>
+              <span className="text-xs font-bold">JazzCash Only</span>
               <span className="font-mono font-bold text-indigo-600">0332-7373104</span>
             </div>
           </div>

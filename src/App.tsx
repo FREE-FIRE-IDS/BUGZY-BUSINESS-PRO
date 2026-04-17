@@ -348,7 +348,7 @@ function PaymentScreen({ company }: { company: Company }) {
                 <div className="space-y-4 mb-8">
                   <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800">
                     <div className="flex items-center justify-between mb-4">
-                      <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">JazzCash / EasyPaisa</span>
+                      <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">JazzCash Only</span>
                       <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-[10px] font-black uppercase">Active</span>
                     </div>
                     <div className="flex items-center justify-between">
