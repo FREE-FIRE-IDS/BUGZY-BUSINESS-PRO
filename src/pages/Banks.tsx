@@ -89,18 +89,18 @@ export default function Banks() {
           animate={{ opacity: 1, x: 0 }}
           className="space-y-6"
         >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-white p-6 rounded-[2rem] border border-slate-100 dark:border-slate-200 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => setSelectedBank(null)}
-                className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl text-slate-500 transition-all"
+                className="p-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-2xl text-slate-500 transition-all"
               >
                 <X size={20} />
               </button>
               <div>
-                <h2 className="text-2xl font-black text-slate-900">{selectedBank.name}</h2>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{selectedBank.name}</h2>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase rounded-md">Bank Account</span>
+                  <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase rounded-md">Bank Account</span>
                   <span className="text-xs text-slate-400">{selectedBank.account_number || 'No account number'}</span>
                 </div>
               </div>
@@ -135,9 +135,9 @@ export default function Banks() {
             {isDepositModalOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDepositModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
-                  <div className="p-8 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
-                    <h2 className="text-xl font-bold">Deposit to {selectedBank.name}</h2>
+                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
+                  <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <h2 className="text-xl font-bold dark:text-white">Deposit to {selectedBank.name}</h2>
                     <button onClick={() => setIsDepositModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-200 rounded-xl transition-colors"><X size={20} /></button>
                   </div>
                   <form className="p-8 space-y-6" onSubmit={(e) => {
@@ -379,7 +379,7 @@ export default function Banks() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => setSelectedBank(bank)}
-                className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group"
+                className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600">
@@ -390,8 +390,8 @@ export default function Banks() {
                     <span className="text-lg font-bold text-indigo-600">{formatCurrency(bank.balance, settings.currency)}</span>
                   </div>
                 </div>
-                <h3 className="text-lg font-bold group-hover:text-indigo-600 transition-colors text-slate-900 dark:text-slate-900">{bank.name}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-500 mt-1">{bank.account_number || 'No account number'}</p>
+                <h3 className="text-lg font-bold group-hover:text-indigo-600 transition-colors text-slate-900 dark:text-white">{bank.name}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{bank.account_number || 'No account number'}</p>
                 
                 <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center">
                   <div className="flex gap-2">
@@ -443,7 +443,7 @@ export default function Banks() {
         {isDeleteConfirmOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDeleteConfirmOpen(null)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-white rounded-3xl shadow-2xl p-8 text-center">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center border border-slate-100 dark:border-slate-800">
               <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
                 <Trash2 size={32} />
               </div>

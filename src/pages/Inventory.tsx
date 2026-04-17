@@ -85,36 +85,36 @@ export default function Inventory() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-50 text-indigo-600">
+            <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
               <Package size={24} />
             </div>
             <div>
-              <h3 className="text-slate-500 dark:text-slate-500 text-sm font-medium">Total Items</h3>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-900">{items.length}</p>
+              <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Items</h3>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{items.length}</p>
             </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-50 text-rose-600">
+            <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400">
               <AlertTriangle size={24} />
             </div>
             <div>
-              <h3 className="text-slate-500 dark:text-slate-500 text-sm font-medium">Low Stock</h3>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-900">{lowStockItems.length}</p>
+              <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Low Stock</h3>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{lowStockItems.length}</p>
             </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-50 text-emerald-600">
+            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
               <TrendingUp size={24} />
             </div>
             <div>
-              <h3 className="text-slate-500 dark:text-slate-500 text-sm font-medium">Total Value</h3>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-900">
+              <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Value</h3>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">
                 {formatCurrency(items.reduce((sum, item) => sum + (item.price * item.stock), 0), settings.currency)}
               </p>
             </div>
@@ -130,13 +130,13 @@ export default function Inventory() {
             placeholder="Search items by name or SKU..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-900"
+            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-white"
           />
         </div>
         <div className="flex gap-3">
           <button 
             onClick={exportPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-100 transition-all text-slate-900 dark:text-slate-900 font-medium"
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-slate-900 dark:text-white font-medium"
           >
             <Download size={18} />
             PDF

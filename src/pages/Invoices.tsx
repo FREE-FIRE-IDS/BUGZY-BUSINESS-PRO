@@ -168,8 +168,8 @@ export default function Invoices() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-black dark:text-slate-900">Invoices</h2>
-          <p className="text-slate-500 dark:text-slate-500">Manage and generate professional invoices</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Invoices</h2>
+          <p className="text-slate-500 dark:text-slate-400">Manage and generate professional invoices</p>
         </div>
         <button 
           onClick={() => {
@@ -190,7 +190,7 @@ export default function Invoices() {
           placeholder="Search by invoice # or party..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-black dark:text-slate-900"
+          className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-white"
         />
       </div>
 
@@ -202,7 +202,7 @@ export default function Invoices() {
               key={invoice.id}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm hover:shadow-md transition-all group"
+              className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group"
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
@@ -228,12 +228,12 @@ export default function Invoices() {
                   </button>
                 </div>
               </div>
-              <h3 className="font-bold text-lg mb-1 text-slate-900 dark:text-slate-900">{invoice.invoice_number}</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-500">{party?.name || 'Unknown Party'}</p>
+              <h3 className="font-bold text-lg mb-1 text-slate-900 dark:text-white">{invoice.invoice_number}</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{party?.name || 'Unknown Party'}</p>
               <div className="flex justify-between items-end">
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wider font-bold">Total Amount</p>
-                  <p className="text-xl font-bold text-slate-900 dark:text-slate-900">{formatCurrency(invoice.total, settings.currency)}</p>
+                  <p className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(invoice.total, settings.currency)}</p>
                 </div>
                 <span className={cn(
                   "px-3 py-1 rounded-full text-[10px] font-bold uppercase",

@@ -312,7 +312,7 @@ function PaymentScreen({ company }: { company: Company }) {
                         </span>
                         {selectedPlan === p && <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white"><Plus size={12} className="rotate-45" /></div>}
                       </div>
-                      <h3 className="font-black text-xl mb-1">{plans[p].name}</h3>
+                      <h3 className="font-black text-xl mb-1 text-slate-900 dark:text-white">{plans[p].name}</h3>
                       <div className="flex items-baseline gap-1">
                         <span className="text-2xl font-black text-indigo-600">{plans[p].price}</span>
                         <span className="text-sm text-slate-500 font-bold">PKR</span>
@@ -341,7 +341,7 @@ function PaymentScreen({ company }: { company: Company }) {
                   <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-6">
                     <Wallet size={32} />
                   </div>
-                  <h2 className="text-3xl font-black mb-2">Make Payment</h2>
+                  <h2 className="text-3xl font-black mb-2 text-slate-900 dark:text-white">Make Payment</h2>
                   <p className="text-slate-500">Please send the exact amount to one of the accounts below.</p>
                 </div>
 
@@ -396,7 +396,7 @@ function PaymentScreen({ company }: { company: Company }) {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <div className="text-center mb-8">
-                  <h2 className="text-3xl font-black mb-2">Payment Details</h2>
+                  <h2 className="text-3xl font-black mb-2 text-slate-900 dark:text-white">Payment Details</h2>
                   <p className="text-slate-500">Fill in the details to verify your payment.</p>
                 </div>
 
@@ -647,6 +647,10 @@ export default function App() {
   const trialEnd = addDays(trialStart, 7);
   const isTrialExpired = isAfter(new Date(), trialEnd);
 
+  // License expiry for header
+  const licenseExpiry = localStorage.getItem('license_expiry');
+  const daysLeftLicense = licenseExpiry ? Math.max(0, differenceInDays(new Date(licenseExpiry), new Date())) : null;
+
   const menuItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'parties', label: 'Parties', icon: Users, premium: true },
@@ -771,7 +775,7 @@ export default function App() {
 
   return (
     <div className={cn(
-      "min-h-screen transition-colors duration-300",
+      "min-h-screen flex flex-col transition-colors duration-300",
       theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
     )}>
       {/* Sidebar */}
@@ -797,7 +801,7 @@ export default function App() {
             <motion.span 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="font-bold text-lg tracking-tight text-slate-900 dark:text-slate-50 truncate max-w-[150px]"
+              className="font-bold text-lg tracking-tight text-white truncate max-w-[150px]"
             >
               {currentCompany?.name || 'Bugzy Pro'}
             </motion.span>
@@ -905,6 +909,12 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
+            {isLicensedUser && daysLeftLicense !== null && (
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 text-[8px] sm:text-[10px] font-black uppercase tracking-wider truncate max-w-[80px] sm:max-w-none">
+                <Clock size={10} className="shrink-0" />
+                <span>{daysLeftLicense}D Left</span>
+              </div>
+            )}
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 max-w-[150px] md:max-w-none">
               {currentCompany?.logo_url ? (
                 <img src={currentCompany.logo_url} alt="Logo" className="w-5 h-5 object-contain rounded-sm" referrerPolicy="no-referrer" />
@@ -939,10 +949,12 @@ export default function App() {
                       onClick={() => setActiveTab(item.id)}
                       className={cn(
                         "flex flex-col items-center justify-center p-6 rounded-2xl border transition-all gap-3",
-                        theme === 'dark' ? "bg-white border-slate-200 hover:bg-slate-50" : "bg-white border-slate-200 hover:bg-slate-50"
+                        theme === 'dark' 
+                          ? "bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-50" 
+                          : "bg-white border-slate-200 hover:bg-slate-50 text-slate-900"
                       )}
                     >
-                      <div className="p-3 bg-indigo-100 dark:bg-indigo-100 text-indigo-600 dark:text-indigo-600 rounded-xl relative">
+                      <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl relative">
                         <item.icon size={24} />
                         {(item as any).premium && !isLicensed() && isTrialExpired && (
                           <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white">
@@ -950,7 +962,7 @@ export default function App() {
                           </div>
                         )}
                       </div>
-                      <span className="font-medium">{item.label}</span>
+                      <span className="font-bold text-sm uppercase tracking-wider">{item.label}</span>
                     </button>
                   ))}
                 </div>
@@ -960,52 +972,45 @@ export default function App() {
         </div>
       </main>
 
+      {/* Floating Action Button for Mobile */}
+      <div className="fixed bottom-24 right-6 z-50 md:hidden">
+        <button 
+          onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
+          className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-all shadow-indigo-500/40"
+        >
+          <Plus size={32} />
+        </button>
+      </div>
+
       {/* Mobile Bottom Navigation */}
       <nav className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 md:hidden flex items-center justify-around p-2 border-t backdrop-blur-md",
-        theme === 'dark' ? "bg-slate-900/90 border-slate-800" : "bg-white/90 border-slate-200"
+        "fixed bottom-0 left-0 right-0 z-50 md:hidden flex items-center justify-around p-3 border-t backdrop-blur-md pb-safe",
+        theme === 'dark' ? "bg-slate-900/95 border-slate-800" : "bg-white/95 border-slate-200"
       )}>
-        {menuItems.filter(i => i.id !== 'more' && i.id !== 'admin').slice(0, 4).map((item) => (
+        {menuItems.filter(i => i.id !== 'admin').map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+              "flex flex-col items-center gap-1.5 px-4 py-1 rounded-2xl transition-all relative",
               activeTab === item.id 
                 ? "text-indigo-600" 
-                : theme === 'dark' ? "text-slate-400" : "text-slate-400"
+                : theme === 'dark' ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-900"
             )}
           >
-            <item.icon size={20} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">{item.label}</span>
+            {activeTab === item.id && (
+              <motion.div 
+                layoutId="activeTab"
+                className="absolute inset-x-0 -top-3 h-1 bg-indigo-600 rounded-full mx-4"
+              />
+            )}
+            <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+            <span className={cn(
+              "text-[9px] font-black uppercase tracking-[0.1em]",
+              activeTab === item.id ? "opacity-100" : "opacity-60"
+            )}>{item.label}</span>
           </button>
         ))}
-        {isAdmin && (
-          <button
-            onClick={() => setActiveTab('admin')}
-            className={cn(
-              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-              activeTab === 'admin' 
-                ? "text-indigo-600" 
-                : theme === 'dark' ? "text-slate-400" : "text-slate-400"
-            )}
-          >
-            <Building2 size={20} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Admin</span>
-          </button>
-        )}
-        <button
-          onClick={() => setActiveTab('more')}
-          className={cn(
-            "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-            activeTab === 'more' 
-              ? "text-indigo-600" 
-              : theme === 'dark' ? "text-slate-400" : "text-slate-400"
-          )}
-        >
-          <Menu size={20} />
-          <span className="text-[10px] font-bold uppercase tracking-wider">Menu</span>
-        </button>
       </nav>
 
       <GlobalTransactionModal />

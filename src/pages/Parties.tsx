@@ -147,9 +147,9 @@ export default function Parties() {
             {(isTransactionModalOpen || editingTransaction) && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setIsTransactionModalOpen(false); setEditingTransaction(null); }} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
+                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
                   <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <h2 className="text-xl font-bold">{editingTransaction ? 'Edit Transaction' : `New Transaction for ${currentSelectedParty.name}`}</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">{editingTransaction ? 'Edit Transaction' : `New Transaction for ${currentSelectedParty.name}`}</h2>
                     <button onClick={() => { setIsTransactionModalOpen(false); setEditingTransaction(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
                       <X size={20} />
                     </button>
@@ -192,7 +192,7 @@ export default function Parties() {
                           name="type" 
                           defaultValue={editingTransaction?.type || txType}
                           onChange={(e) => setTxType(e.target.value as any)}
-                          className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
                         >
                           <option value="Payment In">Payment IN (Receive)</option>
                           <option value="Payment Out">Payment OUT (Pay)</option>
@@ -240,8 +240,8 @@ export default function Parties() {
           </AnimatePresence>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
-              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Total Balance</h3>
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+              <h3 className="text-slate-500 dark:text-slate-400 text-sm mb-1">Total Balance</h3>
               <p className={cn(
                 "text-2xl font-bold",
                 currentSelectedParty.balance >= 0 ? "text-emerald-600" : "text-rose-600"
@@ -252,26 +252,26 @@ export default function Parties() {
                 {currentSelectedParty.balance >= 0 ? "You'll receive" : "You'll pay"}
               </p>
             </div>
-            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm relative group">
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm relative group">
               <button 
                 onClick={() => { setEditingParty(currentSelectedParty); setIsAddModalOpen(true); }}
                 className="absolute top-4 right-4 p-2 text-slate-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-all"
               >
                 <FileText size={16} />
               </button>
-              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Party Type</h3>
-              <p className="text-xl font-bold text-slate-900 dark:text-slate-900">{currentSelectedParty.type}</p>
+              <h3 className="text-slate-500 dark:text-slate-400 text-sm mb-1">Party Type</h3>
+              <p className="text-xl font-bold text-slate-900 dark:text-white">{currentSelectedParty.type}</p>
             </div>
-            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
-              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Contact Info</h3>
-              <p className="text-sm font-medium text-slate-900 dark:text-slate-900">{currentSelectedParty.phone || 'No phone'}</p>
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+              <h3 className="text-slate-500 dark:text-slate-400 text-sm mb-1">Contact Info</h3>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">{currentSelectedParty.phone || 'No phone'}</p>
               <p className="text-sm text-slate-400">{currentSelectedParty.email || 'No email'}</p>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
-              <h3 className="font-bold text-slate-900 dark:text-slate-900">Transaction Ledger</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 dark:text-white">Transaction Ledger</h3>
               <div className="flex gap-2">
                 <button 
                   onClick={handleExportPDF}
@@ -286,7 +286,7 @@ export default function Parties() {
             </div>
             <div className="overflow-x-auto hidden md:block">
               <table className="w-full text-left">
-                <thead className="bg-slate-50 dark:bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                   <tr>
                     <th className="px-6 py-4 font-semibold">Date</th>
                     <th className="px-6 py-4 font-semibold">Type</th>
@@ -299,7 +299,7 @@ export default function Parties() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {partyLedger.map((tx) => (
                     <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-900">{formatDate(tx.date)}</td>
+                      <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-200">{formatDate(tx.date)}</td>
                       <td className="px-6 py-4">
                         <span className={cn(
                           "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
@@ -309,12 +309,12 @@ export default function Parties() {
                           {tx.type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-500">{tx.description || '-'}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-900">
+                      <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{tx.description || '-'}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-white">
                         {tx.type === 'Opening Balance' ? (tx.amount >= 0 ? formatCurrency(tx.amount, settings.currency) : '-') :
                          (tx.party_id === currentSelectedParty.id && (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party')) || (tx.to_party_id === currentSelectedParty.id) ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-900">
+                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-white">
                         {tx.type === 'Opening Balance' ? (tx.amount < 0 ? formatCurrency(Math.abs(tx.amount), settings.currency) : '-') :
                          (tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party')) ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>

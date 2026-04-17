@@ -239,7 +239,7 @@ export default function Dashboard() {
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">Sales Overview</h3>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">Sales Overview</h3>
               <p className="text-sm text-slate-500">Last 7 days performance</p>
             </div>
             <div className="flex items-center gap-4">
@@ -307,7 +307,7 @@ export default function Dashboard() {
         {/* Cash & Bank Status */}
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
-            <h3 className="text-lg font-bold mb-6 text-slate-900 dark:text-slate-50">Cash & Bank</h3>
+            <h3 className="text-lg font-bold mb-6 text-slate-900 dark:text-white">Cash & Bank</h3>
             <div className="space-y-4">
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -349,7 +349,7 @@ export default function Dashboard() {
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles size={20} className="text-indigo-400 dark:text-indigo-200" />
-                <h3 className="text-lg font-bold">AI Insights</h3>
+            <h3 className="text-lg font-bold">AI Insights</h3>
               </div>
               <div className="space-y-3">
                 {aiError ? (

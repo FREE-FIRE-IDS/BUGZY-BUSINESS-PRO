@@ -13,6 +13,13 @@
 }
 
 @layer base {
+  html, body, #root {
+    height: 100%;
+    min-height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     @apply font-sans antialiased transition-colors duration-300;
   }

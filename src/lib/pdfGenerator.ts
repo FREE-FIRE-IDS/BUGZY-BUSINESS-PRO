@@ -95,8 +95,8 @@ export const generatePartyStatement = (
     startY: 75,
     head: [['Date', 'Description', 'Debit/DR', 'Credit/CR', 'Balance']],
     body: tableData.map(row => [row.date, row.description, row.debit, row.credit, row.balance]),
-    headStyles: { fillStyle: 'F', fillColor: [30, 41, 59] }, // Slate-900
-    alternateRowStyles: { fillColor: [248, 250, 252] }, // Slate-50
+    headStyles: { fillStyle: 'F', fillColor: [67, 56, 202] }, // Indigo-700
+    alternateRowStyles: { fillColor: [245, 243, 255] }, // Indigo-50
     margin: { top: 75 },
   });
 
@@ -203,8 +203,8 @@ export const generateBankStatement = (
     startY: 75,
     head: [['Date', 'Description', 'Withdrawal/DR', 'Deposit/CR', 'Balance']],
     body: tableData.map(row => [row.date, row.description, row.debit, row.credit, row.balance]),
-    headStyles: { fillStyle: 'F', fillColor: [30, 41, 59] },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    headStyles: { fillStyle: 'F', fillColor: [67, 56, 202] },
+    alternateRowStyles: { fillColor: [245, 243, 255] },
     margin: { top: 75 },
   });
 

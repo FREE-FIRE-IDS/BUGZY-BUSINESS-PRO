@@ -82,15 +82,15 @@ export default function Expenses() {
     <div className="space-y-8">
       {/* Header & Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 bg-white dark:bg-white p-8 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="md:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-black dark:text-slate-900">Expenses</h2>
-            <p className="text-slate-500 dark:text-slate-500">Track your business overheads and spending</p>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Expenses</h2>
+            <p className="text-slate-500 dark:text-slate-400">Track your business overheads and spending</p>
           </div>
           <div className="flex gap-3 w-full sm:w-auto">
             <button 
               onClick={exportPDF}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-100 transition-all text-black dark:text-slate-900 font-medium"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-slate-900 dark:text-white font-medium"
             >
               <Download size={18} />
               PDF
@@ -119,16 +119,16 @@ export default function Expenses() {
             placeholder="Search expenses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-900"
+            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-white"
           />
         </div>
       </div>
 
       {/* Expenses Table */}
-      <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-slate-50 dark:bg-slate-50 text-slate-500 dark:text-slate-500 text-xs uppercase tracking-wider">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-4 font-semibold">Date</th>
                 <th className="px-6 py-4 font-semibold">Description</th>
@@ -143,8 +143,8 @@ export default function Expenses() {
                 const bank = banks.find(b => b.id === expense.bank_id);
                 return (
                   <tr key={expense.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-900">{formatDate(expense.date)}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-slate-900">{expense.description || 'General Expense'}</td>
+                    <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-200">{formatDate(expense.date)}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{expense.description || 'General Expense'}</td>
                     <td className="px-6 py-4 text-sm">
                       {expense.category ? (
                         <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-100 text-slate-600 dark:text-slate-600 rounded text-[10px] font-bold uppercase">

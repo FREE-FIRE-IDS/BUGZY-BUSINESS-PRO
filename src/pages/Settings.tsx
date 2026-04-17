@@ -664,28 +664,36 @@ NOTIFY pgrst, 'reload schema';
 
       {/* Licensing Section */}
       <section>
-        <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
+        <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
           <Shield size={24} className="text-indigo-600" />
           Licensing
         </h3>
-        <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 p-8 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <p className="font-bold">Device License</p>
+                <p className="font-bold text-slate-900 dark:text-white">Device License</p>
                 {isLicensed() ? (
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase rounded-md">Pro Active</span>
+                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px] font-black uppercase rounded-md">Pro Active</span>
                 ) : (
-                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-black uppercase rounded-md">Trial Mode</span>
+                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] font-black uppercase rounded-md">Trial Mode</span>
                 )}
               </div>
-              <p className="text-xs text-slate-500">
-                {isLicensed() 
-                  ? (localStorage.getItem('active_license_key') 
-                      ? `Your device is licensed with key: ${localStorage.getItem('active_license_key')}`
-                      : 'Your device is licensed with a Master Key.')
-                  : 'Your device is currently in trial mode.'}
-              </p>
+              <div className="space-y-1">
+                <p className="text-xs text-slate-500">
+                  {isLicensed() 
+                    ? (localStorage.getItem('active_license_key') 
+                        ? `Your device is licensed with key: ${localStorage.getItem('active_license_key')}`
+                        : 'Your device is licensed with a Master Key.')
+                    : 'Your device is currently in trial mode.'}
+                </p>
+                {isLicensed() && localStorage.getItem('license_expiry') && (
+                  <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 size={12} />
+                    Expires in {Math.max(0, Math.ceil((new Date(localStorage.getItem('license_expiry')!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))} days
+                  </p>
+                )}
+              </div>
             </div>
             {isLicensed() && (
               <div className="flex gap-3">
@@ -729,18 +737,18 @@ NOTIFY pgrst, 'reload schema';
       {/* Recovery Code Section */}
       {currentCompany && (
         <section>
-          <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
+          <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
             <Shield size={24} className="text-indigo-600" />
             Security & Recovery
           </h3>
-          <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 p-8 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div>
-                <p className="font-bold mb-1">Recovery Code</p>
+                <p className="font-bold mb-1 text-slate-900 dark:text-white">Recovery Code</p>
                 <p className="text-xs text-slate-500">Use this code to restore your company data on any device.</p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="px-6 py-3 bg-slate-50 dark:bg-slate-50 rounded-2xl border border-slate-100 dark:border-slate-200 font-mono font-bold text-indigo-600 dark:text-indigo-600">
+                <div className="px-6 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-mono font-bold text-indigo-600 dark:text-indigo-400">
                   {currentCompany.recovery_code || 'No code set'}
                 </div>
                 <button 
@@ -762,11 +770,11 @@ NOTIFY pgrst, 'reload schema';
 
       {/* Branding Section */}
       <section>
-        <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
+        <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
           <Building2 size={24} className="text-indigo-600" />
           Company Branding
         </h3>
-        <div className="bg-white dark:bg-white p-8 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
               <div>
