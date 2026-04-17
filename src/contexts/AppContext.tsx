@@ -1551,9 +1551,20 @@ CREATE POLICY "Full Access" ON payment_requests FOR ALL TO authenticated, anon U
 DROP POLICY IF EXISTS "Full Access" ON licenses;
 CREATE POLICY "Full Access" ON licenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
 
--- Enable Realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE payment_requests;
-ALTER PUBLICATION supabase_realtime ADD TABLE licenses;
+-- Enable Realtime (Ignore errors if already added)
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE payment_requests;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE licenses;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- RELOAD CACHE
 NOTIFY pgrst, 'reload schema';
