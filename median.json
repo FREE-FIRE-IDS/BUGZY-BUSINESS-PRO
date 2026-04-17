@@ -1,0 +1,20 @@
+{
+  "remoteSettings": {
+    "initialUrl": "https://ais-dev-2kfzujog6qqzj6kk3h3oyx-149993827435.asia-east1.run.app",
+    "appName": "Bugzy Pro",
+    "publicKey": "bugzy_pro_config",
+    "navigation": {
+      "sidebar": {
+        "enabled": false
+      },
+      "tabNavigation": {
+        "enabled": false
+      }
+    },
+    "styling": {
+        "transitionType": "fade",
+        "showSplashScreen": true,
+        "splashBackgoundColor": "#0f172a"
+    }
+  }
+}
