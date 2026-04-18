@@ -6,6 +6,7 @@ import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 
 interface AppContextType {
   user: FirebaseUser | null;
+  authReady: boolean;
   companies: Company[];
   currentCompany: Company | null;
   setCurrentCompany: (company: Company) => void;
@@ -129,6 +130,7 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isDeviceLicensed, setIsDeviceLicensed] = useState<boolean>(() => localStorage.getItem('device_license') === 'true');
@@ -138,6 +140,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
+      setAuthReady(true);
       if (firebaseUser?.email) {
         localStorage.setItem('currentUser', firebaseUser.email);
         setCurrentUser(firebaseUser.email);
@@ -1782,6 +1785,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       activateLicense, fetchLicenses, resetLicenseDevice,
       isDeviceLicensed,
       isLicensed: () => isDeviceLicensed,
+      authReady,
       loginWithUsername,
       isAdmin,
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
