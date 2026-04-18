@@ -119,7 +119,8 @@ export const generatePartyStatement = (
 export const generateBankStatement = (
   company: Company,
   bank: Bank,
-  transactions: Transaction[]
+  transactions: Transaction[],
+  summary?: { cashInHand: number; totalBankBalance: number }
 ) => {
   const doc = new jsPDF() as jsPDFWithAutoTable;
   const dateStr = format(new Date(), 'dd-MM-yyyy');
@@ -220,6 +221,14 @@ export const generateBankStatement = (
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(79, 70, 229);
   doc.text(`Final Balance: ${company.currency} ${bank.balance.toFixed(2)}`, 14, finalY + 30);
+
+  if (summary) {
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`Cash in Hand: ${company.currency} ${summary.cashInHand.toFixed(2)}`, 14, finalY + 42);
+    doc.text(`Total Bank Balances: ${company.currency} ${summary.totalBankBalance.toFixed(2)}`, 14, finalY + 48);
+  }
 
   doc.save(`${bank.name}_Statement_${dateStr}.pdf`);
 };

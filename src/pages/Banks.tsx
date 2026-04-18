@@ -21,6 +21,16 @@ export default function Banks() {
   const { banks, transactions, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, parties, currentCompany, setSelectedBankId } = useApp();
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
 
+  const stats = useMemo(() => {
+    const cashInHand = transactions.filter(t => !t.bank_id).reduce((sum, t) => {
+      if (t.type === 'Sale' || (t.type as string) === 'Income') return sum + t.amount;
+      if (t.type === 'Expense' || t.type === 'Payment Out') return sum - t.amount;
+      return sum;
+    }, 0);
+    const totalBankBalance = banks.reduce((sum, b) => sum + b.balance, 0);
+    return { cashInHand, totalBankBalance };
+  }, [transactions, banks]);
+
   React.useEffect(() => {
     setSelectedBankId(selectedBank?.id || null);
   }, [selectedBank, setSelectedBankId]);
@@ -63,7 +73,7 @@ export default function Banks() {
     if (currentCompany && selectedBank) {
       // Filter out pseudo-entry for opening balance
       const transactionsOnly = bankLedger.filter(tx => tx.id !== 'opening');
-      generateBankStatement(currentCompany, selectedBank, transactionsOnly);
+      generateBankStatement(currentCompany, selectedBank, transactionsOnly, stats);
     }
   };
 
@@ -82,7 +92,7 @@ export default function Banks() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20 md:pb-6">
       {selectedBank ? (
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
@@ -93,38 +103,38 @@ export default function Banks() {
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => setSelectedBank(null)}
-                className="p-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-2xl text-slate-500 transition-all"
+                className="p-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-2xl text-slate-500 transition-all shrink-0"
               >
                 <X size={20} />
               </button>
-              <div>
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{selectedBank.name}</h2>
+              <div className="min-w-0">
+                <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white truncate">{selectedBank.name}</h2>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase rounded-md">Bank Account</span>
-                  <span className="text-xs text-slate-400">{selectedBank.account_number || 'No account number'}</span>
+                  <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase rounded-md shrink-0">Bank</span>
+                  <span className="text-xs text-slate-400 truncate">{selectedBank.account_number || 'No account number'}</span>
                 </div>
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="grid grid-cols-2 md:flex gap-2 md:gap-3">
               <button 
                 onClick={() => setIsDepositModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold"
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold text-sm"
               >
-                <ArrowDownLeft size={18} />
+                <ArrowDownLeft size={16} />
                 Deposit
               </button>
               <button 
                 onClick={() => setIsWithdrawModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 font-bold"
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 font-bold text-sm"
               >
-                <ArrowUpRight size={18} />
+                <ArrowUpRight size={16} />
                 Withdraw
               </button>
               <button 
                 onClick={() => setIsTransferModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold"
+                className="col-span-2 md:col-auto flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold text-sm"
               >
-                <ArrowLeftRight size={18} />
+                <ArrowLeftRight size={16} />
                 Transfer
               </button>
             </div>
@@ -358,17 +368,42 @@ export default function Banks() {
         </motion.div>
       ) : (
         <div className="space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <h2 className="text-2xl font-bold">Bank Accounts</h2>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
-              >
-                <Plus size={20} />
-                Add Bank
-              </button>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-emerald-500 p-6 rounded-[2rem] text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden"
+            >
+              <div className="relative z-10">
+                <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Cash in Hand</p>
+                <h3 className="text-3xl font-black">{formatCurrency(stats.cashInHand, settings.currency)}</h3>
+              </div>
+              <ArrowDownLeft className="absolute -right-4 -bottom-4 text-white/10 w-24 h-24" />
+            </motion.div>
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-indigo-600 p-6 rounded-[2rem] text-white shadow-lg shadow-indigo-600/20 relative overflow-hidden"
+            >
+              <div className="relative z-10">
+                <p className="text-indigo-100 text-xs font-bold uppercase tracking-widest mb-1">Total Bank Balance</p>
+                <h3 className="text-3xl font-black">{formatCurrency(stats.totalBankBalance, settings.currency)}</h3>
+              </div>
+              <Building2 className="absolute -right-4 -bottom-4 text-white/10 w-24 h-24" />
+            </motion.div>
+          </div>
+
+          <div className="flex flex-row items-center justify-between gap-4">
+            <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Bank Accounts</h2>
+            <button 
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-bold hover:opacity-90 transition-all shadow-lg text-sm md:text-base"
+            >
+              <Plus size={18} />
+              <span className="hidden sm:inline">Add Bank</span>
+              <span className="sm:hidden">Add</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

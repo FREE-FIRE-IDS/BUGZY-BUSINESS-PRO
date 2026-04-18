@@ -96,6 +96,13 @@ export default function Reports() {
     const companyItems = items.filter(i => i.company_id === currentCompany?.id);
     const companyInvoices = invoices.filter(i => i.company_id === currentCompany?.id);
 
+    const cashInHand = transactions.filter(t => !t.bank_id && t.company_id === currentCompany?.id).reduce((sum, t) => {
+      if (t.type === 'Sale' || (t.type as string) === 'Income') return sum + t.amount;
+      if (t.type === 'Expense' || t.type === 'Payment Out') return sum - t.amount;
+      return sum;
+    }, 0);
+    const totalBankBalance = companyBanks.reduce((sum, b) => sum + b.balance, 0);
+
     let result = [];
     switch (activeReport) {
       case 'All Parties':
@@ -245,6 +252,16 @@ export default function Reports() {
     const visibleCols = getVisibleColumns(activeReport);
     head = [visibleCols];
 
+    if (activeReport === 'All Banks') {
+      doc.setFontSize(10);
+      doc.text(`Cash in Hand: ${formatCurrency(transactions.filter(t => !t.bank_id && t.company_id === currentCompany?.id).reduce((sum, t) => {
+        if (t.type === 'Sale' || (t.type as string) === 'Income') return sum + t.amount;
+        if (t.type === 'Expense' || t.type === 'Payment Out') return sum - t.amount;
+        return sum;
+      }, 0), settings.currency)}`, 14, 55);
+      doc.text(`Total Bank Balances: ${formatCurrency(banks.filter(b => b.company_id === currentCompany?.id).reduce((sum, b) => sum + b.balance, 0), settings.currency)}`, 14, 61);
+    }
+
     if (activeReport === 'All Parties') {
       body = filteredData.map(d => {
         const row: any[] = [];
@@ -311,21 +328,21 @@ export default function Reports() {
       const totalCredit = filteredData.filter(d => d.balance < 0).reduce((sum, d) => sum + Math.abs(d.balance), 0);
       const finalBalance = totalDebit - totalCredit;
 
-      autoTable(doc, {
-        head,
-        body,
-        startY: 50,
-        theme: 'grid',
-        foot: [visibleCols.map(col => {
-          if (col === 'Bank Name') return '';
-          if (col === 'Account #') return 'Total';
-          if (col === 'Debit (DR)') return formatCurrency(totalDebit, settings.currency);
-          if (col === 'Credit (CR)') return formatCurrency(totalCredit, settings.currency);
-          if (col === 'Balance') return `${formatCurrency(Math.abs(finalBalance), settings.currency)} ${finalBalance >= 0 ? 'DR' : 'CR'}`;
-          return '';
-        })],
-        footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
-      });
+        autoTable(doc, {
+          head,
+          body,
+          startY: 68,
+          theme: 'grid',
+          foot: [visibleCols.map(col => {
+            if (col === 'Bank Name') return '';
+            if (col === 'Account #') return 'Total';
+            if (col === 'Debit (DR)') return formatCurrency(totalDebit, settings.currency);
+            if (col === 'Credit (CR)') return formatCurrency(totalCredit, settings.currency);
+            if (col === 'Balance') return `${formatCurrency(Math.abs(finalBalance), settings.currency)} ${finalBalance >= 0 ? 'DR' : 'CR'}`;
+            return '';
+          })],
+          footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
+        });
     } else if (activeReport === 'Stock') {
       body = filteredData.map(d => {
         const row: any[] = [];
