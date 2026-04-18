@@ -136,7 +136,32 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-8 pb-24 md:pb-8">
+    <div className="space-y-8 pb-32 md:pb-8">
+      {/* Greeting & Quick Stats */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-slate-50 tracking-tight">
+            Hello, {currentCompany?.name || 'Owner'} 👋
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">Here's what's happening in your business today.</p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <div className="flex flex-col items-end px-4 py-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cash in Hand</span>
+            <span className={cn("text-lg font-black", stats.cashInHand >= 0 ? "text-emerald-600" : "text-rose-600")}>
+              {formatCurrency(stats.cashInHand, settings.currency)}
+            </span>
+          </div>
+          <div className="flex flex-col items-end px-4 py-2 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-500/20 text-white">
+            <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Bank Balance</span>
+            <span className="text-lg font-black">
+              {formatCurrency(stats.bankBalance, settings.currency)}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* License Status & Backup Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-4">
