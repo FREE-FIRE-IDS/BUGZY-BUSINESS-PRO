@@ -55,7 +55,7 @@ export const generatePartyStatement = (
   
   const openingBalanceRow = {
     date: '-',
-    description: 'Opening Balance (Initial)',
+    description: 'Opening Balance',
     debit: '-',
     credit: '-',
     balance: runningBalance.toFixed(2)
@@ -164,7 +164,7 @@ export const generateBankStatement = (
 
   const openingBalanceRow = {
     date: '-',
-    description: 'Opening Balance (Initial)',
+    description: 'Opening Balance',
     debit: '-',
     credit: '-',
     balance: runningBalance.toFixed(2)

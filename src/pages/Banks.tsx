@@ -53,7 +53,7 @@ export default function Banks() {
       date: selectedBank.created_at,
       type: 'Opening Balance' as any,
       amount: selectedBank.opening_balance,
-      description: 'Initial balance at account creation',
+      description: 'Opening Balance',
       source: 'opening',
       company_id: selectedBank.company_id,
       created_at: selectedBank.created_at
