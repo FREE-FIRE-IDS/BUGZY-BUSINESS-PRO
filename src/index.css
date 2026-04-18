@@ -30,10 +30,37 @@
   }
 
   /* Global Headings for Dark Mode */
-  .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
-    @apply text-white;
+  .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
+  .dark .text-slate-900, .dark .text-slate-800 {
+    @apply text-white !important;
   }
-}
+
+  /* Fix for android half screen and overflow */
+  body {
+    @apply font-sans antialiased transition-colors duration-300 overflow-x-hidden;
+    height: 100vh;
+    width: 100vw;
+    position: fixed;
+    top: 0;
+    left: 0;
+  }
+
+  #root {
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Responsive utility for tables on mobile */
+  .table-responsive {
+    @apply w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0;
+  }
+
+  /* Safe area insets for mobile */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 
 @layer components {
   .card {

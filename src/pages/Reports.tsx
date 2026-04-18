@@ -54,7 +54,7 @@ export default function Reports() {
 
   const allColumns: Record<ReportType, string[]> = {
     'All Parties': ['Party Name', 'Type', 'Debit (DR)', 'Credit (CR)', 'Balance'],
-    'Single Party': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
+    'Single Party': ['Date', 'Description', 'Category', 'Debit', 'Credit', 'Balance'],
     'All Banks': ['Bank Name', 'Account #', 'Debit (DR)', 'Credit (CR)', 'Balance'],
     'Single Bank': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
     'Stock': ['Item Name', 'SKU', 'Stock', 'Value'],
@@ -491,21 +491,21 @@ export default function Reports() {
                 <select 
                   value={selectedEntity}
                   onChange={(e) => setSelectedEntity(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-bold outline-none text-slate-900 dark:text-slate-900"
+                  className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm font-bold outline-none text-slate-900 dark:text-white"
                 >
-                  <option value="">Select {activeReport === 'Single Party' ? 'Party' : 'Bank'}</option>
-                  {(activeReport === 'Single Party' ? parties : banks).map(e => (
-                    <option key={e.id} value={e.id} className="text-slate-900 dark:text-slate-900">{e.name}</option>
+                  <option value="" className="dark:text-white">Select {activeReport === 'Single Party' ? 'Party' : 'Bank'}</option>
+                  {(activeReport === 'Single Party' ? parties.filter(p => selectedCategory === 'All' || p.type === selectedCategory) : banks).map(e => (
+                    <option key={e.id} value={e.id} className="text-slate-900 dark:text-white bg-white dark:bg-slate-900">{e.name}</option>
                   ))}
                 </select>
               )}
               <select 
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-bold outline-none text-slate-900 dark:text-slate-900"
+                className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-sm font-bold outline-none text-slate-900 dark:text-white"
               >
-                <option className="text-slate-900 dark:text-slate-900">This Month</option>
-                <option className="text-slate-900 dark:text-slate-900">All Time</option>
+                <option className="text-slate-900 dark:text-white bg-white dark:bg-slate-900">This Month</option>
+                <option className="text-slate-900 dark:text-white bg-white dark:bg-slate-900">All Time</option>
               </select>
               <button 
                 onClick={exportPDF}
@@ -519,7 +519,7 @@ export default function Reports() {
 
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 dark:bg-slate-50 text-slate-500 dark:text-slate-500 text-xs uppercase tracking-wider">
+              <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                 <tr>
                   {selectedColumns.map(col => (
                     <th key={col} className={cn("px-6 py-4 font-semibold", col.includes('Balance') || col.includes('Debit') || col.includes('Credit') || col.includes('Amount') || col.includes('Total') || col.includes('Price') || col.includes('Qty') || col.includes('Stock') || col.includes('Value') ? "text-right" : "")}>
@@ -548,7 +548,7 @@ export default function Reports() {
                     <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                       {selectedColumns.map(col => {
                         let content: React.ReactNode = '-';
-                        let className = "px-6 py-4 text-sm font-medium text-slate-900";
+                        let className = "px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100";
 
                         if (col === 'Party Name' || col === 'Bank Name' || col === 'Item Name') {
                           content = row.name;
@@ -562,6 +562,8 @@ export default function Reports() {
                           className = "px-6 py-4 text-sm text-slate-500";
                         } else if (col === 'Account #') {
                           content = row.account || '-';
+                        } else if (col === 'Category') {
+                          content = row.type || '-';
                         } else if (col === 'SKU') {
                           content = row.sku || '-';
                         } else if (col === 'Stock') {

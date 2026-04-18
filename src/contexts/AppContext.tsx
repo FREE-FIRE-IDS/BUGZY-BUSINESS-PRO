@@ -1,8 +1,11 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { Company, Party, BankAccount, InventoryItem as Item, Transaction, AppSettings, Invoice, PaymentRequest, License, Subscription } from '../types';
 import { supabase } from '../lib/supabase';
+import { auth } from '../lib/firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 
 interface AppContextType {
+  user: FirebaseUser | null;
   companies: Company[];
   currentCompany: Company | null;
   setCurrentCompany: (company: Company) => void;
@@ -125,9 +128,28 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
-  
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [isDeviceLicensed, setIsDeviceLicensed] = useState<boolean>(() => localStorage.getItem('device_license') === 'true');
+  const [syncStatus, setSyncStatus] = useState<{ loading: boolean; error: string | null; success: string | null }>({ loading: false, error: null, success: null });
+
+  // Handle Firebase Auth changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser?.email) {
+        localStorage.setItem('currentUser', firebaseUser.email);
+        setCurrentUser(firebaseUser.email);
+        updateSettings({ user_email: firebaseUser.email, sync_enabled: true });
+      } else {
+        localStorage.removeItem('currentUser');
+        setCurrentUser(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
   const [parties, setParties] = useState<Party[]>([]);
   const [banks, setBanks] = useState<BankAccount[]>([]);
@@ -186,56 +208,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
   });
-  const [syncStatus, setSyncStatus] = useState<{ loading: boolean; error: string | null; success: string | null }>({
-    loading: false,
-    error: null,
-    success: null
-  });
   const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
 
   // Real-time license listener
   useEffect(() => {
-    const userId = session?.user?.id || currentUser;
-    if (!userId) return;
+    const userEmail = user?.email || currentUser;
+    if (!userEmail) return;
 
     const checkLicense = async () => {
       try {
+        const deviceId = localStorage.getItem('device_id') || `device_${Math.random().toString(36).substr(2, 9)}`;
+        if (!localStorage.getItem('device_id')) localStorage.setItem('device_id', deviceId);
+
         const currentKey = localStorage.getItem('active_license_key');
         
-        // Master key bypass - never check/deactivate if master key is used
-        if (currentKey === 'MASTER-KEY' || currentKey === '16897463890072') {
+        // Master key bypass
+        if (currentKey === '16897463890072') {
           setIsDeviceLicensed(true);
           return;
         }
 
-        // Select specific fields for maximum compatibility
+        // Fetch license linked to this email from Supabase (Source of truth)
         const { data, error } = await supabase
           .from('licenses')
-          .select('id, user_id, license_key, status, expiry_at, devices')
+          .select('*')
           .eq('status', 'active')
-          .filter('user_id', 'eq', userId)
+          .filter('user_id', 'eq', userEmail)
           .maybeSingle();
 
         if (error) {
-          console.log('Error checking license with user_id, trying fallback...');
-          // Fallback check: If user_id column fails, maybe try checking by key from local storage
-          if (currentKey) {
-             const { data: fallbackData } = await supabase
-               .from('licenses')
-               .select('*')
-               .eq('license_key', currentKey)
-               .maybeSingle();
-             if (fallbackData) { setIsDeviceLicensed(true); return; }
-          }
+          console.error('License check error:', error);
           return;
         }
 
         if (data) {
           // Check if expired
           if (data.expiry_at && new Date(data.expiry_at) < new Date()) {
-            console.log('License expired in cloud');
             localStorage.removeItem('device_license');
             localStorage.removeItem('active_license_key');
             localStorage.removeItem('license_expiry');
@@ -243,32 +253,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          // STRICT DEVICE ENFORCEMENT
-          // Only auto-activate if the current device is ALREADY in the authorized list
-          const deviceId = localStorage.getItem('device_id');
+          // STRICT 2-DEVICE ENFORCEMENT
           const devices = Array.isArray(data.devices) ? data.devices : [];
           
-          if (deviceId && devices.includes(deviceId)) {
+          if (devices.includes(deviceId)) {
+            // Already authorized
             localStorage.setItem('device_license', 'true');
             localStorage.setItem('active_license_key', data.license_key);
             if (data.expiry_at) localStorage.setItem('license_expiry', data.expiry_at);
-            else localStorage.removeItem('license_expiry');
             setIsDeviceLicensed(true);
           } else {
-            // New device or device limit reached - USER MUST ACTIVATE MANUALLY
-            // This prevents auto-licensing on login, as requested
-            console.log('Manual activation required for this device');
-            setIsDeviceLicensed(false);
-            localStorage.removeItem('device_license');
+            // New device? Check if slot available
+            if (devices.length < 2) {
+              // We could auto-bind here, but user asked for "Manual sync same Gmail across devices" 
+              // and "no auto license sharing". So we show the sync button in Activation page.
+              setIsDeviceLicensed(false);
+              localStorage.removeItem('device_license');
+            } else {
+              // 3rd device blocked
+              setIsDeviceLicensed(false);
+              localStorage.removeItem('device_license');
+            }
           }
         } else {
-          // If no cloud license for this user, check local storage for master key again
-          if (currentKey === 'MASTER-KEY') {
-            setIsDeviceLicensed(true);
-          } else {
-            setIsDeviceLicensed(false);
-            localStorage.removeItem('device_license');
-          }
+          setIsDeviceLicensed(false);
+          localStorage.removeItem('device_license');
         }
       } catch (err) {
         console.error('License check error:', err);
@@ -277,34 +286,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     checkLicense();
 
-    // Subscribe to changes in licenses table for this user
+    // Subscribe to license changes
     const channel = supabase
-      .channel(`user-license-${userId}`)
+      .channel(`user-license-${userEmail}`)
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'licenses',
-          filter: `user_id=eq.${userId}`
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const newLicense = payload.new as License;
-            if (newLicense.status === 'active') {
-              localStorage.setItem('device_license', 'true');
-              localStorage.setItem('active_license_key', newLicense.license_key);
-              setIsDeviceLicensed(true);
-            }
-          }
-        }
+        { event: '*', schema: 'public', table: 'licenses', filter: `user_id=eq.${userEmail}` },
+        () => checkLicense()
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [session?.user?.id, currentUser]);
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.email, currentUser]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1701,8 +1694,6 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (error) handleSupabaseError(error, 'Reset License Device');
   };
 
-  const [isDeviceLicensed, setIsDeviceLicensed] = useState(() => localStorage.getItem('device_license') === 'true');
-
   useEffect(() => {
     const licensed = localStorage.getItem('device_license') === 'true';
     if (licensed !== isDeviceLicensed) {
@@ -1720,7 +1711,7 @@ const deleteFromCloud = async (table: string, id: string) => {
   }, [isDeviceLicensed]);
 
   const isAdmin = (settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') || 
-                  (session?.user?.email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') ||
+                  (user?.email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') ||
                   (settings.user_email === '16897463890072@1689746389007200') ||
                   (currentUser?.toLowerCase() === 'sudaiskamran31');
 
@@ -1730,17 +1721,52 @@ const deleteFromCloud = async (table: string, id: string) => {
     }
   }, [isAdmin, settings.user_email, session?.user?.email]);
 
+  useEffect(() => {
+    if (user && !isDeviceLicensed) {
+      const syncLicense = async () => {
+        try {
+          const { data: license } = await supabase
+            .from('licenses')
+            .select('*')
+            .eq('user_id', user.uid)
+            .eq('status', 'active')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (license) {
+            let deviceId = localStorage.getItem('device_id');
+            if (!deviceId) {
+              deviceId = 'dev_' + Math.random().toString(36).substring(2, 15);
+              localStorage.setItem('device_id', deviceId);
+            }
+            const devices = Array.isArray(license.devices) ? license.devices : [];
+            if (devices.includes(deviceId) || devices.length < 2) {
+              await activateLicense(license.license_key);
+            }
+          }
+        } catch (e) {
+          console.error('License auto-sync failed:', e);
+        }
+      };
+      syncLicense();
+    }
+  }, [user, isDeviceLicensed]);
+
   const signOut = async () => {
     localStorage.removeItem('currentUser');
     setCurrentUser(null);
     setCurrentCompany(null);
     setCompanies([]);
     setSession(null);
+    await auth.signOut();
     await supabase.auth.signOut();
+    window.location.reload();
   };
 
   return (
     <AppContext.Provider value={{
+      user,
       companies, 
       currentCompany, 
       setCurrentCompany: (company) => setCurrentCompany(company),

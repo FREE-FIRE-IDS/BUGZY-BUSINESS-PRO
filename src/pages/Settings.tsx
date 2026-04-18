@@ -469,7 +469,7 @@ NOTIFY pgrst, 'reload schema';
       {/* Company Section */}
       <section>
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold flex items-center gap-2">
+          <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
             <Building2 size={24} className="text-indigo-600" />
             Company Management
           </h3>
@@ -533,7 +533,7 @@ NOTIFY pgrst, 'reload schema';
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative w-full max-w-md bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden"
+                className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden"
               >
                 <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                   <h2 className="text-xl font-bold">Add New Company</h2>
@@ -555,7 +555,7 @@ NOTIFY pgrst, 'reload schema';
                       value={newCompanyName}
                       onChange={(e) => setNewCompanyName(e.target.value)}
                       placeholder="e.g. My Business"
-                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
                   <div>
@@ -565,7 +565,7 @@ NOTIFY pgrst, 'reload schema';
                       value={newCompanyUsername}
                       onChange={(e) => setNewCompanyUsername(e.target.value.toLowerCase())}
                       placeholder="unique_username"
-                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                     />
                     <p className="text-[10px] text-slate-400 mt-1 italic">This username will be used to login and sync your data.</p>
                   </div>
@@ -599,7 +599,7 @@ NOTIFY pgrst, 'reload schema';
           {isResetConfirmOpen && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsResetConfirmOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-white rounded-3xl shadow-2xl p-8 text-center">
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-8 text-center">
                 <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
                   <Trash2 size={32} />
                 </div>
@@ -622,7 +622,7 @@ NOTIFY pgrst, 'reload schema';
                 "p-6 rounded-3xl border transition-all cursor-pointer group",
                 currentCompany?.id === company.id 
                   ? "bg-indigo-600 text-white border-indigo-600 shadow-xl shadow-indigo-500/20" 
-                  : "bg-white dark:bg-white border-slate-100 dark:border-slate-200 hover:border-indigo-200"
+                  : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-indigo-200"
               )}
             >
               <div className="flex justify-between items-start mb-4">

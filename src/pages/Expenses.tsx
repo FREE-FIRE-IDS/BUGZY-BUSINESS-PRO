@@ -12,7 +12,7 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function Expenses() {
@@ -363,10 +363,10 @@ export default function Expenses() {
         {isEditModalOpen && editingExpense && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEditModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-100 flex items-center justify-between">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between text-slate-900 dark:text-white">
                 <h2 className="text-xl font-bold">Edit Expense</h2>
-                <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-100 rounded-xl transition-colors"><X size={20} /></button>
+                <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
               </div>
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
@@ -386,11 +386,11 @@ export default function Expenses() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Date</label>
-                    <input name="date" type="date" defaultValue={editingExpense.date.split('T')[0]} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input name="date" type="date" defaultValue={editingExpense.date.split('T')[0]} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Amount</label>
-                    <input name="amount" type="number" defaultValue={editingExpense.amount} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input name="amount" type="number" defaultValue={editingExpense.amount} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Payment Type</label>
