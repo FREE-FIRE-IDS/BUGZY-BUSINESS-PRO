@@ -32,7 +32,7 @@
   /* Global Headings for Dark Mode */
   .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6,
   .dark .text-slate-900, .dark .text-slate-800 {
-    @apply text-white !important;
+    color: white !important;
   }
 
   /* Fix for responsiveness and overflow */
@@ -58,6 +58,7 @@
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
   }
+}
 
 @layer components {
   .card {
