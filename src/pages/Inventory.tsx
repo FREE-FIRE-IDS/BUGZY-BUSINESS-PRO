@@ -16,7 +16,7 @@ import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { InventoryItem as Item } from '../types';
-import { jsPDF } from 'jspdf';
+import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function Inventory() {
@@ -241,7 +241,7 @@ export default function Inventory() {
               <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600 dark:text-rose-400">
                 <Trash2 size={32} />
               </div>
-              <h3 className="text-xl font-bold mb-2 dark:text-white">Delete Item?</h3>
+              <h3 className="text-xl font-bold mb-2">Delete Item?</h3>
               <p className="text-slate-500 mb-4 text-sm">This action will soft-delete the item. All transaction history will be preserved.</p>
               <div className="flex items-center justify-center gap-2 mb-8">
                 <input 
@@ -251,12 +251,12 @@ export default function Inventory() {
                   onChange={(e) => setIsHardDelete(e.target.checked)}
                   className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
                 />
-                <label htmlFor="hardDelete" className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                <label htmlFor="hardDelete" className="text-sm font-medium text-slate-700 dark:text-slate-700 cursor-pointer">
                   Hard Delete (Permanent)
                 </label>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => { setIsDeleteConfirmOpen(null); setIsHardDelete(false); }} className="flex-1 px-4 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all dark:text-white">Cancel</button>
+                <button onClick={() => { setIsDeleteConfirmOpen(null); setIsHardDelete(false); }} className="flex-1 px-4 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-50 transition-all">Cancel</button>
                 <button onClick={() => { deleteItem(isDeleteConfirmOpen!, isHardDelete); setIsDeleteConfirmOpen(null); setIsHardDelete(false); }} className="flex-1 px-4 py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">Delete</button>
               </div>
             </motion.div>
