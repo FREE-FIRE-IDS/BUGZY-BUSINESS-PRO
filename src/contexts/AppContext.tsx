@@ -58,7 +58,6 @@ interface AppContextType {
   resetLicenseDevice: (id: string) => Promise<void>;
   isDeviceLicensed: boolean;
   isLicensed: () => boolean;
-  loginWithUsername: (username: string, isLogin?: boolean) => Promise<boolean>;
   isAdmin: boolean;
   selectedPartyId: string | null;
   setSelectedPartyId: (id: string | null) => void;
@@ -1131,105 +1130,6 @@ const deleteFromCloud = async (table: string, id: string) => {
       await recalculateBalances(updatedTransactions, parties, banks, items, invoices);
   };
 
-  const loginWithUsername = async (username: string, isLogin: boolean = true) => {
-    const normalizedUsername = username.toLowerCase().trim();
-    if (!normalizedUsername) return false;
-    
-    setSyncStatus({ loading: true, error: null, success: null });
-    
-    try {
-      // 1. Check local storage first (for offline support)
-      const localCompaniesStr = localStorage.getItem(`companies_${normalizedUsername}`);
-      if (localCompaniesStr) {
-        const localData = JSON.parse(localCompaniesStr);
-        if (isLogin) {
-          localStorage.setItem('currentUser', normalizedUsername);
-          setCurrentUser(normalizedUsername);
-          setCompanies(localData);
-          if (localData.length > 0) {
-            setCurrentCompany(localData[0]);
-            localStorage.setItem('currentCompany', JSON.stringify(localData[0]));
-          }
-          setSyncStatus({ loading: false, error: null, success: 'Login successful (Offline)' });
-          
-          // Try to sync in background if online
-          refreshData(undefined, true).catch(console.error);
-          return true;
-        } else {
-          // If signup attempt but exists locally, we still check cloud to be sure
-          // but we can warn early
-          console.log('Username exists locally, checking cloud...');
-        }
-      }
-
-      // 2. Check cloud
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .ilike('username', normalizedUsername);
-
-      if (error) {
-        // If offline and we already logged in via local storage, we are fine
-        if (localCompaniesStr && isLogin) return true;
-        
-        if (error.message.includes('permission denied') || error.code === '42501') {
-          throw new Error('Permission denied ❌. Please go to Settings > Cloud Sync > Database Setup and run the SQL script to fix permissions.');
-        }
-        throw error;
-      }
-
-      if (data && data.length > 0) {
-        // User exists in cloud
-        if (!isLogin) {
-          setSyncStatus({ 
-            loading: false, 
-            error: `Username "${normalizedUsername}" is already taken ❌. Please choose another or login.`, 
-            success: null 
-          });
-          return false;
-        }
-        
-        // Login logic: Save fetched companies to localStorage so useEffect can pick them up
-        localStorage.setItem(`companies_${normalizedUsername}`, JSON.stringify(data));
-        localStorage.setItem('currentUser', normalizedUsername);
-        
-        // Also set state directly to avoid "empty frame"
-        setCompanies(data);
-        if (data.length > 0) {
-          setCurrentCompany(data[0]);
-          localStorage.setItem('currentCompany', JSON.stringify(data[0]));
-        }
-        
-        setCurrentUser(normalizedUsername);
-        setSyncStatus({ loading: false, error: null, success: 'Login successful' });
-        return true;
-      }
-
-      // 3. If it's a login attempt and not found in cloud or local, return false
-      if (isLogin) {
-        setSyncStatus({ loading: false, error: 'Username not found ❌', success: null });
-        return false;
-      }
-
-      // 4. For signup: username is available
-      localStorage.setItem('currentUser', normalizedUsername);
-      setCurrentUser(normalizedUsername);
-      setSyncStatus({ loading: false, error: null, success: null });
-      return true;
-    } catch (err: any) {
-      console.error('Login/Check error:', err);
-      // If offline and we have local data, we already handled it. 
-      // If we reach here, it means we don't have local data or it's a real error.
-      const isOffline = !navigator.onLine || err.message?.includes('Failed to fetch');
-      if (isOffline && isLogin) {
-         setSyncStatus({ loading: false, error: 'You are offline and this account is not saved on this device ❌', success: null });
-      } else {
-         setSyncStatus({ loading: false, error: err.message || 'Operation failed', success: null });
-      }
-      return false;
-    }
-  };
-
   const addCompany = async (company: Omit<Company, 'id' | 'created_at'>) => {
     setSyncStatus({ loading: true, error: null, success: null });
     
@@ -1795,7 +1695,6 @@ const deleteFromCloud = async (table: string, id: string) => {
       isDeviceLicensed,
       isLicensed: () => isDeviceLicensed,
       authReady,
-      loginWithUsername,
       isAdmin,
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
       session, signOut

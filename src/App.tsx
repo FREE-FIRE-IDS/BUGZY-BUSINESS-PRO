@@ -30,7 +30,8 @@ import {
   ArrowLeft,
   ArrowRight,
   ShieldCheck,
-  LogIn
+  LogIn,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -1094,10 +1095,8 @@ export default function App() {
 }
 
 function LoginScreen() {
-  const { syncStatus, loginWithUsername } = useApp();
+  const { syncStatus } = useApp();
   const [isLoading, setIsLoading] = useState(false);
-  const [showUsernameLogin, setShowUsernameLogin] = useState(false);
-  const [tempUsername, setTempUsername] = useState('');
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -1105,17 +1104,6 @@ function LoginScreen() {
       await signInWithGoogle();
     } catch (error) {
       console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleUsernameLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tempUsername.trim()) return;
-    setIsLoading(true);
-    try {
-      await loginWithUsername(tempUsername.trim());
     } finally {
       setIsLoading(false);
     }
@@ -1140,116 +1128,71 @@ function LoginScreen() {
             Master Your Business Anywhere
           </p>
 
-          {!showUsernameLogin ? (
-            <div className="space-y-8">
-              <div className="p-1 rounded-[2rem] bg-indigo-50/50 dark:bg-indigo-900/10 border-2 border-indigo-100 dark:border-indigo-800/50 shadow-inner">
-                <button 
-                  onClick={handleGoogleLogin}
-                  disabled={isLoading}
-                  className="w-full bg-indigo-600 text-white py-6 rounded-3xl font-black flex items-center justify-center gap-4 hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-500/40 active:scale-95 disabled:opacity-50 text-xl"
-                >
-                  {isLoading ? (
-                    <Loader2 className="animate-spin" size={32} />
-                  ) : (
-                    <>
-                      <div className="w-11 h-11 bg-white rounded-2xl p-2 flex items-center justify-center shadow-md">
-                        <svg className="w-full h-full" viewBox="0 0 24 24">
-                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                        </svg>
-                      </div>
-                      <div className="flex flex-col items-start leading-tight">
-                        <span className="text-xs font-bold uppercase tracking-widest opacity-80">Start Now</span>
-                        <span className="text-lg">Google Sign-In</span>
-                      </div>
-                    </>
-                  )}
-                </button>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <div className="flex-1 h-[1px] bg-slate-100 dark:bg-slate-800" />
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Security Verified</span>
-                <div className="flex-1 h-[1px] bg-slate-100 dark:bg-slate-800" />
-              </div>
-
+          <div className="space-y-8">
+            <div className="p-1 rounded-[2rem] bg-indigo-50/50 dark:bg-indigo-900/10 border-2 border-indigo-100 dark:border-indigo-800/50 shadow-inner">
               <button 
-                onClick={() => setShowUsernameLogin(true)}
-                className="w-full py-5 text-slate-400 dark:text-slate-500 font-black hover:text-indigo-600 dark:hover:text-indigo-400 transition-all text-sm uppercase tracking-widest border-2 border-transparent hover:border-slate-50 dark:hover:border-slate-800 rounded-3xl"
+                onClick={handleGoogleLogin}
+                disabled={isLoading}
+                className="w-full bg-indigo-600 text-white py-6 rounded-3xl font-black flex items-center justify-center gap-4 hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-500/40 active:scale-95 disabled:opacity-50 text-xl"
               >
-                Username Fallback
+                {isLoading ? (
+                  <Loader2 className="animate-spin" size={32} />
+                ) : (
+                  <>
+                    <div className="w-11 h-11 bg-white rounded-2xl p-2 flex items-center justify-center shadow-md">
+                      <svg className="w-full h-full" viewBox="0 0 24 24">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                      </svg>
+                    </div>
+                    <div className="flex flex-col items-start leading-tight">
+                      <span className="text-xs font-bold uppercase tracking-widest opacity-80">Start Now</span>
+                      <span className="text-lg">Google Sign-In</span>
+                    </div>
+                  </>
+                )}
               </button>
             </div>
-          ) : (
-            <form onSubmit={handleUsernameLogin} className="space-y-4">
-            <input 
-              type="text"
-              value={tempUsername}
-              onChange={e => setTempUsername(e.target.value)}
-              placeholder="Enter Username"
-              className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-4 focus:border-indigo-600 outline-none transition-all font-bold"
-            />
-            <button 
-              type="submit"
-              disabled={isLoading || !tempUsername}
-              className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all"
-            >
-              {isLoading ? 'Processing...' : 'Login with Username'}
-            </button>
-            <button 
-              type="button"
-              onClick={() => setShowUsernameLogin(false)}
-              className="w-full py-2 text-slate-500 font-bold text-xs uppercase tracking-widest"
-            >
-              Back to Google Sign-In
-            </button>
-          </form>
-        )}
+            
+            <div className="flex items-center gap-4">
+              <div className="flex-1 h-[1px] bg-slate-100 dark:bg-slate-800" />
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Security Verified</span>
+              <div className="flex-1 h-[1px] bg-slate-100 dark:bg-slate-800" />
+            </div>
+          </div>
 
-        <p className="mt-8 text-xs text-slate-400 font-bold uppercase tracking-widest">
-          Secured by Firebase & Supabase
-        </p>
+          <p className="mt-8 text-xs text-slate-400 font-bold uppercase tracking-widest">
+            Secured by Firebase & Supabase
+          </p>
+        </div>
       </div>
     </div>
-  </div>
   );
 }
 
 function SetupCompany() {
-  const { addCompany, loginWithUsername, syncStatus, session } = useApp();
+  const { addCompany, syncStatus, session, signOut } = useApp();
   const [name, setName] = useState('');
-  const [username, setUsername] = useState('');
   const [currency, setCurrency] = useState('PKR');
-  const [isLogin, setIsLogin] = useState(false);
 
   const handleAction = async () => {
-    if (isLogin) {
-      if (!username.trim()) return;
-      const success = await loginWithUsername(username.trim());
-      if (!success) return;
-    } else {
-      if (!name.trim() || !username.trim()) return;
-      
-      const normalizedUsername = username.trim().toLowerCase();
-      
-      // 1. Check if username is available
-      const available = await loginWithUsername(normalizedUsername, false);
-      if (!available) return;
-
-      // 2. Add company
-      try {
-        await addCompany({
-          name: name.trim(),
-          username: normalizedUsername,
-          address: '',
-          currency,
-          user_id: session?.user?.id || 'default',
-        });
-      } catch (e: any) {
-        console.error('Add company error:', e);
-      }
+    if (!name.trim()) return;
+    
+    // Generate a unique username handle internally from company name
+    const generatedUsername = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Math.random().toString(36).substr(2, 5);
+    
+    try {
+      await addCompany({
+        name: name.trim(),
+        username: generatedUsername,
+        address: '',
+        currency,
+        user_id: session?.user?.id || 'default',
+      });
+    } catch (e: any) {
+      console.error('Add company error:', e);
     }
   };
 
@@ -1265,78 +1208,58 @@ function SetupCompany() {
           </svg>
         </div>
         <h1 className="text-2xl font-bold text-center mb-2 text-slate-900 dark:text-slate-50">Bugzy Pro</h1>
-        <p className="text-slate-500 text-center text-sm mb-8">{isLogin ? 'Login to your account' : 'Create your business profile'}</p>
+        <p className="text-slate-500 text-center text-sm mb-8 italic">Create your professional business profile</p>
         
         <div className="space-y-4">
-          {!isLogin && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Company Name</label>
-              <input 
-                type="text" 
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50"
-                placeholder="e.g. Acme Corp"
-              />
-            </div>
-          )}
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Username</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1 leading-tight">Company Name</label>
             <input 
               type="text" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50 font-mono"
-              placeholder="unique_username"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-transparent focus:border-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50 font-bold"
+              placeholder="e.g. Acme Corporation"
             />
           </div>
-          {!isLogin && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Currency</label>
-              <select 
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50"
-              >
-                <option value="PKR">Pakistan Rupee (PKR)</option>
-                <option value="USD">US Dollar (USD)</option>
-                <option value="None">None</option>
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1 leading-tight">Default Currency</label>
+            <select 
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-transparent focus:border-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50 font-bold"
+            >
+              <option value="PKR">Pakistan Rupee (PKR)</option>
+              <option value="USD">US Dollar (USD)</option>
+              <option value="None">None</option>
+            </select>
+          </div>
           
           {syncStatus.error && (
-            <p className="text-red-500 text-xs bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-800">{syncStatus.error}</p>
+            <div className="p-4 bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/20 rounded-2xl flex items-center gap-3 text-rose-600 dark:text-rose-400">
+              <AlertCircle size={20} />
+              <p className="text-xs font-bold">{syncStatus.error}</p>
+            </div>
           )}
 
           <button 
             onClick={handleAction}
-            disabled={syncStatus.loading}
-            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+            disabled={syncStatus.loading || !name.trim()}
+            className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50 mt-4"
           >
-            {syncStatus.loading ? 'Processing...' : isLogin ? 'Login' : 'Create Company'}
+            {syncStatus.loading ? (
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="animate-spin" size={24} />
+                <span>Creating...</span>
+              </div>
+            ) : 'Create Company'}
           </button>
 
-          <button 
-            onClick={() => setIsLogin(!isLogin)}
-            className="w-full text-indigo-600 text-sm font-bold hover:underline"
-          >
-            {isLogin ? "Don't have an account? Create one" : "Already have an account? Login"}
-          </button>
-
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center mb-4">Or use Google Sign-In</p>
+          <div className="pt-6 mt-6 border-t border-slate-100 dark:border-slate-800">
             <button 
-              onClick={() => signInWithGoogle()}
-              className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 text-slate-900 dark:text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-all text-sm"
+              onClick={() => signOut()}
+              className="w-full text-slate-400 hover:text-rose-500 text-xs font-bold uppercase tracking-[0.2em] transition-colors"
             >
-              <svg className="w-5 h-5 bg-white rounded-full p-0.5" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              </svg>
-              <span>Sign in with Google</span>
+              Sign Out
             </button>
           </div>
         </div>
