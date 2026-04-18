@@ -154,8 +154,18 @@ function SplashScreen() {
         transition={{ delay: 0.6 }}
         className="text-slate-500 mt-4 font-medium uppercase tracking-[0.3em] text-[10px]"
       >
-        Professional SaaS Solution
+        Initializing Secure Connection...
       </motion.p>
+      <div className="mt-8 flex gap-1">
+        {[0, 1, 2].map(i => (
+          <motion.div
+            key={i}
+            animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
+            transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+            className="w-1 h-1 bg-indigo-500 rounded-full"
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -1101,17 +1111,17 @@ function LoginScreen() {
 
         {!showUsernameLogin ? (
           <div className="space-y-6">
-            <div className="p-1 rounded-3xl bg-slate-50 dark:bg-slate-800/50">
+            <div className="p-1 rounded-3xl bg-indigo-50 dark:bg-indigo-900/20 border-2 border-indigo-100 dark:border-indigo-800/50">
               <button 
                 onClick={handleGoogleLogin}
                 disabled={isLoading}
-                className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black flex items-center justify-center gap-4 hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/30 active:scale-95 disabled:opacity-50 text-lg"
+                className="w-full bg-indigo-600 text-white py-6 rounded-2xl font-black flex items-center justify-center gap-4 hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-500/40 active:scale-95 disabled:opacity-50 text-xl"
               >
                 {isLoading ? (
-                  <Loader2 className="animate-spin" size={28} />
+                  <Loader2 className="animate-spin" size={32} />
                 ) : (
                   <>
-                    <div className="w-8 h-8 bg-white rounded-full p-1.5 flex items-center justify-center">
+                    <div className="w-10 h-10 bg-white rounded-xl p-2 flex items-center justify-center shadow-inner">
                       <svg className="w-full h-full" viewBox="0 0 24 24">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                         <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>

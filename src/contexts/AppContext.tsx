@@ -144,7 +144,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.warn('Firebase Auth initialization timeout - proceeding as guest');
         setAuthReady(true);
       }
-    }, 5000);
+    }, 3000);
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       clearTimeout(safetyTimer);

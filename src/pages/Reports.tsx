@@ -517,8 +517,8 @@ export default function Reports() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <div className="table-responsive">
+            <table className="w-full text-left min-w-[800px] lg:min-w-0">
               <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                 <tr>
                   {selectedColumns.map(col => (
@@ -636,11 +636,11 @@ export default function Reports() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800"
             >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="text-xl font-bold">Configure Columns</h2>
-                <button onClick={() => setIsColumnModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Configure Columns</h2>
+                <button onClick={() => setIsColumnModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors text-slate-400">
                   <X size={20} />
                 </button>
               </div>
@@ -654,7 +654,7 @@ export default function Reports() {
                     >
                       Select All
                     </button>
-                    <span className="text-slate-300">|</span>
+                    <span className="text-slate-300 dark:text-slate-700">|</span>
                     <button 
                       onClick={() => setSelectedColumns([allColumns[activeReport][0]])}
                       className="text-xs text-slate-500 font-bold hover:underline"
@@ -663,9 +663,9 @@ export default function Reports() {
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 gap-2 max-h-[40vh] overflow-y-auto pr-2">
                   {allColumns[activeReport].map(col => (
-                    <label key={col} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors border border-transparent hover:border-slate-100">
+                    <label key={col} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
                       <input 
                         type="checkbox" 
                         checked={selectedColumns.includes(col)}
@@ -673,14 +673,14 @@ export default function Reports() {
                           if (e.target.checked) setSelectedColumns([...selectedColumns, col]);
                           else setSelectedColumns(selectedColumns.filter(c => c !== col));
                         }}
-                        className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        className="w-5 h-5 rounded-lg border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500"
                       />
-                      <span className="font-bold text-slate-700">{col}</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">{col}</span>
                     </label>
                   ))}
                 </div>
               </div>
-              <div className="p-6 bg-slate-50 flex gap-3">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex gap-3">
                 <button 
                   onClick={() => setIsColumnModalOpen(false)}
                   className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
