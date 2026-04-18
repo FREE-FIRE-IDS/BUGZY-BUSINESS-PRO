@@ -35,21 +35,18 @@
     @apply text-white !important;
   }
 
-  /* Fix for android half screen and overflow */
+  /* Fix for responsiveness and overflow */
   body {
-    @apply font-sans antialiased transition-colors duration-300 overflow-x-hidden;
-    height: 100vh;
-    width: 100vw;
-    position: fixed;
-    top: 0;
-    left: 0;
+    @apply font-sans antialiased transition-colors duration-300 bg-slate-50 dark:bg-slate-950;
+    min-height: 100vh;
+    width: 100%;
   }
 
   #root {
-    height: 100%;
+    min-height: 100vh;
     width: 100%;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
   }
   
   /* Responsive utility for tables on mobile */

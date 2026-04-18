@@ -138,7 +138,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Handle Firebase Auth changes
   useEffect(() => {
+    // Safety fallback: if Firebase doesn't respond in 5 seconds, proceed as guest
+    const safetyTimer = setTimeout(() => {
+      if (!authReady) {
+        console.warn('Firebase Auth initialization timeout - proceeding as guest');
+        setAuthReady(true);
+      }
+    }, 5000);
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      clearTimeout(safetyTimer);
       setUser(firebaseUser);
       setAuthReady(true);
       if (firebaseUser?.email) {
