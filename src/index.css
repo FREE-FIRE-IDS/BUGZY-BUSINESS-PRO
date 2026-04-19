@@ -205,7 +205,8 @@
   }
 
   [data-theme="aurora"] .sidebar-item-active {
-    @apply bg-cyan-400/10 text-cyan-400 !important;
+    background-color: rgba(34, 211, 238, 0.1) !important;
+    color: rgb(34, 211, 238) !important;
     border-right: 3px solid var(--primary);
     box-shadow: 10px 0 20px -10px var(--primary-glow);
   }
