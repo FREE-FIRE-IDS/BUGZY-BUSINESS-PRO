@@ -71,6 +71,7 @@ export interface InventoryItem {
   company_id: string;
   name: string;
   sku?: string;
+  unit?: string;
   price: number;
   stock: number;
   low_stock_alert: number;

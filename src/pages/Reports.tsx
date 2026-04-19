@@ -52,15 +52,19 @@ export default function Reports() {
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const companyBanks = banks.filter(b => b.company_id === currentCompany?.id);
+  const companyItems = items.filter(i => i.company_id === currentCompany?.id);
+  const companyInvoices = invoices.filter(i => i.company_id === currentCompany?.id);
+
   const allColumns: Record<ReportType, string[]> = {
     'All Parties': ['Party Name', 'Type', 'Debit (DR)', 'Credit (CR)', 'Balance'],
     'Single Party': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
     'All Banks': ['Bank Name', 'Account #', 'Debit (DR)', 'Credit (CR)', 'Balance'],
     'Single Bank': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
-    'Stock': ['Item Name', 'SKU', 'Stock', 'Value'],
-    'Purchase': ['Date', 'Description', 'Amount'],
-    'Sale': ['Date', 'Description', 'Amount'],
-    'Expense': ['Date', 'Description', 'Amount'],
+    'Stock': ['Item Name', 'SKU', 'Unit', 'Price', 'Stock', 'Value'],
+    'Purchase': ['Date', 'Party', 'Item', 'Qty', 'Unit', 'Price', 'Total'],
+    'Sale': ['Date', 'Party', 'Item', 'Qty', 'Unit', 'Price', 'Total'],
+    'Expense': ['Date', 'Description', 'Category', 'Paid From', 'Amount'],
     'Invoice': ['Invoice #', 'Date', 'Item', 'Qty', 'Unit', 'Price', 'Total']
   };
 
@@ -81,7 +85,6 @@ export default function Reports() {
   ];
 
   const filteredData = useMemo(() => {
-    let data: any[] = [];
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     
@@ -92,9 +95,6 @@ export default function Reports() {
 
     const companyTransactions = transactions.filter(t => t.company_id === currentCompany?.id);
     const companyParties = parties.filter(p => p.company_id === currentCompany?.id);
-    const companyBanks = banks.filter(b => b.company_id === currentCompany?.id);
-    const companyItems = items.filter(i => i.company_id === currentCompany?.id);
-    const companyInvoices = invoices.filter(i => i.company_id === currentCompany?.id);
 
     const cashInHand = transactions
       .filter(t => t.company_id === currentCompany?.id)
@@ -167,36 +167,70 @@ export default function Reports() {
         }
         break;
       case 'Stock':
-        result = companyItems.map(i => ({ name: i.name, sku: i.sku, stock: i.stock, value: i.stock * i.price }));
+        result = companyItems.map(i => ({ 
+          name: i.name, 
+          sku: i.sku, 
+          unit: (i as any).unit || 'Unit', 
+          price: i.price, 
+          stock: i.stock, 
+          value: i.stock * i.price 
+        }));
         break;
       case 'Purchase':
-        result = filterByDate([
-          ...companyTransactions.filter(t => t.type === 'Purchase'),
-          ...companyInvoices.filter(i => i.type === 'Purchase').map(i => ({
-            id: i.id,
-            date: i.date,
-            type: 'Purchase',
-            description: `Invoice ${i.invoice_number}`,
-            amount: i.total,
-            party_id: i.party_id
+        const purchaseInvoices = companyInvoices.filter(i => i.type === 'Purchase').flatMap(inv => 
+          inv.items.map(item => ({
+            id: inv.id,
+            date: inv.date,
+            party_name: parties.find(p => p.id === inv.party_id)?.name || 'Walk-in',
+            item_name: item.name,
+            qty: item.quantity,
+            unit: item.unit || 'Unit',
+            price: item.price,
+            total: item.total
           }))
-        ]);
+        );
+        const purchaseTransactions = companyTransactions.filter(t => t.type === 'Purchase').map(t => ({
+          id: t.id,
+          date: t.date,
+          party_name: parties.find(p => p.id === t.party_id)?.name || 'N/A',
+          item_name: t.item_id ? companyItems.find(i => i.id === t.item_id)?.name : (t.description || 'General Purchase'),
+          qty: t.quantity || 1,
+          unit: (companyItems.find(i => i.id === t.item_id) as any)?.unit || 'Unit',
+          price: t.quantity ? t.amount / t.quantity : t.amount,
+          total: t.amount
+        }));
+        result = filterByDate([...purchaseInvoices, ...purchaseTransactions]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
       case 'Sale':
-        result = filterByDate([
-          ...companyTransactions.filter(t => t.type === 'Sale'),
-          ...companyInvoices.filter(i => i.type === 'Sale').map(i => ({
-            id: i.id,
-            date: i.date,
-            type: 'Sale',
-            description: `Invoice ${i.invoice_number}`,
-            amount: i.total,
-            party_id: i.party_id
+        const saleInvoices = companyInvoices.filter(i => i.type === 'Sale').flatMap(inv => 
+          inv.items.map(item => ({
+            id: inv.id,
+            date: inv.date,
+            party_name: parties.find(p => p.id === inv.party_id)?.name || 'Walk-in',
+            item_name: item.name,
+            qty: item.quantity,
+            unit: item.unit || 'Unit',
+            price: item.price,
+            total: item.total
           }))
-        ]);
+        );
+        const saleTransactions = companyTransactions.filter(t => t.type === 'Sale').map(t => ({
+          id: t.id,
+          date: t.date,
+          party_name: parties.find(p => p.id === t.party_id)?.name || 'N/A',
+          item_name: t.item_id ? companyItems.find(i => i.id === t.item_id)?.name : (t.description || 'General Sale'),
+          qty: t.quantity || 1,
+          unit: (companyItems.find(i => i.id === t.item_id) as any)?.unit || 'Unit',
+          price: t.quantity ? t.amount / t.quantity : t.amount,
+          total: t.amount
+        }));
+        result = filterByDate([...saleInvoices, ...saleTransactions]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
       case 'Expense':
-        result = filterByDate(companyTransactions.filter(t => t.type === 'Expense'));
+        result = filterByDate(companyTransactions.filter(t => t.type === 'Expense')).map(t => ({
+          ...t,
+          paid_from: t.bank_id ? companyBanks.find(b => b.id === t.bank_id)?.name : 'Cash'
+        })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
       case 'Invoice':
         result = filterByDate(companyInvoices).flatMap(inv => 
@@ -357,16 +391,33 @@ export default function Reports() {
         const row: any[] = [];
         if (selectedColumns.includes('Item Name')) row.push(d.name);
         if (selectedColumns.includes('SKU')) row.push(d.sku || '-');
+        if (selectedColumns.includes('Unit')) row.push(d.unit || '-');
+        if (selectedColumns.includes('Price')) row.push(formatCurrency(d.price, settings.currency));
         if (selectedColumns.includes('Stock')) row.push(d.stock);
         if (selectedColumns.includes('Value')) row.push(formatCurrency(d.value, settings.currency));
         return row;
       });
       total = filteredData.reduce((sum, d) => sum + d.value, 0);
-    } else if (activeReport === 'Purchase' || activeReport === 'Expense' || activeReport === 'Sale') {
+    } else if (activeReport === 'Purchase' || activeReport === 'Sale') {
+      body = filteredData.map(d => {
+        const row: any[] = [];
+        if (selectedColumns.includes('Date')) row.push(formatDate(d.date));
+        if (selectedColumns.includes('Party')) row.push(d.party_name || '-');
+        if (selectedColumns.includes('Item')) row.push(d.item_name || '-');
+        if (selectedColumns.includes('Qty')) row.push(d.qty || d.quantity || '1');
+        if (selectedColumns.includes('Unit')) row.push(d.unit || '-');
+        if (selectedColumns.includes('Price')) row.push(formatCurrency(d.unit_price || d.price, settings.currency));
+        if (selectedColumns.includes('Total')) row.push(formatCurrency(d.total || d.amount, settings.currency));
+        return row;
+      });
+      total = filteredData.reduce((sum, d) => sum + (d.total || d.amount), 0);
+    } else if (activeReport === 'Expense') {
       body = filteredData.map(d => {
         const row: any[] = [];
         if (selectedColumns.includes('Date')) row.push(formatDate(d.date));
         if (selectedColumns.includes('Description')) row.push(d.description || '-');
+        if (selectedColumns.includes('Category')) row.push(d.category || '-');
+        if (selectedColumns.includes('Paid From')) row.push(d.paid_from || 'Cash');
         if (selectedColumns.includes('Amount')) row.push(formatCurrency(d.amount, settings.currency));
         return row;
       });
@@ -576,11 +627,11 @@ export default function Reports() {
                         let content: React.ReactNode = '-';
                         let className = "px-6 py-4 text-sm font-medium text-slate-900";
 
-                        if (col === 'Party Name' || col === 'Bank Name' || col === 'Item Name') {
-                          content = row.name;
+                        if (col === 'Party Name' || col === 'Bank Name' || col === 'Item Name' || col === 'Party') {
+                          content = row.name || row.party_name;
                           className += " font-bold";
-                        } else if (col === 'Type') {
-                          content = row.type;
+                        } else if (col === 'Type' || col === 'Category') {
+                          content = row.type || row.category || '-';
                         } else if (col === 'Date') {
                           content = formatDate(row.date);
                         } else if (col === 'Description') {
@@ -614,17 +665,19 @@ export default function Reports() {
                           content = formatCurrency(row.amount || row.total || row.item_total, settings.currency);
                           className += cn(" text-right font-bold", activeReport === 'Sale' ? "text-emerald-600" : "text-rose-600");
                         } else if (col === 'Invoice #') {
-                          content = row.invoice_number;
+                          content = row.invoice_number || '-';
                         } else if (col === 'Item') {
-                          content = row.item_name;
+                          content = row.item_name || '-';
                         } else if (col === 'Qty') {
-                          content = row.qty;
+                          content = row.qty || row.quantity || '1';
                           className += " text-right";
                         } else if (col === 'Unit') {
-                          content = row.unit;
+                          content = row.unit || '-';
                         } else if (col === 'Price') {
-                          content = formatCurrency(row.unit_price, settings.currency);
+                          content = formatCurrency(row.unit_price || row.price, settings.currency);
                           className += " text-right";
+                        } else if (col === 'Paid From') {
+                          content = row.paid_from || 'Cash';
                         }
 
                         return <td key={col} className={className}>{content}</td>;

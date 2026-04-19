@@ -61,13 +61,14 @@ export default function Inventory() {
     const tableData = filteredItems.map(i => [
       i.name,
       i.sku || '-',
+      i.unit || 'Unit',
       formatCurrency(i.price, settings.currency),
       i.stock,
       i.stock <= i.low_stock_alert ? 'Low Stock' : 'In Stock'
     ]);
 
     autoTable(doc, {
-      head: [['Item Name', 'SKU', 'Price', 'Stock', 'Status']],
+      head: [['Item Name', 'SKU', 'Unit', 'Price', 'Stock', 'Status']],
       body: tableData,
       startY: 55,
       theme: 'grid',
@@ -158,6 +159,7 @@ export default function Inventory() {
               <tr>
                 <th className="px-6 py-4 font-semibold whitespace-nowrap">Item Details</th>
                 <th className="px-6 py-4 font-semibold whitespace-nowrap">SKU</th>
+                <th className="px-6 py-4 font-semibold whitespace-nowrap">Unit</th>
                 <th className="px-6 py-4 font-semibold text-right whitespace-nowrap">Price</th>
                 <th className="px-6 py-4 font-semibold text-right whitespace-nowrap">Stock</th>
                 <th className="px-6 py-4 font-semibold text-right whitespace-nowrap">Status</th>
@@ -176,6 +178,7 @@ export default function Inventory() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{item.sku || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{item.unit || '-'}</td>
                   <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-50">{formatCurrency(item.price, settings.currency)}</td>
                   <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-50">
                     <div className="flex items-center justify-end gap-3">
@@ -281,6 +284,7 @@ export default function Inventory() {
                   company_id: currentCompany?.id,
                   name: formData.get('name') as string,
                   sku: formData.get('sku') as string,
+                  unit: formData.get('unit') as string,
                   price: Number(formData.get('price')),
                   stock: Number(formData.get('stock')),
                   low_stock_alert: Number(formData.get('low_stock_alert')) || 5,
@@ -302,6 +306,10 @@ export default function Inventory() {
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">SKU / Barcode</label>
                     <input name="sku" defaultValue={editingItem?.sku} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-slate-50" placeholder="e.g. WM-001" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 mb-1">Unit</label>
+                    <input name="unit" defaultValue={editingItem?.unit} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-slate-50" placeholder="e.g. pcs, kg, box" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Price</label>
