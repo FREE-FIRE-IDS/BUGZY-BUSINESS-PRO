@@ -20,7 +20,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function Inventory() {
-  const { items, addItem, updateItem, deleteItem, settings, currentCompany } = useApp();
+  const { items, addItem, updateItem, deleteItem, addTransaction, settings, currentCompany } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
@@ -346,18 +346,22 @@ export default function Inventory() {
                 </h2>
                 <button onClick={() => setAdjustingStock(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-100 rounded-xl transition-colors"><X size={20} /></button>
               </div>
-              <form className="p-8 space-y-6" onSubmit={(e) => {
+              <form className="p-8 space-y-6" onSubmit={async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
                 const amount = Number(formData.get('amount'));
-                const newStock = adjustingStock.type === 'add' 
-                  ? adjustingStock.item.stock + amount 
-                  : adjustingStock.item.stock - amount;
                 
-                updateItem(adjustingStock.item.id, {
-                  ...adjustingStock.item,
-                  stock: Math.max(0, newStock)
+                // Create a transaction instead of direct update to ensure it syncs and recalculates correctly
+                await addTransaction({
+                  company_id: currentCompany?.id || '',
+                  date: new Date().toISOString(),
+                  type: adjustingStock.type === 'add' ? 'Stock In' : 'Stock Out',
+                  amount: 0, // Stock adjustments usually don't have a direct monetary value in simple ledgers
+                  quantity: amount,
+                  item_id: adjustingStock.item.id,
+                  description: `${adjustingStock.type === 'add' ? 'Manual Addition' : 'Manual Reduction'} of ${adjustingStock.item.name}`,
                 });
+                
                 setAdjustingStock(null);
               }}>
                 <div className="space-y-4">

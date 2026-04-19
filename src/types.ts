@@ -74,6 +74,7 @@ export interface InventoryItem {
   unit?: string;
   price: number;
   stock: number;
+  opening_stock?: number;
   low_stock_alert: number;
   created_at: string;
   updated_at?: string;

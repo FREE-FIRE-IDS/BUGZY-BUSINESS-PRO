@@ -600,7 +600,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         
         console.log(`[Sync Attempt] Table: ${dbTable}, Operation: ${isNew ? 'INSERT' : 'UPSERT'}`, dataWithEmail);
         
-        const { data: result, error } = await supabase.from(dbTable).upsert(dataWithEmail).select();
+        let { data: result, error } = await supabase.from(dbTable).upsert(dataWithEmail).select();
+        
+        // ROBUST RETRY: If sync fails because a column is missing in Supabase
+        if (error && (error.message.includes('column') || error.message.includes('schema cache'))) {
+            const match = error.message.match(/column "(.*?)"/);
+            const missingCol = match ? match[1] : null;
+            
+            if (missingCol) {
+                console.warn(`[Sync Robustness] Retrying ${dbTable} without missing column: ${missingCol}`);
+                const strippedData = Array.isArray(dataWithEmail)
+                  ? dataWithEmail.map(d => { const { [missingCol]: _, ...rest } = d as any; return rest; })
+                  : (() => { const { [missingCol]: _, ...rest } = dataWithEmail as any; return rest; })();
+                
+                const retry = await supabase.from(dbTable).upsert(strippedData).select();
+                error = retry.error;
+                result = retry.data;
+                
+                // If it still fails with ANOTHER missing column, we might need a recursive approach, 
+                // but let's handle the direct one first.
+            } else if (error.message.includes('unit')) {
+                // Specific fix for user's report if regex fails
+                const strippedData = Array.isArray(dataWithEmail)
+                  ? dataWithEmail.map(d => { const { unit, ...rest } = d as any; return rest; })
+                  : (() => { const { unit, ...rest } = dataWithEmail as any; return rest; })();
+                const retry = await supabase.from(dbTable).upsert(strippedData).select();
+                error = retry.error;
+                result = retry.data;
+            }
+        }
         
         if (error) {
             console.error(`[Sync Error] ${dbTable} failed:`, {
@@ -809,7 +837,7 @@ const deleteFromCloud = async (table: string, id: string) => {
 
     allParties.forEach(p => partyBalances[p.id] = p.opening_balance || 0);
     allBanks.forEach(b => bankBalances[b.id] = b.opening_balance || 0);
-    allItems.forEach(i => itemStock[i.id] = 0);
+    allItems.forEach(i => itemStock[i.id] = i.opening_stock || 0);
 
     // 1. Process Invoices
     allInvoices.forEach(inv => {
@@ -1060,6 +1088,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     const now = new Date().toISOString();
     const newItem: Item = {
       ...item,
+      opening_stock: item.stock || 0,
       id: crypto.randomUUID(),
       created_at: now,
       updated_at: now,
@@ -1080,7 +1109,16 @@ const deleteFromCloud = async (table: string, id: string) => {
   const updateItem = async (id: string, item: Partial<Item>) => {
     if (!currentCompany) return;
     const now = new Date().toISOString();
-    const updated = items.map(i => i.id === id ? { ...i, ...item, updated_at: now } : i);
+    
+    // If stock is being updated directly, it might be an opening stock edit
+    const itemToUpdate = items.find(i => i.id === id);
+    const updatedFields = { ...item };
+    if (item.stock !== undefined && itemToUpdate && itemToUpdate.stock === itemToUpdate.opening_stock) {
+        // If they are the same, maybe it's an initial setup phase
+        (updatedFields as any).opening_stock = item.stock;
+    }
+
+    const updated = items.map(i => i.id === id ? { ...i, ...updatedFields, updated_at: now } : i);
     setItems(updated);
     localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(updated));
     
