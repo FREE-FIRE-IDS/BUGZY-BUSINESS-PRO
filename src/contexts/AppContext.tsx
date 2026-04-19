@@ -92,8 +92,8 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
       const cloudTime = new Date(cloudItem.updated_at || cloudItem.created_at || 0).getTime();
 
       if (cloudTime > localTime) {
-        // Cloud is newer
-        mergedMap.set(cloudItem.id, cloudItem);
+        // Cloud is newer, but preserve local fields not in cloud (like 'unit' if DB isn't updated)
+        mergedMap.set(cloudItem.id, { ...localItem, ...cloudItem });
       } else if (localTime > cloudTime) {
         // Local is newer, mark for upload
         toUploadMap.set(localItem.id, localItem);
@@ -440,11 +440,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               throw error;
           }
           
-          const nonDeleted = (cloudData || []).filter((i: any) => !i.deleted_at);
+          const localData = JSON.parse(localStorage.getItem(`${table}_${companyId}`) || '[]');
+          const { merged, toUpload } = mergeData(localData, cloudData || []);
           
           isInternalUpdate.current = true;
-          setter(nonDeleted);
+          setter(merged.filter(i => !i.deleted_at));
+          localStorage.setItem(`${table}_${companyId}`, JSON.stringify(merged));
           isInternalUpdate.current = false;
+
+          if (toUpload.length > 0) {
+            await syncToCloud(table, toUpload);
+          }
         } catch (e) {
           console.error(`Failed to sync ${table}:`, e);
         }
