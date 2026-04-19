@@ -606,35 +606,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         
         console.log(`[Sync Attempt] Table: ${dbTable}, Operation: ${isNew ? 'INSERT' : 'UPSERT'}`, dataWithEmail);
         
-        let { data: result, error } = await supabase.from(dbTable).upsert(dataWithEmail).select();
-        
-        // ROBUST RETRY: If sync fails because a column is missing in Supabase
-        if (error && (error.message.includes('column') || error.message.includes('schema cache'))) {
-            const match = error.message.match(/column "(.*?)"/);
-            const missingCol = match ? match[1] : null;
+        // Robust Upsert with Recursive Column Stripping
+        const performUpsert = async (payload: any): Promise<{ data: any, error: any }> => {
+            const { data: res, error: err } = await supabase.from(dbTable).upsert(payload).select();
             
-            if (missingCol) {
-                console.warn(`[Sync Robustness] Retrying ${dbTable} without missing column: ${missingCol}`);
-                const strippedData = Array.isArray(dataWithEmail)
-                  ? dataWithEmail.map(d => { const { [missingCol]: _, ...rest } = d as any; return rest; })
-                  : (() => { const { [missingCol]: _, ...rest } = dataWithEmail as any; return rest; })();
+            if (err && (err.message.includes('column') || err.message.includes('schema cache'))) {
+                const match = err.message.match(/column "(.*?)"/);
+                const missingCol = match ? match[1] : null;
                 
-                const retry = await supabase.from(dbTable).upsert(strippedData).select();
-                error = retry.error;
-                result = retry.data;
-                
-                // If it still fails with ANOTHER missing column, we might need a recursive approach, 
-                // but let's handle the direct one first.
-            } else if (error.message.includes('unit')) {
-                // Specific fix for user's report if regex fails
-                const strippedData = Array.isArray(dataWithEmail)
-                  ? dataWithEmail.map(d => { const { unit, ...rest } = d as any; return rest; })
-                  : (() => { const { unit, ...rest } = dataWithEmail as any; return rest; })();
-                const retry = await supabase.from(dbTable).upsert(strippedData).select();
-                error = retry.error;
-                result = retry.data;
+                if (missingCol) {
+                    console.warn(`[Sync Robustness] Stripping missing column "${missingCol}" and retrying...`);
+                    const stripped = Array.isArray(payload)
+                        ? payload.map(item => { const { [missingCol]: _, ...rest } = item; return rest; })
+                        : (() => { const { [missingCol]: _, ...rest } = payload; return rest; })();
+                    return performUpsert(stripped); // Recursive call
+                }
+
+                // Hard fallback for specific common missing columns if regex fails
+                const commonProblems = ['opening_stock', 'unit'];
+                for (const col of commonProblems) {
+                    if (err.message.includes(col)) {
+                        console.warn(`[Sync Robustness] Manually stripping "${col}" and retrying...`);
+                        const stripped = Array.isArray(payload)
+                            ? payload.map(item => { const { [col]: _, ...rest } = item; return rest; })
+                            : (() => { const { [col]: _, ...rest } = payload; return rest; })();
+                        return performUpsert(stripped);
+                    }
+                }
             }
-        }
+            return { data: res, error: err };
+        };
+
+        const { data: result, error } = await performUpsert(dataWithEmail);
         
         if (error) {
             console.error(`[Sync Error] ${dbTable} failed:`, {
