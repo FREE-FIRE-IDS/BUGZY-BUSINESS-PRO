@@ -127,23 +127,6 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
   
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    const saved = localStorage.getItem('app_settings');
-    const defaultSettings: AppSettings = {
-      theme: 'light',
-      currency: 'PKR',
-      user_email: '',
-      sync_enabled: true,
-      is_verified: false,
-      visual_theme: 'standard',
-      pdf_theme: 'standard',
-      onboarding_completed: false,
-    };
-    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
-  });
-
-  const effectiveUser = currentUser || settings.user_email;
-  
   const [companies, setCompanies] = useState<Company[]>([]);
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
   const [parties, setParties] = useState<Party[]>([]);
@@ -154,23 +137,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   
   // Load data when user or company changes
   useEffect(() => {
-    if (!effectiveUser) {
+    if (!currentUser) {
       setCompanies([]);
       setCurrentCompany(null);
       return;
     }
 
-    const savedCompanies = localStorage.getItem(`companies_${effectiveUser}`);
+    const savedCompanies = localStorage.getItem(`companies_${currentUser}`);
     const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
     setCompanies(loadedCompanies);
 
-    const savedCurrent = localStorage.getItem(`currentCompany_${effectiveUser}`);
+    const savedCurrent = localStorage.getItem(`currentCompany_${currentUser}`);
     const loadedCurrent = savedCurrent ? JSON.parse(savedCurrent) : (loadedCompanies[0] || null);
     setCurrentCompany(loadedCurrent);
-  }, [effectiveUser]);
+  }, [currentUser]);
 
   useEffect(() => {
-    if (!currentCompany || !effectiveUser) {
+    if (!currentCompany || !currentUser) {
       setParties([]);
       setBanks([]);
       setItems([]);
@@ -190,8 +173,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setItems(load('items'));
     setTransactions(load('transactions'));
     setInvoices(load('invoices'));
-  }, [currentCompany, effectiveUser]);
+  }, [currentCompany, currentUser]);
 
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const saved = localStorage.getItem('app_settings');
+    const defaultSettings: AppSettings = {
+      theme: 'light',
+      currency: 'PKR',
+      pdf_theme: 'standard',
+      sync_enabled: true,
+      onboarding_completed: false,
+    };
+    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
+  });
   const [syncStatus, setSyncStatus] = useState<{ loading: boolean; error: string | null; success: string | null }>({
     loading: false,
     error: null,
@@ -328,10 +322,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const isInternalUpdate = React.useRef(false);
 
   useEffect(() => {
-    if (effectiveUser) {
-      localStorage.setItem(`companies_${effectiveUser}`, JSON.stringify(companies));
+    if (currentUser) {
+      localStorage.setItem(`companies_${currentUser}`, JSON.stringify(companies));
     }
-  }, [companies, effectiveUser]);
+  }, [companies, currentUser]);
 
   useEffect(() => {
     if (currentCompany) {
@@ -350,19 +344,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem('app_settings', JSON.stringify(settings));
-    
-    // Apply visual theme to root using data-theme attribute
-    const root = document.documentElement;
-    const theme = settings.visual_theme || 'standard';
-    
-    root.setAttribute('data-theme', theme);
-    
-    // Handle dark mode class as well standard way
-    if (settings.theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
   }, [settings]);
 
   useEffect(() => {
@@ -803,7 +784,7 @@ const deleteFromCloud = async (table: string, id: string) => {
                     else if (table === 'companies') {
                         isInternalUpdate.current = true;
                         setCompanies(prev => {
-                            const localAll = JSON.parse(localStorage.getItem(`companies_${effectiveUser}`) || '[]');
+                            const localAll = JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]');
                             let updatedAll = [...localAll];
                             if (eventType === 'INSERT' || eventType === 'UPDATE') {
                                 const index = updatedAll.findIndex(c => c.id === record.id);
@@ -825,8 +806,8 @@ const deleteFromCloud = async (table: string, id: string) => {
                                 if (!id) return prev;
                                 updatedAll = updatedAll.filter(c => c.id !== id);
                             }
-                            if (effectiveUser) {
-                                localStorage.setItem(`companies_${effectiveUser}`, JSON.stringify(updatedAll));
+                            if (currentUser) {
+                                localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updatedAll));
                             }
                             return updatedAll.filter(c => !c.deleted_at);
                         });
@@ -1383,7 +1364,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     
     const data: any = {
       username: currentUser,
-      companies: JSON.parse(localStorage.getItem(`companies_${effectiveUser}`) || '[]'),
+      companies: JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]'),
       settings: JSON.parse(localStorage.getItem('app_settings') || '{}'),
       device_license: localStorage.getItem('device_license'),
       active_license_key: localStorage.getItem('active_license_key'),
@@ -1462,16 +1443,16 @@ const deleteFromCloud = async (table: string, id: string) => {
     
     if (hard) {
       const filteredAll = localAll.filter((c: any) => c.id !== id);
-      if (effectiveUser) {
-        localStorage.setItem(`companies_${effectiveUser}`, JSON.stringify(filteredAll));
+      if (currentUser) {
+        localStorage.setItem(`companies_${currentUser}`, JSON.stringify(filteredAll));
       }
       if (settings.sync_enabled) {
         await deleteFromCloud('companies', id);
       }
     } else {
       const updatedAll = localAll.map((c: any) => c.id === id ? { ...c, deleted_at: now, updated_at: now } : c);
-      if (effectiveUser) {
-        localStorage.setItem(`companies_${effectiveUser}`, JSON.stringify(updatedAll));
+      if (currentUser) {
+        localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updatedAll));
       }
       if (settings.sync_enabled) {
         await syncToCloud('companies', { ...companyToDelete, deleted_at: now, updated_at: now });
