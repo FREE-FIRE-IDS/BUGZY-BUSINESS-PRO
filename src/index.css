@@ -1,6 +1,51 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
+:root {
+  /* Standard Theme Variables (Default) */
+  --bg-app: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --accent: #0ea5e9;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --border-color: #f1f5f9;
+  --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --radius-card: 1.5rem;
+  --radius-btn: 0.75rem;
+  --glass-blur: 0px;
+}
+
+[data-theme="aurora"] {
+  /* Aurora Theme Variables */
+  --bg-app: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+  --bg-card: rgba(255, 255, 255, 0.06);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --accent: #22d3ee;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --card-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  --radius-card: 1.25rem;
+  --radius-btn: 1rem;
+  --glass-blur: 12px;
+}
+
+/* Dark mode overrides for Standard theme only */
+[data-theme="standard"].dark {
+  --bg-app: #020617;
+  --bg-card: #0f172a;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-color: #1e293b;
+}
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
@@ -21,125 +66,167 @@
   }
 
   body {
-    @apply font-sans antialiased transition-colors duration-300;
+    background: var(--bg-app);
+    color: var(--text-main);
+    @apply font-sans antialiased transition-all duration-300;
   }
   
-  /* Ensure text is readable in dark mode */
-  .dark body {
-    @apply bg-slate-950 text-slate-50;
-  }
-
-  /* Global Headings for Dark Mode */
-  .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
-    @apply text-white;
+  /* Global Headings */
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--text-main);
   }
 }
 
 @layer components {
   .card {
-    @apply bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-sm transition-all;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-card);
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(var(--glass-blur));
+    @apply transition-all;
   }
   
   .input-field {
-    @apply w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-slate-50;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-btn);
+    color: var(--text-main);
+    backdrop-filter: blur(var(--glass-blur));
+    @apply w-full p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all;
   }
   
   .btn-primary {
-    @apply px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 active:scale-95 disabled:opacity-50;
+    background-color: var(--primary);
+    border-radius: var(--radius-btn);
+    @apply px-6 py-3 text-white font-bold hover:opacity-90 transition-all active:scale-95 disabled:opacity-50;
+  }
+
+  [data-theme="aurora"] .btn-primary {
+    background: linear-gradient(to right, #6366f1, #22d3ee);
+    box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3);
   }
   
   .btn-secondary {
-    @apply px-6 py-3 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all active:scale-95;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-btn);
+    color: var(--text-muted);
+    backdrop-filter: blur(var(--glass-blur));
+    @apply px-6 py-3 hover:opacity-80 transition-all active:scale-95;
   }
 }
 
 @layer utilities {
-  /* Aurora Theme Utility Overrides */
-  .theme-aurora body {
-    @apply bg-slate-50 dark:bg-slate-950;
-    background-image: 
-      radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.05) 0, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.05) 0, transparent 50%);
-  }
-
-  .theme-aurora .card {
-    @apply rounded-[32px] border-none shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl ring-1 ring-slate-200/50 dark:ring-slate-800/50;
-  }
-
-  .theme-aurora .btn-primary {
-    @apply rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-xl shadow-indigo-500/25 border-none;
-  }
-
-  .theme-aurora .btn-secondary {
-    @apply rounded-2xl border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md hover:bg-white dark:hover:bg-slate-800;
-  }
-
-  .theme-aurora .input-field {
-    @apply rounded-2xl border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/50 focus:ring-violet-500 backdrop-blur-sm;
-  }
-
-  .theme-aurora .sidebar-item-active {
-    @apply bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-2xl;
-    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.1);
-  }
-
   /* Extra Aurora Shine effect */
-  .aurora-shine {
+  .aurora-extra-glow {
     position: relative;
     overflow: hidden;
   }
   
-  .aurora-shine::after {
+  .aurora-extra-glow::before {
     content: '';
     position: absolute;
     top: -50%;
     left: -50%;
     width: 200%;
     height: 200%;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
     pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.3s ease;
+    z-index: 0;
+  }
+
+  /* Force certain Tailwind classes to use our variables in Aurora mode */
+  [data-theme="aurora"] .bg-white,
+  [data-theme="aurora"] .dark\:bg-white,
+  [data-theme="aurora"] .dark\:bg-slate-900,
+  [data-theme="aurora"] .bg-slate-50,
+  [data-theme="aurora"] .dark\:bg-slate-950 {
+    background: var(--bg-card) !important;
+    backdrop-filter: blur(var(--glass-blur)) !important;
   }
   
-  .aurora-shine:hover::after {
-    opacity: 1;
+  [data-theme="aurora"] .border-slate-100,
+  [data-theme="aurora"] .dark\:border-slate-800,
+  [data-theme="aurora"] .border-slate-200,
+  [data-theme="aurora"] .dark\:border-slate-700 {
+    border-color: var(--border-color) !important;
   }
 
-  /* Global Aurora Overrides for existing hardcoded Tailwind classes */
-  .theme-aurora .bg-white,
-  .theme-aurora .dark\:bg-slate-900 {
-    @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl transition-all duration-500;
+  /* Aurora Sidebar Active item */
+  [data-theme="aurora"] .bg-indigo-600 {
+    background: linear-gradient(to right, #6366f1, #22d3ee) !important;
   }
 
-  .theme-aurora .rounded-3xl {
-    @apply rounded-[32px];
+  /* Aurora Gradient Overrides for KPI cards in Dashboard */
+  [data-theme="aurora"] .bg-emerald-500 {
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+    box-shadow: 0 10px 20px -5px rgba(16, 185, 129, 0.3) !important;
   }
 
-  .theme-aurora .rounded-2xl {
-    @apply rounded-[24px];
+  [data-theme="aurora"] .bg-rose-500 {
+    background: linear-gradient(135deg, #e11d48 0%, #f43f5e 100%) !important;
+    box-shadow: 0 10px 20px -5px rgba(244, 63, 94, 0.3) !important;
   }
 
-  .theme-aurora .rounded-xl {
-    @apply rounded-[20px];
+  [data-theme="aurora"] .bg-blue-500 {
+    background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
+    box-shadow: 0 10px 20px -5px rgba(59, 130, 246, 0.3) !important;
   }
 
-  .theme-aurora .shadow-sm,
-  .theme-aurora .shadow-md {
-    @apply shadow-xl shadow-slate-200/40 dark:shadow-slate-950/60;
+  [data-theme="aurora"] .bg-orange-500 {
+    background: linear-gradient(135deg, #ea580c 0%, #f97316 100%) !important;
+    box-shadow: 0 10px 20px -5px rgba(249, 115, 22, 0.3) !important;
   }
 
-  .theme-aurora .border-slate-100,
-  .theme-aurora .dark\:border-slate-800,
-  .theme-aurora .border-slate-200 {
-    @apply border-slate-200/40 dark:border-slate-800/40;
+  [data-theme="aurora"] .bg-indigo-500 {
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
+    box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.3) !important;
   }
 
-  .theme-aurora .bg-indigo-600 {
-    @apply bg-gradient-to-br from-indigo-500 to-violet-600;
+  [data-theme="aurora"] .bg-purple-500 {
+    background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%) !important;
+    box-shadow: 0 10px 20px -5px rgba(139, 92, 246, 0.3) !important;
   }
 
-  .theme-aurora .text-indigo-600 {
-    @apply text-indigo-500;
+  [data-theme="aurora"] .rounded-\[1\.5rem\],
+  [data-theme="aurora"] .rounded-\[2\.5rem\],
+  [data-theme="aurora"] .rounded-3xl {
+    border-radius: 16px !important;
+  }
+
+  /* Improved Typography for Aurora */
+  [data-theme="aurora"] .text-slate-900,
+  [data-theme="aurora"] .dark\:text-slate-50,
+  [data-theme="aurora"] .dark\:text-white,
+  [data-theme="aurora"] .text-slate-50 {
+    color: #f8fafc !important;
+  }
+
+  [data-theme="aurora"] .text-slate-500,
+  [data-theme="aurora"] .text-slate-400 {
+    color: #94a3b8 !important;
+  }
+
+  [data-theme="aurora"] .text-indigo-600,
+  [data-theme="aurora"] .dark\:text-indigo-400 {
+    color: #a5b4fc !important;
+  }
+
+  /* Aurora Table / Cards hybrid view */
+  [data-theme="aurora"] table {
+    @apply border-collapse;
+  }
+
+  [data-theme="aurora"] th {
+    @apply text-slate-400 uppercase text-[10px] font-bold tracking-widest p-4 text-left border-b border-white/5;
+  }
+
+  [data-theme="aurora"] td {
+    @apply p-4 border-b border-white/5;
+  }
+
+  [data-theme="aurora"] tr:hover {
+    @apply bg-white/5;
   }
 }

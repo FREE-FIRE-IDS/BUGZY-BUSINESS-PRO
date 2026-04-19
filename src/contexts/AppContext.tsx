@@ -346,13 +346,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem('app_settings', JSON.stringify(settings));
     
-    // Apply visual theme class to root
+    // Apply visual theme to root using data-theme attribute
     const root = document.documentElement;
     const theme = settings.visual_theme || 'standard';
     
-    // Remove both just to be sure before adding
-    root.classList.remove('theme-standard', 'theme-aurora');
-    root.classList.add(`theme-${theme}`);
+    root.setAttribute('data-theme', theme);
     
     // Handle dark mode class as well standard way
     if (settings.theme === 'dark') {
