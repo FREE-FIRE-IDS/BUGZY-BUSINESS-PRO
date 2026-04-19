@@ -799,8 +799,20 @@ export default function App() {
       {/* Aurora Background Elements */}
       {settings.visual_theme === 'aurora' && (
         <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 blur-[120px] rounded-full animate-pulse" />
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-violet-500/10 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
+          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-cyan-500/10 blur-[150px] rounded-full animate-pulse" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-fuchsia-500/10 blur-[150px] rounded-full animate-pulse" style={{ animationDelay: '3s' }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-[0.03] pointer-events-none" 
+            style={{ backgroundImage: 'radial-gradient(circle, var(--primary) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        </div>
+      )}
+      {/* Aurora HUD Status Bar */}
+      {settings.visual_theme === 'aurora' && (
+        <div className="fixed top-0 left-0 w-full h-1 bg-cyan-400 overflow-hidden z-[60]">
+          <motion.div 
+            animate={{ x: ['-100%', '100%'] }} 
+            transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+            className="w-1/3 h-full bg-white shadow-[0_0_15px_#fff]"
+          />
         </div>
       )}
       {/* Sidebar */}
@@ -813,7 +825,10 @@ export default function App() {
           {currentCompany?.logo_url ? (
             <img src={currentCompany.logo_url} alt="Logo" className="w-10 h-10 object-contain rounded-xl" referrerPolicy="no-referrer" />
           ) : (
-            <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-bold text-xl relative overflow-hidden group">
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xl relative overflow-hidden group",
+              settings.visual_theme === 'aurora' && "border border-cyan-400 shadow-[0_0_15px_rgba(0,242,255,0.5)]"
+            )}>
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-indigo-800 opacity-90" />
               <svg className="relative z-10 w-6 h-6" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M50 25 L50 75 M35 45 L35 75 M65 45 L65 75" stroke="white" strokeWidth="8" strokeLinecap="round"/>
@@ -826,7 +841,10 @@ export default function App() {
             <motion.span 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="font-bold text-lg tracking-tight text-white truncate max-w-[150px]"
+              className={cn(
+                "font-bold text-lg tracking-tight truncate max-w-[150px]",
+                settings.visual_theme === 'aurora' ? "text-cyan-400 neon-glow-primary font-mono italic" : "text-white"
+              )}
             >
               {currentCompany?.name || 'Bugzy Pro'}
             </motion.span>
@@ -850,7 +868,7 @@ export default function App() {
               <item.icon size={22} />
               {isSidebarOpen && (
                 <div className="flex-1 flex items-center justify-between">
-                  <span>{item.label}</span>
+                  <span className={cn(settings.visual_theme === 'aurora' && "font-mono text-xs uppercase tracking-widest")}>{item.label}</span>
                   {(item as any).premium && !isLicensed() && isTrialExpired && (
                     <Sparkles size={14} className="text-amber-400 animate-pulse" />
                   )}
@@ -917,7 +935,10 @@ export default function App() {
                   </svg>
                 </div>
               )}
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50 capitalize truncate max-w-[120px] md:max-w-none hidden lg:block">
+              <h2 className={cn(
+                "text-lg font-bold capitalize truncate max-w-[120px] md:max-w-none hidden lg:block",
+                settings.visual_theme === 'aurora' ? "text-cyan-400 font-mono italic tracking-tighter" : "text-slate-900 dark:text-slate-50"
+              )}>
                 {activeTab === 'more' ? 'Menu' : activeTab}
               </h2>
             </div>

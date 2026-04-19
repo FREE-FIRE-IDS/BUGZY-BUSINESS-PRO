@@ -20,21 +20,28 @@
 }
 
 [data-theme="aurora"] {
-  /* Aurora Theme Variables */
-  --bg-app: linear-gradient(135deg, #0f172a 0%, #111827 100%);
-  --bg-card: rgba(255, 255, 255, 0.06);
-  --text-main: #f8fafc;
+  /* Futuristic Neon / Cyber Aurora variables */
+  --bg-app: #02040a;
+  --bg-card: rgba(6, 10, 24, 0.7);
+  --bg-card-hover: rgba(10, 15, 30, 0.8);
+  --text-main: #f0f9ff;
   --text-muted: #94a3b8;
-  --primary: #6366f1;
-  --primary-hover: #4f46e5;
-  --accent: #22d3ee;
-  --success: #22c55e;
-  --danger: #ef4444;
-  --border-color: rgba(255, 255, 255, 0.1);
-  --card-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-  --radius-card: 1.25rem;
-  --radius-btn: 1rem;
-  --glass-blur: 12px;
+  --primary: #00f2ff; /* Neon Cyan */
+  --primary-glow: rgba(0, 242, 255, 0.5);
+  --accent: #bc13fe; /* Neon Violet */
+  --accent-glow: rgba(188, 19, 254, 0.5);
+  --success: #39ff14; /* Neon Green */
+  --danger: #ff0055; /* Neon Red/Pink */
+  --border-color: rgba(0, 242, 255, 0.15);
+  --border-neon: rgba(0, 242, 255, 0.4);
+  --card-shadow: 0 0 20px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0, 242, 255, 0.05);
+  --radius-card: 4px; /* Sharper, techy edges */
+  --radius-btn: 2px;
+  --glass-blur: 16px;
+}
+
+[data-theme="aurora"].dark {
+  --bg-app: #010205; /* Even darker in dark mode */
 }
 
 /* Dark mode overrides for Standard theme only */
@@ -70,10 +77,25 @@
     color: var(--text-main);
     @apply font-sans antialiased transition-all duration-300;
   }
+
+  [data-theme="aurora"] body {
+    background-image: 
+      linear-gradient(rgba(0, 242, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 242, 255, 0.03) 1px, transparent 1px);
+    background-size: 30px 30px;
+    background-attachment: fixed;
+  }
   
   /* Global Headings */
   h1, h2, h3, h4, h5, h6 {
     color: var(--text-main);
+  }
+
+  [data-theme="aurora"] h1, 
+  [data-theme="aurora"] h2, 
+  [data-theme="aurora"] h3 {
+    @apply uppercase tracking-tighter italic;
+    text-shadow: 0 0 10px var(--primary-glow);
   }
 }
 
@@ -84,7 +106,29 @@
     border-radius: var(--radius-card);
     box-shadow: var(--card-shadow);
     backdrop-filter: blur(var(--glass-blur));
-    @apply transition-all;
+    @apply transition-all relative overflow-hidden;
+  }
+
+  [data-theme="aurora"] .card {
+    border: 1px solid var(--border-neon);
+    box-shadow: inset 0 0 15px rgba(0, 242, 255, 0.05), 0 0 15px rgba(0, 0, 0, 0.4);
+  }
+
+  [data-theme="aurora"] .card:hover {
+    border-color: var(--primary);
+    box-shadow: inset 0 0 20px rgba(0, 242, 255, 0.1), 0 0 20px rgba(0, 242, 255, 0.2);
+    transform: translateY(-2px);
+  }
+
+  [data-theme="aurora"] .card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    opacity: 0.5;
   }
   
   .input-field {
@@ -95,6 +139,12 @@
     backdrop-filter: blur(var(--glass-blur));
     @apply w-full p-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all;
   }
+
+  [data-theme="aurora"] .input-field {
+    border: 1px solid var(--border-neon);
+    @apply focus:ring-0 focus:border-cyan-400;
+    font-family: var(--font-mono);
+  }
   
   .btn-primary {
     background-color: var(--primary);
@@ -103,8 +153,14 @@
   }
 
   [data-theme="aurora"] .btn-primary {
-    background: linear-gradient(to right, #6366f1, #22d3ee);
-    box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3);
+    background: transparent !important;
+    border: 2px solid var(--primary);
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.1rem;
+    font-weight: 900;
+    box-shadow: 0 0 15px var(--primary-glow);
+    @apply hover:bg-cyan-400/10;
   }
   
   .btn-secondary {
@@ -115,28 +171,45 @@
     backdrop-filter: blur(var(--glass-blur));
     @apply px-6 py-3 hover:opacity-80 transition-all active:scale-95;
   }
+
+  [data-theme="aurora"] .btn-secondary {
+    border: 1px solid var(--border-neon);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    font-weight: 800;
+  }
 }
 
 @layer utilities {
-  /* Extra Aurora Shine effect */
-  .aurora-extra-glow {
-    position: relative;
-    overflow: hidden;
+  .neon-glow-primary {
+    text-shadow: 0 0 10px var(--primary-glow), 0 0 20px var(--primary-glow);
   }
   
-  .aurora-extra-glow::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 0;
+  .neon-glow-accent {
+    text-shadow: 0 0 10px var(--accent-glow), 0 0 20px var(--accent-glow);
   }
 
-  /* Force certain Tailwind classes to use our variables in Aurora mode */
+  [data-theme="aurora"] #root::after {
+    content: " ";
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+    z-index: 100;
+    background-size: 100% 2px, 3px 100%;
+    pointer-events: none;
+    opacity: 0.2;
+  }
+
+  [data-theme="aurora"] .sidebar-item-active {
+    @apply bg-cyan-400/10 text-cyan-400 !important;
+    border-right: 3px solid var(--primary);
+    box-shadow: 10px 0 20px -10px var(--primary-glow);
+  }
+
   [data-theme="aurora"] .bg-white,
   [data-theme="aurora"] .dark\:bg-white,
   [data-theme="aurora"] .dark\:bg-slate-900,
@@ -145,7 +218,7 @@
     background: var(--bg-card) !important;
     backdrop-filter: blur(var(--glass-blur)) !important;
   }
-  
+
   [data-theme="aurora"] .border-slate-100,
   [data-theme="aurora"] .dark\:border-slate-800,
   [data-theme="aurora"] .border-slate-200,
@@ -153,12 +226,6 @@
     border-color: var(--border-color) !important;
   }
 
-  /* Aurora Sidebar Active item */
-  [data-theme="aurora"] .bg-indigo-600 {
-    background: linear-gradient(to right, #6366f1, #22d3ee) !important;
-  }
-
-  /* Aurora Gradient Overrides for KPI cards in Dashboard */
   [data-theme="aurora"] .bg-emerald-500 {
     background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
     box-shadow: 0 10px 20px -5px rgba(16, 185, 129, 0.3) !important;
@@ -192,10 +259,17 @@
   [data-theme="aurora"] .rounded-\[1\.5rem\],
   [data-theme="aurora"] .rounded-\[2\.5rem\],
   [data-theme="aurora"] .rounded-3xl {
-    border-radius: 16px !important;
+    border-radius: 2px !important;
+    clip-path: polygon(
+      0 0,
+      calc(100% - 10px) 0,
+      100% 10px,
+      100% 100%,
+      10px 100%,
+      0 calc(100% - 10px)
+    ) !important;
   }
 
-  /* Improved Typography for Aurora */
   [data-theme="aurora"] .text-slate-900,
   [data-theme="aurora"] .dark\:text-slate-50,
   [data-theme="aurora"] .dark\:text-white,
@@ -213,11 +287,6 @@
     color: #a5b4fc !important;
   }
 
-  /* Aurora Table / Cards hybrid view */
-  [data-theme="aurora"] table {
-    @apply border-collapse;
-  }
-
   [data-theme="aurora"] th {
     @apply text-slate-400 uppercase text-[10px] font-bold tracking-widest p-4 text-left border-b border-white/5;
   }
@@ -227,6 +296,11 @@
   }
 
   [data-theme="aurora"] tr:hover {
-    @apply bg-white/5;
+    @apply bg-cyan-400/5;
+  }
+
+  [data-theme="aurora"] header {
+    border-bottom: 2px solid var(--border-neon) !important;
+    box-shadow: 0 5px 15px -5px var(--primary-glow) !important;
   }
 }

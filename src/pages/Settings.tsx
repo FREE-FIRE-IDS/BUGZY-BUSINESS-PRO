@@ -20,7 +20,8 @@ import {
   Database,
   ShieldAlert,
   Download,
-  Upload
+  Upload,
+  Sparkles
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -910,28 +911,48 @@ NOTIFY pgrst, 'reload schema';
             </div>
 
             {/* Visual Theme */}
-            <div className="p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+            <div className={cn(
+              "p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors",
+              (settings.visual_theme || 'standard') === 'aurora' 
+                ? "bg-cyan-400/5 hover:bg-cyan-400/10 border-y border-cyan-400/20" 
+                : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            )}>
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-900/20 text-rose-600 flex items-center justify-center">
-                  <Building2 size={20} />
+                <div className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                  (settings.visual_theme || 'standard') === 'aurora'
+                    ? "bg-cyan-400 text-black shadow-[0_0_15px_var(--primary)]"
+                    : "bg-rose-50 dark:bg-rose-900/20 text-rose-600"
+                )}>
+                  {(settings.visual_theme || 'standard') === 'aurora' ? <Sparkles size={20} /> : <Building2 size={20} />}
                 </div>
                 <div>
-                  <p className="font-bold">App Visual Theme</p>
-                  <p className="text-xs text-slate-500">Upgrade your experience with Aurora theme</p>
+                  <p className={cn(
+                    "font-bold",
+                    (settings.visual_theme || 'standard') === 'aurora' && "text-cyan-400 font-mono italic uppercase"
+                  )}>Visual Interface System</p>
+                  <p className="text-xs text-slate-500">
+                    {(settings.visual_theme || 'standard') === 'aurora' ? "[SYSTEM_ACTIVE] Cyberpunk Neon UX" : "Standard business accounting UI"}
+                  </p>
                 </div>
               </div>
-              <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl gap-1">
+              <div className={cn(
+                "flex p-1 rounded-xl gap-1",
+                (settings.visual_theme || 'standard') === 'aurora' ? "bg-black/50 border border-cyan-400/30" : "bg-slate-100 dark:bg-slate-800"
+              )}>
                 {[
-                  { id: 'standard', name: 'Standard' },
-                  { id: 'aurora', name: 'Aurora' }
+                  { id: 'standard', name: 'Legacy' },
+                  { id: 'aurora', name: 'Futuristic' }
                 ].map((t) => (
                   <button
                     key={t.id}
                     onClick={() => updateSettings({ visual_theme: t.id as any })}
                     className={cn(
-                      "px-4 py-1.5 text-xs font-bold rounded-lg transition-all",
+                      "px-6 py-2 text-xs font-bold rounded-lg transition-all",
                       (settings.visual_theme || 'standard') === t.id
-                        ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                        ? ((settings.visual_theme || 'standard') === 'aurora' 
+                            ? "bg-cyan-400 text-black shadow-[0_0_15px_var(--primary)]" 
+                            : "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm")
                         : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                     )}
                   >
