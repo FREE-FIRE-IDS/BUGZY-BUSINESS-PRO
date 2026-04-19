@@ -153,6 +153,7 @@ export interface AppSettings {
   theme: 'light' | 'dark';
   currency: string;
   pdf_theme: string;
+  visual_theme?: 'standard' | 'aurora';
   sync_enabled: boolean;
   user_email?: string;
   is_verified?: boolean;
