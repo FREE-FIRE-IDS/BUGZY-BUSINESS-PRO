@@ -45,7 +45,10 @@ export default function Invoices() {
     updated[index] = { ...updated[index], [field]: value };
     if (field === 'item_id') {
       const item = items.find(i => i.id === value);
-      if (item) updated[index].price = item.price;
+      if (item) {
+        updated[index].price = item.price;
+        if ((item as any).unit) updated[index].unit = (item as any).unit;
+      }
     }
     setSelectedItems(updated);
   };
