@@ -21,6 +21,7 @@ import { generateBankStatement } from '../lib/pdfGenerator';
 export default function Banks() {
   const { banks, transactions, invoices, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, parties, currentCompany, setSelectedBankId } = useApp();
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
+  const [viewMode, setViewMode] = useState<'app' | 'accounting'>('app');
 
   const stats = useMemo(() => {
     const cashInHand = transactions
@@ -83,7 +84,7 @@ export default function Banks() {
     if (currentCompany && selectedBank) {
       // Filter out pseudo-entry for opening balance
       const transactionsOnly = bankLedger.filter(tx => tx.id !== 'opening');
-      generateBankStatement(currentCompany, selectedBank, transactionsOnly, stats);
+      generateBankStatement(currentCompany, selectedBank, transactionsOnly, stats, viewMode);
     }
   };
 
@@ -251,15 +252,37 @@ export default function Banks() {
           </div>
 
           <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-200 flex flex-wrap items-center justify-between gap-4">
               <h3 className="font-bold text-slate-900 dark:text-slate-900">Bank Ledger</h3>
-              <button 
-                onClick={handleExportPDF}
-                className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
-              >
-                <Download size={18} />
-                PDF
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mr-2">
+                  <button 
+                    onClick={() => setViewMode('app')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                      viewMode === 'app' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
+                    )}
+                  >
+                    App View
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('accounting')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                      viewMode === 'accounting' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
+                    )}
+                  >
+                    Accounting View
+                  </button>
+                </div>
+                <button 
+                  onClick={handleExportPDF}
+                  className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                >
+                  <Download size={18} />
+                  PDF
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto hidden md:block">
               <table className="w-full text-left">
@@ -268,8 +291,12 @@ export default function Banks() {
                     <th className="px-6 py-4 font-semibold">Date</th>
                     <th className="px-6 py-4 font-semibold">Type</th>
                     <th className="px-6 py-4 font-semibold">Description</th>
-                    <th className="px-6 py-4 font-semibold text-right">Withdrawal</th>
-                    <th className="px-6 py-4 font-semibold text-right">Deposit</th>
+                    <th className="px-6 py-4 font-semibold text-right">
+                      {viewMode === 'app' ? 'Withdrawal' : 'Credit (-)'}
+                    </th>
+                    <th className="px-6 py-4 font-semibold text-right">
+                      {viewMode === 'app' ? 'Deposit' : 'Debit (+)'}
+                    </th>
                     <th className="px-6 py-4 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -338,13 +365,17 @@ export default function Banks() {
                   <div className="flex justify-between items-center">
                     <div className="flex gap-4">
                       <div>
-                        <p className="text-[10px] text-slate-400 uppercase font-bold">Withdrawal</p>
+                        <p className="text-[10px] text-slate-400 uppercase font-bold">
+                          {viewMode === 'app' ? 'Withdrawal' : 'Credit'}
+                        </p>
                         <p className="text-sm font-bold text-rose-600 dark:text-rose-400">
                           {tx.bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-slate-400 uppercase font-bold">Deposit</p>
+                        <p className="text-[10px] text-slate-400 uppercase font-bold">
+                          {viewMode === 'app' ? 'Deposit' : 'Debit'}
+                        </p>
                         <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
                           {tx.to_bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
                         </p>

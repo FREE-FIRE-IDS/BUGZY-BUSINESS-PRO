@@ -50,27 +50,28 @@ export default function Reports() {
   }, [parties, currentCompany, activeReport]);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'app' | 'accounting'>('app');
   const [searchQuery, setSearchQuery] = useState('');
 
   const companyBanks = banks.filter(b => b.company_id === currentCompany?.id);
   const companyItems = items.filter(i => i.company_id === currentCompany?.id);
   const companyInvoices = invoices.filter(i => i.company_id === currentCompany?.id);
 
-  const allColumns: Record<ReportType, string[]> = {
+  const allColumns: Record<ReportType, string[]> = useMemo(() => ({
     'All Parties': ['Party Name', 'Type', 'Debit (DR)', 'Credit (CR)', 'Balance'],
     'Single Party': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
     'All Banks': ['Bank Name', 'Account #', 'Debit (DR)', 'Credit (CR)', 'Balance'],
-    'Single Bank': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
+    'Single Bank': ['Date', 'Description', viewMode === 'app' ? 'Withdrawal' : 'Credit', viewMode === 'app' ? 'Deposit' : 'Debit', 'Balance'],
     'Stock': ['Item Name', 'SKU', 'Unit', 'Price', 'Stock', 'Value'],
     'Purchase': ['Date', 'Party', 'Item', 'Qty', 'Unit', 'Price', 'Total'],
     'Sale': ['Date', 'Party', 'Item', 'Qty', 'Unit', 'Price', 'Total'],
     'Expense': ['Date', 'Description', 'Category', 'Paid From', 'Amount'],
     'Invoice': ['Invoice #', 'Date', 'Item', 'Qty', 'Unit', 'Price', 'Total']
-  };
+  }), [viewMode]);
 
   useEffect(() => {
     setSelectedColumns(allColumns[activeReport]);
-  }, [activeReport]);
+  }, [activeReport, allColumns]);
 
   const reportOptions = [
     { id: 'All Parties', label: 'All Parties Balance', icon: Users },
@@ -351,8 +352,8 @@ export default function Reports() {
         const row: any[] = [];
         if (selectedColumns.includes('Date')) row.push(d.isOpening ? '-' : formatDate(d.date));
         if (selectedColumns.includes('Description')) row.push(d.description || d.type);
-        if (selectedColumns.includes('Debit')) row.push((!d.isOpening && isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
-        if (selectedColumns.includes('Credit')) row.push((!d.isOpening && !isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
+        if (selectedColumns.includes('Debit') || selectedColumns.includes('Deposit')) row.push((!d.isOpening && isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
+        if (selectedColumns.includes('Credit') || selectedColumns.includes('Withdrawal')) row.push((!d.isOpening && !isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
         if (selectedColumns.includes('Balance')) row.push(`${formatCurrency(Math.abs(runningBalance), settings.currency)} ${runningBalance >= 0 ? 'DR' : 'CR'}`);
         return row;
       });
@@ -460,7 +461,7 @@ export default function Reports() {
           if (activeReport === 'Single Party' || activeReport === 'Single Bank') {
             return [visibleCols.map(col => {
               if (col === 'Balance') return `${formatCurrency(Math.abs(total), settings.currency)} ${total >= 0 ? 'DR' : 'CR'}`;
-              if (col === 'Credit') return 'Total Balance';
+              if (col === 'Credit' || col === 'Withdrawal') return 'Total Balance';
               return '';
             })];
           }
@@ -564,6 +565,28 @@ export default function Reports() {
                 <Filter size={18} />
                 Columns
               </button>
+              {activeReport === 'Single Bank' && (
+                <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mr-2">
+                  <button 
+                    onClick={() => setViewMode('app')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                      viewMode === 'app' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
+                    )}
+                  >
+                    {viewMode === 'app' ? 'App View' : 'App'}
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('accounting')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                      viewMode === 'accounting' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
+                    )}
+                  >
+                    {viewMode === 'accounting' ? 'Accounting View' : 'Accounting'}
+                  </button>
+                </div>
+              )}
               {(activeReport === 'Single Party' || activeReport === 'Single Bank') && (
                 <select 
                   value={selectedEntity}
@@ -647,14 +670,14 @@ export default function Reports() {
                         } else if (col === 'Value') {
                           content = formatCurrency(row.value, settings.currency);
                           className += " text-right text-indigo-600 font-bold";
-                        } else if (col === 'Debit (DR)' || col === 'Debit') {
-                          const isDebit = row.type === 'Sale' || row.type === 'Payment In' || row.type === 'Deposit' || row.type === 'Party To Bank' || row.type === 'Bank To Party' || row.balance >= 0;
+                        } else if (col === 'Debit (DR)' || col === 'Debit' || col === 'Deposit') {
+                          const isDebit = row.type === 'Sale' || row.type === 'Payment In' || row.type === 'Deposit' || row.type === 'Party To Bank' || row.type === 'Bank To Party' || row.to_bank_id === selectedEntity || row.balance >= 0;
                           const amount = row.amount || row.total || (row.balance >= 0 ? row.balance : 0);
                           content = isDebit ? formatCurrency(amount, settings.currency) : '-';
                           className += " text-right text-emerald-600 font-bold";
-                        } else if (col === 'Credit (CR)' || col === 'Credit') {
-                          const isCredit = row.type === 'Purchase' || row.type === 'Payment Out' || row.type === 'Withdraw' || row.type === 'Bank To Party' || row.type === 'Party To Bank' || row.balance < 0;
-                          const amount = row.amount || row.total || (row.balance < 0 ? Math.abs(row.balance) : 0);
+                        } else if (col === 'Credit (CR)' || col === 'Credit' || col === 'Withdrawal') {
+                          const isCredit = row.type === 'Purchase' || row.type === 'Payment Out' || row.type === 'Withdraw' || row.type === 'Bank To Party' || row.type === 'Party To Bank' || row.bank_id === selectedEntity || row.balance < 0;
+                          const amount = (row.amount || row.total) || (row.balance < 0 ? Math.abs(row.balance) : 0);
                           content = isCredit ? formatCurrency(amount, settings.currency) : '-';
                           className += " text-right text-rose-600 font-bold";
                         } else if (col === 'Balance') {

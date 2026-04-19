@@ -120,7 +120,8 @@ export const generateBankStatement = (
   company: Company,
   bank: Bank,
   transactions: Transaction[],
-  summary?: { cashInHand: number; totalBankBalance: number }
+  summary?: { cashInHand: number; totalBankBalance: number },
+  viewMode: 'app' | 'accounting' = 'app'
 ) => {
   const doc = new jsPDF() as jsPDFWithAutoTable;
   const dateStr = format(new Date(), 'dd-MM-yyyy');
@@ -202,7 +203,13 @@ export const generateBankStatement = (
 
   doc.autoTable({
     startY: 75,
-    head: [['Date', 'Description', 'Withdrawal/DR', 'Deposit/CR', 'Balance']],
+    head: [[
+      'Date', 
+      'Description', 
+      viewMode === 'app' ? 'Withdrawal' : 'Credit', 
+      viewMode === 'app' ? 'Deposit' : 'Debit', 
+      'Balance'
+    ]],
     body: tableData.map(row => [row.date, row.description, row.debit, row.credit, row.balance]),
     headStyles: { fillStyle: 'F', fillColor: [67, 56, 202] },
     alternateRowStyles: { fillColor: [245, 243, 255] },
@@ -214,8 +221,8 @@ export const generateBankStatement = (
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(30, 41, 59);
   
-  doc.text(`Sub-Total Withdrawal: ${transactions.reduce((s, t) => (t.bank_id === bank.id && (t.type === 'Payment Out' || t.type === 'Purchase' || t.type === 'Expense' || t.type === 'Bank To Party' || t.type === 'Withdraw' || t.type === 'Bank To Bank')) ? s + t.amount : s, 0).toFixed(2)}`, 14, finalY + 12);
-  doc.text(`Sub-Total Deposit: ${transactions.reduce((s, t) => (t.to_bank_id === bank.id) || (t.bank_id === bank.id && (t.type === 'Payment In' || t.type === 'Sale' || t.type === 'Party To Bank' || t.type === 'Deposit')) ? s + t.amount : s, 0).toFixed(2)}`, 14, finalY + 19);
+  doc.text(`Sub-Total ${viewMode === 'app' ? 'Withdrawal' : 'Credit'}: ${transactions.reduce((s, t) => (t.bank_id === bank.id && (t.type === 'Payment Out' || t.type === 'Purchase' || t.type === 'Expense' || t.type === 'Bank To Party' || t.type === 'Withdraw' || t.type === 'Bank To Bank')) ? s + t.amount : s, 0).toFixed(2)}`, 14, finalY + 12);
+  doc.text(`Sub-Total ${viewMode === 'app' ? 'Deposit' : 'Debit'}: ${transactions.reduce((s, t) => (t.to_bank_id === bank.id) || (t.bank_id === bank.id && (t.type === 'Payment In' || t.type === 'Sale' || t.type === 'Party To Bank' || t.type === 'Deposit')) ? s + t.amount : s, 0).toFixed(2)}`, 14, finalY + 19);
 
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
