@@ -909,6 +909,38 @@ NOTIFY pgrst, 'reload schema';
               </select>
             </div>
 
+            {/* Visual Theme */}
+            <div className="p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-900/20 text-rose-600 flex items-center justify-center">
+                  <Building2 size={20} />
+                </div>
+                <div>
+                  <p className="font-bold">App Visual Theme</p>
+                  <p className="text-xs text-slate-500">Upgrade your experience with Aurora theme</p>
+                </div>
+              </div>
+              <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl gap-1">
+                {[
+                  { id: 'standard', name: 'Standard' },
+                  { id: 'aurora', name: 'Aurora' }
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => updateSettings({ visual_theme: t.id as any })}
+                    className={cn(
+                      "px-4 py-1.5 text-xs font-bold rounded-lg transition-all",
+                      (settings.visual_theme || 'standard') === t.id
+                        ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    )}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Cloud Sync */}
             <div className="p-6 space-y-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
               <div className="flex items-center justify-between">

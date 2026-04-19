@@ -792,9 +792,17 @@ export default function App() {
 
   return (
     <div className={cn(
-      "min-h-screen flex flex-col transition-colors duration-300",
-      theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
+      "min-h-screen flex flex-col transition-all duration-500",
+      theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900",
+      settings.visual_theme === 'aurora' && "theme-aurora"
     )}>
+      {/* Aurora Background Elements */}
+      {settings.visual_theme === 'aurora' && (
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 blur-[120px] rounded-full animate-pulse" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-violet-500/10 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
+        </div>
+      )}
       {/* Sidebar */}
       <aside className={cn(
         "fixed left-0 top-0 h-full z-40 transition-all duration-300 border-r hidden md:block",
@@ -835,7 +843,7 @@ export default function App() {
               className={cn(
                 "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative",
                 activeTab === item.id 
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                  ? (settings.visual_theme === 'aurora' ? "sidebar-item-active" : "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20")
                   : theme === 'dark' ? "text-slate-400 hover:bg-slate-800" : "text-slate-600 hover:bg-slate-100"
               )}
             >
