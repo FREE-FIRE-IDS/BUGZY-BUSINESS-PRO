@@ -303,9 +303,15 @@ export default function Invoices() {
                 const dateStr = formData.get('date') as string;
                 const dueDateStr = formData.get('due_date') as string;
 
+                // Generate numeric invoice number
+                const nextInvoiceNum = invoices.reduce((max, inv) => {
+                  const num = parseInt(inv.invoice_number.replace(/\D/g, ''));
+                  return isNaN(num) ? max : Math.max(max, num);
+                }, 0) + 1;
+
                 addInvoice({
                   company_id: currentCompany?.id,
-                  invoice_number: `INV-${Date.now().toString().slice(-6)}`,
+                  invoice_number: nextInvoiceNum.toString(),
                   date: dateStr ? new Date(dateStr).toISOString() : new Date().toISOString(),
                   due_date: dueDateStr ? new Date(dueDateStr).toISOString() : undefined,
                   party_id: formData.get('party_id') as string,

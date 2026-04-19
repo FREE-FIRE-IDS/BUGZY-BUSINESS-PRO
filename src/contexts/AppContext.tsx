@@ -581,10 +581,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (table === 'items') dbTable = 'inventory';
     
     try {
-        // Sanitize data: replace empty strings with null for date fields
+        // Sanitize data: replace empty strings with null for date fields and strip local metadata
         const sanitize = (obj: any) => {
           const sanitized = { ...obj };
           Object.keys(sanitized).forEach(key => {
+            // Strip local metadata starting with _ (like _synced)
+            if (key.startsWith('_')) {
+              delete (sanitized as any)[key];
+              return;
+            }
+
             if (sanitized[key] === "") {
               if (key.includes('date') || key.includes('_at') || key === 'bank_id' || key === 'party_id' || key === 'to_party_id' || key === 'to_bank_id') {
                 sanitized[key] = null;
