@@ -102,7 +102,7 @@ export default function Reports() {
         if (t.type === 'Withdraw') return sum + t.amount;
         if (t.type === 'Deposit') return sum - t.amount;
         if (!t.bank_id && !t.to_bank_id) {
-          if (['Sale', 'Income', 'Payment In', 'Stock In', 'Bank To Party'].includes(t.type)) return sum + t.amount;
+          if (['Sale', 'Payment In', 'Stock In', 'Bank To Party'].includes(t.type)) return sum + t.amount;
           if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank'].includes(t.type)) return sum - t.amount;
         }
         return sum;

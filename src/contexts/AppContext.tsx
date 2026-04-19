@@ -942,6 +942,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (settings.sync_enabled) {
       syncToCloud('parties', newParty, true).catch(err => console.error('Add Party Sync Error:', err));
     }
+    await recalculateBalances(transactions, updated, banks, items, invoices);
   };
 
   const updateParty = async (id: string, party: Partial<Party>) => {
@@ -954,6 +955,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (settings.sync_enabled) {
       await syncToCloud('parties', updated.find(p => p.id === id));
     }
+    await recalculateBalances(transactions, updated, banks, items, invoices);
   };
 
   const deleteParty = async (id: string, hard = true) => {
@@ -980,6 +982,7 @@ const deleteFromCloud = async (table: string, id: string) => {
         await syncToCloud('parties', { ...party, deleted_at: now, updated_at: now });
       }
     }
+    await recalculateBalances(transactions, updatedParties, banks, items, invoices);
   };
 
   const addBank = async (bank: Omit<BankAccount, 'id' | 'created_at'>) => {
@@ -1003,6 +1006,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (settings.sync_enabled) {
       syncToCloud('banks', newBank, true).catch(err => console.error('Add Bank Sync Error:', err));
     }
+    await recalculateBalances(transactions, parties, updated, items, invoices);
   };
 
   const updateBank = async (id: string, bank: Partial<BankAccount>) => {
@@ -1015,6 +1019,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (settings.sync_enabled) {
       await syncToCloud('banks', updated.find(b => b.id === id));
     }
+    await recalculateBalances(transactions, parties, updated, items, invoices);
   };
 
   const deleteBank = async (id: string, hard = true) => {
@@ -1041,6 +1046,7 @@ const deleteFromCloud = async (table: string, id: string) => {
         await syncToCloud('banks', { ...bank, deleted_at: now, updated_at: now });
       }
     }
+    await recalculateBalances(transactions, parties, updatedBanks, items, invoices);
   };
 
   const addItem = async (item: Omit<Item, 'id' | 'created_at'>) => {
@@ -1062,6 +1068,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (settings.sync_enabled) {
       syncToCloud('items', newItem, true).catch(err => console.error('Add Item Sync Error:', err));
     }
+    await recalculateBalances(transactions, parties, banks, updated, invoices);
   };
 
   const updateItem = async (id: string, item: Partial<Item>) => {
@@ -1074,6 +1081,7 @@ const deleteFromCloud = async (table: string, id: string) => {
     if (settings.sync_enabled) {
       await syncToCloud('items', updated.find(i => i.id === id));
     }
+    await recalculateBalances(transactions, parties, banks, updated, invoices);
   };
 
   const deleteItem = async (id: string, hard = true) => {
@@ -1100,6 +1108,7 @@ const deleteFromCloud = async (table: string, id: string) => {
         await syncToCloud('items', { ...item, deleted_at: now, updated_at: now });
       }
     }
+    await recalculateBalances(transactions, parties, banks, updatedItems, invoices);
   };
 
   const deleteTransaction = async (id: string, hard = true) => {
