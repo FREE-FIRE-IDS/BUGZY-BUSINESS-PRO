@@ -85,37 +85,37 @@ export default function Inventory() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md">
+          <div className="flex items-center gap-4">
             <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
               <Package size={24} />
             </div>
             <div>
-              <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Items</h3>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{items.length}</p>
+              <h3 className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">Total Items</h3>
+              <p className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">{items.length}</p>
             </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center gap-4 mb-4">
+        <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md">
+          <div className="flex items-center gap-4">
             <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400">
               <AlertTriangle size={24} />
             </div>
             <div>
-              <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Low Stock</h3>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{lowStockItems.length}</p>
+              <h3 className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">Low Stock</h3>
+              <p className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">{lowStockItems.length}</p>
             </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center gap-4 mb-4">
+        <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md sm:col-span-2 lg:col-span-1">
+          <div className="flex items-center gap-4">
             <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
               <TrendingUp size={24} />
             </div>
             <div>
-              <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Value</h3>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">
+              <h3 className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-medium">Total Value</h3>
+              <p className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">
                 {formatCurrency(items.reduce((sum, item) => sum + (item.price * item.stock), 0), settings.currency)}
               </p>
             </div>
@@ -153,7 +153,8 @@ export default function Inventory() {
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop View Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
               <tr>
@@ -183,7 +184,7 @@ export default function Inventory() {
                   <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-slate-50">
                     <div className="flex items-center justify-end gap-3">
                       <button 
-                        onClick={() => setAdjustingStock({ item, type: 'reduce' })}
+                         onClick={() => setAdjustingStock({ item, type: 'reduce' })}
                         className="p-1 rounded-lg bg-rose-50 dark:bg-rose-100 text-rose-600 hover:bg-rose-200 transition-colors"
                       >
                         <TrendingDown size={14} />
@@ -223,16 +224,85 @@ export default function Inventory() {
                   </td>
                 </tr>
               ))}
-              {filteredItems.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                    No items found in inventory.
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
+
+        {/* Mobile View Cards */}
+        <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+          {filteredItems.map((item) => (
+            <div key={item.id} className="p-4 space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-500">
+                    <Package size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50">{item.name}</h4>
+                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">{item.sku || 'No SKU'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => setEditingItem(item)}
+                    className="p-2 text-slate-400 hover:text-indigo-600"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button 
+                    onClick={() => setIsDeleteConfirmOpen(item.id)}
+                    className="p-2 text-slate-400 hover:text-rose-600"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                  <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Price</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{formatCurrency(item.price, settings.currency)}</p>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                  <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Unit</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{item.unit || '-'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-2xl">
+                <div>
+                  <p className="text-[10px] text-indigo-600 dark:text-indigo-400 uppercase font-black mb-0.5">Current Stock</p>
+                  <span className={cn(
+                    "text-xs font-bold px-2 py-0.5 rounded-full uppercase",
+                    item.stock <= item.low_stock_alert ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
+                  )}>
+                    {item.stock} - {item.stock <= item.low_stock_alert ? 'Low' : 'OK'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setAdjustingStock({ item, type: 'reduce' })}
+                    className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-rose-600 shadow-sm border border-slate-100 dark:border-slate-700"
+                  >
+                    <TrendingDown size={14} />
+                  </button>
+                  <button 
+                    onClick={() => setAdjustingStock({ item, type: 'add' })}
+                    className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-emerald-600 shadow-sm border border-slate-100 dark:border-slate-700"
+                  >
+                    <TrendingUp size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {filteredItems.length === 0 && (
+          <div className="px-6 py-12 text-center text-slate-400">
+            No items found in inventory.
+          </div>
+        )}
       </div>
 
       {/* Delete Confirmation Modal */}
@@ -272,12 +342,12 @@ export default function Inventory() {
         {(isAddModalOpen || editingItem) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setIsAddModalOpen(false); setEditingItem(null); }} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
+              <div className="p-4 md:p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 z-10">
                 <h2 className="text-xl font-bold">{editingItem ? 'Edit Item' : 'Add New Item'}</h2>
                 <button onClick={() => { setIsAddModalOpen(false); setEditingItem(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
               </div>
-              <form className="p-8 space-y-6" onSubmit={(e) => {
+              <form className="p-4 md:p-8 space-y-4 md:space-y-6" onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
                 const itemData = {

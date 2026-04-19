@@ -670,19 +670,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 };
 
-const deleteFromCloud = async (table: string, id: string) => {
-    if (!settings.sync_enabled || !settings.user_email) return;
+const deleteFromCloud = async (table: string, id: string, emailOverride?: string | null) => {
+    const email = emailOverride || settings.user_email || currentCompany?.user_email || (currentCompany?.username ? `${currentCompany.username}@bugzy.app` : null);
+    const isUsernameAccount = !!currentCompany?.username || !!emailOverride;
+    
+    if (!settings.sync_enabled && !isUsernameAccount) return;
+    if (!email) return;
     
     let dbTable = table;
     if (table === 'items') dbTable = 'inventory';
     if (table === 'expenses') dbTable = 'transactions';
 
-    console.log(`[Delete Start] Table: ${dbTable}, ID: ${id}`);
+    console.log(`[Delete Start] Table: ${dbTable}, ID: ${id}, Email: ${email}`);
     try {
         const { error } = await supabase.from(dbTable).delete().eq('id', id);
         if (error) {
             console.error(`[Delete Error] ${dbTable}:`, error);
-            // If table doesn't exist, ignore for now
             if (error.code === 'PGRST116' || error.message.includes('relation')) return;
             throw error;
         }
@@ -1259,7 +1262,7 @@ const deleteFromCloud = async (table: string, id: string) => {
         setCompanies(data);
         if (data.length > 0) {
           setCurrentCompany(data[0]);
-          localStorage.setItem('currentCompany', JSON.stringify(data[0]));
+          localStorage.setItem(`currentCompany_${normalizedUsername}`, JSON.stringify(data[0]));
         }
         
         setCurrentUser(normalizedUsername);
@@ -1437,31 +1440,38 @@ const deleteFromCloud = async (table: string, id: string) => {
 
     const now = new Date().toISOString();
     const updatedCompanies = companies.filter(c => c.id !== id);
+    
+    // 1. Update State
     setCompanies(updatedCompanies);
     
-    const localAll = companies;
-    
-    if (hard) {
-      const filteredAll = localAll.filter((c: any) => c.id !== id);
-      if (currentUser) {
-        localStorage.setItem(`companies_${currentUser}`, JSON.stringify(filteredAll));
-      }
-      if (settings.sync_enabled) {
-        await deleteFromCloud('companies', id);
-      }
-    } else {
-      const updatedAll = localAll.map((c: any) => c.id === id ? { ...c, deleted_at: now, updated_at: now } : c);
-      if (currentUser) {
-        localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updatedAll));
-      }
-      if (settings.sync_enabled) {
-        await syncToCloud('companies', { ...companyToDelete, deleted_at: now, updated_at: now });
+    // 2. Update Local Storage explicitly for current user
+    const targetUser = currentUser || companyToDelete.username;
+    if (targetUser) {
+      if (hard) {
+        localStorage.setItem(`companies_${targetUser}`, JSON.stringify(updatedCompanies));
+      } else {
+        const withSoftDeleted = companies.map(c => c.id === id ? { ...c, deleted_at: now, updated_at: now } : c);
+        localStorage.setItem(`companies_${targetUser}`, JSON.stringify(withSoftDeleted));
       }
     }
 
+    // 3. Sync to Cloud
+    if (hard) {
+      const companyEmail = companyToDelete.user_email || (companyToDelete.username ? `${companyToDelete.username}@bugzy.app` : null);
+      await deleteFromCloud('companies', id, companyEmail);
+    } else {
+      await syncToCloud('companies', { ...companyToDelete, deleted_at: now, updated_at: now });
+    }
+
+    // 4. Handle navigation if deleting current
     if (currentCompany?.id === id) {
       const nextCompany = updatedCompanies.length > 0 ? updatedCompanies[0] : null;
       setCurrentCompany(nextCompany);
+      if (nextCompany && targetUser) {
+        localStorage.setItem(`currentCompany_${targetUser}`, JSON.stringify(nextCompany));
+      } else if (targetUser) {
+        localStorage.removeItem(`currentCompany_${targetUser}`);
+      }
     }
   };
 
@@ -1484,12 +1494,26 @@ const deleteFromCloud = async (table: string, id: string) => {
       }
       
       if (data) {
+        // Essential: Set this user as active so data persists
+        const targetUser = data.username || currentUser;
+        if (targetUser) {
+          setCurrentUser(targetUser);
+          localStorage.setItem('currentUser', targetUser);
+        }
+
         setCompanies(prev => {
           const exists = prev.find(c => c.id === data.id);
-          if (exists) return prev;
-          return [...prev, data];
+          const updated = exists ? prev.map(c => c.id === data.id ? data : c) : [...prev, data];
+          if (targetUser) {
+            localStorage.setItem(`companies_${targetUser}`, JSON.stringify(updated));
+          }
+          return updated;
         });
+        
         setCurrentCompany(data);
+        if (targetUser) {
+          localStorage.setItem(`currentCompany_${targetUser}`, JSON.stringify(data));
+        }
         
         // Update settings with the email from the company if available
         if (data.user_email) {
@@ -1499,7 +1523,6 @@ const deleteFromCloud = async (table: string, id: string) => {
         setSyncStatus({ loading: false, error: null, success: 'Company restored successfully!' });
         
         // Trigger a full data pull for this company
-        // We need to wait a bit for settings to update
         setTimeout(() => {
           refreshData(data.user_email, true);
         }, 500);
@@ -1824,6 +1847,7 @@ const deleteFromCloud = async (table: string, id: string) => {
       isDeviceLicensed,
       isLicensed: () => isDeviceLicensed,
       loginWithUsername,
+      restoreCompany,
       isAdmin,
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
       session, signOut

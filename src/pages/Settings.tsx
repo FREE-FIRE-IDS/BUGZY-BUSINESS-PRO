@@ -465,17 +465,17 @@ NOTIFY pgrst, 'reload schema';
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-12">
+    <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 px-4 md:px-0">
       {/* Company Section */}
       <section>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <h3 className="text-xl font-bold flex items-center gap-2">
             <Building2 size={24} className="text-indigo-600" />
             Company Management
           </h3>
           <button 
             onClick={() => setIsAddCompanyModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold text-sm"
           >
             <Plus size={18} />
             Add Company
@@ -619,22 +619,22 @@ NOTIFY pgrst, 'reload schema';
               key={company.id}
               onClick={() => setCurrentCompany(company)}
               className={cn(
-                "p-6 rounded-3xl border transition-all cursor-pointer group",
+                "p-5 md:p-6 rounded-3xl border transition-all cursor-pointer group relative overflow-hidden",
                 currentCompany?.id === company.id 
                   ? "bg-indigo-600 text-white border-indigo-600 shadow-xl shadow-indigo-500/20" 
-                  : "bg-white dark:bg-white border-slate-100 dark:border-slate-200 hover:border-indigo-200"
+                  : "bg-white dark:bg-white border-slate-100 dark:border-slate-200 hover:border-indigo-200 shadow-sm"
               )}
             >
-              <div className="flex justify-between items-start mb-4">
+              <div className="flex justify-between items-start mb-4 relative z-10">
                 <div className={cn(
-                  "w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl",
+                  "w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl transition-transform group-hover:scale-110",
                   currentCompany?.id === company.id ? "bg-white/20" : "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600"
                 )}>
                   {company.name.charAt(0)}
                 </div>
                 <div className="flex items-center gap-2">
                   {currentCompany?.id === company.id && (
-                    <span className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">Active</span>
+                    <span className="bg-white/20 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest">Active</span>
                   )}
                   <button 
                     onClick={(e) => {
@@ -652,11 +652,17 @@ NOTIFY pgrst, 'reload schema';
                   </button>
                 </div>
               </div>
-              <h4 className="font-bold text-lg">{company.name}</h4>
+              <h4 className="font-black text-lg relative z-10">{company.name}</h4>
               <p className={cn(
-                "text-sm mt-1",
+                "text-xs font-bold mt-1 opacity-80 relative z-10",
                 currentCompany?.id === company.id ? "text-indigo-100" : "text-slate-500"
               )}>{company.currency}</p>
+              
+              {currentCompany?.id === company.id && (
+                 <div className="absolute top-0 right-0 p-1 opacity-10">
+                    <CheckCircle2 size={120} className="translate-x-12 -translate-y-8" />
+                 </div>
+              )}
             </div>
           ))}
         </div>
@@ -741,14 +747,14 @@ NOTIFY pgrst, 'reload schema';
             <Shield size={24} className="text-indigo-600" />
             Security & Recovery
           </h3>
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div>
-                <p className="font-bold mb-1 text-slate-900 dark:text-white">Recovery Code</p>
-                <p className="text-xs text-slate-500">Use this code to restore your company data on any device.</p>
+                <p className="font-bold mb-1 text-slate-900 dark:text-white text-sm md:text-base">Recovery Code</p>
+                <p className="text-[10px] md:text-xs text-slate-500">Use this code to restore your company data on any device.</p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="px-6 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                <div className="flex-1 md:flex-none px-6 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-mono font-bold text-indigo-600 dark:text-indigo-400 text-center">
                   {currentCompany.recovery_code || 'No code set'}
                 </div>
                 <button 
@@ -774,16 +780,16 @@ NOTIFY pgrst, 'reload schema';
           <Building2 size={24} className="text-indigo-600" />
           Company Branding
         </h3>
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Company Name</label>
+                <label className="block text-[10px] md:text-sm font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Company Name</label>
                 <input 
                   type="text" 
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white font-bold"
                   placeholder="e.g. Acme Corp"
                 />
               </div>

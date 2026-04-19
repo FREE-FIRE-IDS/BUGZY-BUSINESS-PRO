@@ -1038,17 +1038,21 @@ export default function App() {
 }
 
 function SetupCompany() {
-  const { addCompany, loginWithUsername, syncStatus, session } = useApp();
+  const { addCompany, loginWithUsername, restoreCompany, syncStatus, session } = useApp();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
+  const [recoveryCode, setRecoveryCode] = useState('');
   const [currency, setCurrency] = useState('PKR');
-  const [isLogin, setIsLogin] = useState(false);
+  const [mode, setMode] = useState<'login' | 'signup' | 'restore'>('signup');
 
   const handleAction = async () => {
-    if (isLogin) {
+    if (mode === 'login') {
       if (!username.trim()) return;
       const success = await loginWithUsername(username.trim());
       if (!success) return;
+    } else if (mode === 'restore') {
+      if (!recoveryCode.trim()) return;
+      await restoreCompany(recoveryCode.trim());
     } else {
       if (!name.trim() || !username.trim()) return;
       
@@ -1073,6 +1077,9 @@ function SetupCompany() {
     }
   };
 
+  const title = mode === 'login' ? 'Login' : mode === 'restore' ? 'Restore Company' : 'Create Account';
+  const subTitle = mode === 'login' ? 'Access your business data' : mode === 'restore' ? 'Enter recovery code to restore data' : 'Start managing your business';
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
       <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8 border border-slate-100 dark:border-slate-800">
@@ -1084,11 +1091,11 @@ function SetupCompany() {
             <path d="M40 45 L50 35 L60 45" fill="#fbbf24"/>
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-center mb-2 text-slate-900 dark:text-slate-50">Bugzy Pro</h1>
-        <p className="text-slate-500 text-center text-sm mb-8">{isLogin ? 'Login to your account' : 'Create your business profile'}</p>
+        <h1 className="text-2xl font-bold text-center mb-1 text-slate-900 dark:text-slate-50">{title}</h1>
+        <p className="text-slate-500 text-center text-sm mb-8">{subTitle}</p>
         
         <div className="space-y-4">
-          {!isLogin && (
+          {mode === 'signup' && (
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Company Name</label>
               <input 
@@ -1100,17 +1107,32 @@ function SetupCompany() {
               />
             </div>
           )}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Username</label>
-            <input 
-              type="text" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50 font-mono"
-              placeholder="unique_username"
-            />
-          </div>
-          {!isLogin && (
+          
+          {mode !== 'restore' ? (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Username</label>
+              <input 
+                type="text" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50 font-mono"
+                placeholder="unique_username"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Recovery Code</label>
+              <input 
+                type="text" 
+                value={recoveryCode}
+                onChange={(e) => setRecoveryCode(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50 font-mono uppercase tracking-widest text-center"
+                placeholder="e.g. abcd-1234"
+              />
+            </div>
+          )}
+
+          {mode === 'signup' && (
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Currency</label>
               <select 
@@ -1134,15 +1156,35 @@ function SetupCompany() {
             disabled={syncStatus.loading}
             className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
           >
-            {syncStatus.loading ? 'Processing...' : isLogin ? 'Login' : 'Create Company'}
+            {syncStatus.loading ? 'Processing...' : mode === 'login' ? 'Login' : mode === 'restore' ? 'Restore' : 'Create Account'}
           </button>
 
-          <button 
-            onClick={() => setIsLogin(!isLogin)}
-            className="w-full text-indigo-600 text-sm font-bold hover:underline"
-          >
-            {isLogin ? "Don't have an account? Create one" : "Already have an account? Login"}
-          </button>
+          <div className="flex flex-col gap-2 mt-4">
+            {mode !== 'login' && (
+              <button 
+                onClick={() => setMode('login')}
+                className="w-full text-indigo-600 text-sm font-bold hover:underline"
+              >
+                Already have an account? Login
+              </button>
+            )}
+            {mode !== 'signup' && (
+              <button 
+                onClick={() => setMode('signup')}
+                className="w-full text-indigo-600 text-sm font-bold hover:underline"
+              >
+                New user? Create Account
+              </button>
+            )}
+            {mode !== 'restore' && (
+              <button 
+                onClick={() => setMode('restore')}
+                className="w-full text-slate-500 text-sm font-bold hover:underline"
+              >
+                Restore with Recovery Code
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

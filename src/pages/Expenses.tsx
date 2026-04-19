@@ -81,32 +81,32 @@ export default function Expenses() {
   return (
     <div className="space-y-8">
       {/* Header & Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+        <div className="md:col-span-2 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Expenses</h2>
-            <p className="text-slate-500 dark:text-slate-400">Track your business overheads and spending</p>
+            <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white">Expenses</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Track your business overheads and spending</p>
           </div>
           <div className="flex gap-3 w-full sm:w-auto">
             <button 
               onClick={exportPDF}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-slate-900 dark:text-white font-medium"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-slate-900 dark:text-white font-bold text-sm"
             >
               <Download size={18} />
               PDF
             </button>
             <button 
               onClick={() => setIsAddModalOpen(true)}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 text-sm"
             >
               <Plus size={20} />
               Add
             </button>
           </div>
         </div>
-        <div className="bg-rose-600 p-8 rounded-3xl shadow-xl shadow-rose-500/20 text-white">
-          <p className="text-rose-100 text-sm font-medium mb-1">Total Expenses</p>
-          <p className="text-3xl font-bold">{formatCurrency(totalExpenses, settings.currency)}</p>
+        <div className="bg-rose-600 p-6 md:p-8 rounded-3xl shadow-xl shadow-rose-500/20 text-white flex flex-col justify-center">
+          <p className="text-rose-100 text-[10px] md:text-sm font-black uppercase tracking-widest mb-1">Total Expenses</p>
+          <p className="text-2xl md:text-3xl font-black">{formatCurrency(totalExpenses, settings.currency)}</p>
         </div>
       </div>
 
@@ -126,7 +126,8 @@ export default function Expenses() {
 
       {/* Expenses Table */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
               <tr>
@@ -177,16 +178,63 @@ export default function Expenses() {
                   </tr>
                 );
               })}
-              {filteredExpenses.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                    No expenses found.
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+          {filteredExpenses.map((expense) => {
+            const bank = banks.find(b => b.id === expense.bank_id);
+            return (
+              <div key={expense.id} className="p-5 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">{expense.description || 'General Expense'}</h4>
+                    <p className="text-xs text-slate-500 mt-1">{formatDate(expense.date)}</p>
+                  </div>
+                  <p className="text-lg font-black text-rose-600">{formatCurrency(expense.amount, settings.currency)}</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                    <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Category</p>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      {expense.category || '-'}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                    <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Paid From</p>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      {bank?.name || 'Cash'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button 
+                    onClick={() => handleEditExpense(expense)}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-800 text-indigo-600 font-bold text-xs"
+                  >
+                    <Plus size={14} className="rotate-45" /> Edit
+                  </button>
+                  <button 
+                    onClick={() => setIsDeleteConfirmOpen(expense.id)}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-800 text-rose-600 font-bold text-xs"
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {filteredExpenses.length === 0 && (
+          <div className="px-6 py-12 text-center text-slate-400">
+            No expenses found.
+          </div>
+        )}
       </div>
 
       {/* Delete Confirmation Modal */}
@@ -236,16 +284,16 @@ export default function Expenses() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-              className="relative w-full max-w-md bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden"
+              className="relative w-full max-w-md bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
-              <div className="p-8 border-b border-slate-100 dark:border-slate-100 flex items-center justify-between">
+              <div className="p-5 md:p-8 border-b border-slate-100 dark:border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
                 <h2 className="text-xl font-bold">Add Expense</h2>
                 <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-100 rounded-xl transition-colors">
                   <X size={20} />
                 </button>
               </div>
               
-              <form className="p-8 space-y-6" onSubmit={(e) => {
+              <form className="p-5 md:p-8 space-y-4 md:space-y-6" onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
                 const dateStr = formData.get('date') as string;
@@ -363,12 +411,12 @@ export default function Expenses() {
         {isEditModalOpen && editingExpense && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEditModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-100 flex items-center justify-between">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+              <div className="p-5 md:p-8 border-b border-slate-100 dark:border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
                 <h2 className="text-xl font-bold">Edit Expense</h2>
                 <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-100 rounded-xl transition-colors"><X size={20} /></button>
               </div>
-              <form className="p-8 space-y-6" onSubmit={(e) => {
+              <form className="p-5 md:p-8 space-y-4 md:space-y-6" onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
                 const dateStr = formData.get('date') as string;
