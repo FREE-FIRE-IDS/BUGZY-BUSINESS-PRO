@@ -92,11 +92,20 @@ export default function Dashboard() {
     const expenses = transactions.filter(t => t.type === 'Expense' || t.type === 'Payment Out').reduce((sum, t) => sum + t.amount, 0);
     const toReceive = parties.reduce((sum, p) => sum + (p.balance > 0 ? p.balance : 0), 0);
     const toPay = parties.reduce((sum, p) => sum + (p.balance < 0 ? Math.abs(p.balance) : 0), 0);
-    const cashInHand = transactions.filter(t => !t.bank_id).reduce((sum, t) => {
-      if (t.type === 'Sale' || t.type === 'Income') return sum + t.amount;
-      if (t.type === 'Expense' || t.type === 'Payment Out') return sum - t.amount;
-      return sum;
-    }, 0);
+    const cashInHand = transactions
+      .filter(t => t.company_id === currentCompany?.id)
+      .reduce((sum, t) => {
+        if (t.type === 'Withdraw') return sum + t.amount;
+        if (t.type === 'Deposit') return sum - t.amount;
+        if (!t.bank_id && !t.to_bank_id) {
+          if (['Sale', 'Income', 'Payment In', 'Stock In', 'Bank To Party'].includes(t.type)) return sum + t.amount;
+          if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank'].includes(t.type)) return sum - t.amount;
+        }
+        return sum;
+      }, 0) + 
+      invoices
+        .filter(i => i.company_id === currentCompany?.id && i.status === 'Paid' && i.payment_type === 'Cash')
+        .reduce((sum, i) => i.type === 'Sale' ? sum + i.total : sum - i.total, 0);
     const bankBalance = banks.reduce((sum, b) => sum + b.balance, 0);
 
     return {
@@ -169,15 +178,15 @@ export default function Dashboard() {
       </div>
 
       {/* Summary Cards (To Receive / To Pay) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-emerald-500 p-8 rounded-[2.5rem] text-white shadow-xl shadow-emerald-500/20 relative overflow-hidden group"
+          className="bg-emerald-500 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] text-white shadow-xl shadow-emerald-500/20 relative overflow-hidden group"
         >
           <div className="relative z-10">
-            <p className="text-emerald-100 text-sm font-medium mb-1">You'll Receive</p>
-            <h3 className="text-4xl font-black mb-4">{formatCurrency(stats.toReceive, settings.currency)}</h3>
+            <p className="text-emerald-100 text-xs md:text-sm font-medium mb-1 uppercase tracking-wider">You'll Receive</p>
+            <h3 className="text-2xl md:text-4xl font-black mb-4">{formatCurrency(stats.toReceive, settings.currency)}</h3>
             <button 
               onClick={() => navigateTo('parties')}
               className="flex items-center gap-2 text-sm font-bold bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition-all"
@@ -192,11 +201,11 @@ export default function Dashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-rose-500 p-8 rounded-[2.5rem] text-white shadow-xl shadow-rose-500/20 relative overflow-hidden group"
+          className="bg-rose-500 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] text-white shadow-xl shadow-rose-500/20 relative overflow-hidden group"
         >
           <div className="relative z-10">
-            <p className="text-rose-100 text-sm font-medium mb-1">You'll Pay</p>
-            <h3 className="text-4xl font-black mb-4">{formatCurrency(stats.toPay, settings.currency)}</h3>
+            <p className="text-rose-100 text-xs md:text-sm font-medium mb-1 uppercase tracking-wider">You'll Pay</p>
+            <h3 className="text-2xl md:text-4xl font-black mb-4">{formatCurrency(stats.toPay, settings.currency)}</h3>
             <button 
               onClick={() => navigateTo('parties')}
               className="flex items-center gap-2 text-sm font-bold bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition-all"
@@ -234,12 +243,12 @@ export default function Dashboard() {
       </div>
 
       {/* Main Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-8">
         {/* Sales Overview Chart */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between mb-8">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
             <div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white">Sales Overview</h3>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">Sales Overview</h3>
               <p className="text-sm text-slate-500">Last 7 days performance</p>
             </div>
             <div className="flex items-center gap-4">
@@ -306,10 +315,10 @@ export default function Dashboard() {
 
         {/* Cash & Bank Status */}
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
-            <h3 className="text-lg font-bold mb-6 text-slate-900 dark:text-white">Cash & Bank</h3>
-            <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+            <h3 className="text-base md:text-lg font-bold mb-6 text-slate-900 dark:text-white uppercase tracking-tight">Cash & Bank</h3>
+            <div className="space-y-3">
+              <div className="p-3 md:p-4 rounded-xl md:rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center">
                     <Wallet size={20} />
@@ -322,7 +331,7 @@ export default function Dashboard() {
                 <ChevronRight size={16} className="text-slate-400" />
               </div>
               
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="p-3 md:p-4 rounded-xl md:rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center">
                     <Building2 size={20} />
@@ -345,7 +354,7 @@ export default function Dashboard() {
           </div>
 
           {/* AI Insights Section */}
-          <div className="bg-slate-900 dark:bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden group">
+          <div className="bg-slate-900 dark:bg-indigo-600 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] text-white shadow-xl relative overflow-hidden group">
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles size={20} className="text-indigo-400 dark:text-indigo-200" />

@@ -9,6 +9,7 @@ import {
   ArrowLeftRight,
   Trash2,
   Download,
+  ArrowLeft,
   X
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
@@ -18,18 +19,27 @@ import { BankAccount as Bank, Transaction, TransactionType } from '../types';
 import { generateBankStatement } from '../lib/pdfGenerator';
 
 export default function Banks() {
-  const { banks, transactions, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, parties, currentCompany, setSelectedBankId } = useApp();
+  const { banks, transactions, invoices, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, parties, currentCompany, setSelectedBankId } = useApp();
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
 
   const stats = useMemo(() => {
-    const cashInHand = transactions.filter(t => !t.bank_id).reduce((sum, t) => {
-      if (t.type === 'Sale' || (t.type as string) === 'Income') return sum + t.amount;
-      if (t.type === 'Expense' || t.type === 'Payment Out') return sum - t.amount;
-      return sum;
-    }, 0);
+    const cashInHand = transactions
+      .filter(t => t.company_id === currentCompany?.id)
+      .reduce((sum, t) => {
+        if (t.type === 'Withdraw') return sum + t.amount;
+        if (t.type === 'Deposit') return sum - t.amount;
+        if (!t.bank_id && !t.to_bank_id) {
+          if (['Sale', 'Income', 'Payment In', 'Stock In', 'Bank To Party'].includes(t.type)) return sum + t.amount;
+          if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank'].includes(t.type)) return sum - t.amount;
+        }
+        return sum;
+      }, 0) + 
+      invoices
+        .filter(i => i.company_id === currentCompany?.id && i.status === 'Paid' && i.payment_type === 'Cash')
+        .reduce((sum, i) => i.type === 'Sale' ? sum + i.total : sum - i.total, 0);
     const totalBankBalance = banks.reduce((sum, b) => sum + b.balance, 0);
     return { cashInHand, totalBankBalance };
-  }, [transactions, banks]);
+  }, [transactions, banks, invoices, currentCompany]);
 
   React.useEffect(() => {
     setSelectedBankId(selectedBank?.id || null);
@@ -92,26 +102,26 @@ export default function Banks() {
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-6">
+    <div className="space-y-6 pb-24 md:pb-6">
       {selectedBank ? (
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           className="space-y-6"
         >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+            <div className="flex items-center gap-3 md:gap-4">
               <button 
                 onClick={() => setSelectedBank(null)}
-                className="p-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-2xl text-slate-500 transition-all shrink-0"
+                className="p-2 md:p-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl md:rounded-2xl text-slate-500 transition-all shrink-0"
               >
-                <X size={20} />
+                <ArrowLeft size={20} />
               </button>
               <div className="min-w-0">
-                <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white truncate">{selectedBank.name}</h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase rounded-md shrink-0">Bank</span>
-                  <span className="text-xs text-slate-400 truncate">{selectedBank.account_number || 'No account number'}</span>
+                <h2 className="text-lg md:text-2xl font-black text-slate-900 dark:text-white truncate">{selectedBank.name}</h2>
+                <div className="flex items-center gap-2 mt-0.5 md:mt-1">
+                  <span className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[8px] md:text-[10px] font-bold uppercase rounded shrink-0">Bank</span>
+                  <span className="text-[10px] md:text-xs text-slate-400 truncate">{selectedBank.account_number || 'No account number'}</span>
                 </div>
               </div>
             </div>
@@ -143,7 +153,7 @@ export default function Banks() {
           {/* Deposit Modal */}
           <AnimatePresence>
             {isDepositModalOpen && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDepositModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
                 <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
                   <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -183,7 +193,7 @@ export default function Banks() {
             )}
 
             {isWithdrawModalOpen && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsWithdrawModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
                 <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
                   <div className="p-8 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
@@ -223,21 +233,20 @@ export default function Banks() {
             )}
           </AnimatePresence>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
-              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Current Balance</h3>
-              <p className="text-2xl font-bold text-indigo-600">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
+            <div className="bg-white dark:bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+              <h3 className="text-slate-500 text-[10px] md:text-sm mb-1 uppercase tracking-wider font-bold">Balance</h3>
+              <p className="text-lg md:text-2xl font-bold text-indigo-600 truncate">
                 {formatCurrency(selectedBank.balance, settings.currency)}
               </p>
-              <p className="text-xs text-slate-400 mt-2">Available for withdrawal</p>
             </div>
-            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
-              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Account Number</h3>
-              <p className="text-xl font-bold text-slate-900 dark:text-slate-900">{selectedBank.account_number || 'N/A'}</p>
+            <div className="bg-white dark:bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
+              <h3 className="text-slate-500 text-[10px] md:text-sm mb-1 uppercase tracking-wider font-bold">A/C No</h3>
+              <p className="text-sm md:text-xl font-bold text-slate-900 truncate">{selectedBank.account_number || 'N/A'}</p>
             </div>
-            <div className="bg-white dark:bg-white p-6 rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
-              <h3 className="text-slate-500 dark:text-slate-500 text-sm mb-1">Transactions</h3>
-              <p className="text-xl font-bold text-slate-900 dark:text-slate-900">{bankLedger.length}</p>
+            <div className="col-span-2 md:col-auto bg-white dark:bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm flex items-center justify-between md:block">
+              <h3 className="text-slate-500 text-[10px] md:text-sm mb-0 md:mb-1 uppercase tracking-wider font-bold">Transactions</h3>
+              <p className="text-sm md:text-xl font-bold text-slate-900">{bankLedger.length}</p>
             </div>
           </div>
 

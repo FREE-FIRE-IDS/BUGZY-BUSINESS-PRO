@@ -878,17 +878,17 @@ export default function App() {
 
       {/* Main Content */}
       <main className={cn(
-        "transition-all duration-300 min-h-screen pb-20 md:pb-0 flex flex-col",
+        "transition-all duration-300 min-h-screen pb-24 md:pb-0 flex flex-col",
         isSidebarOpen ? "md:pl-64" : "md:pl-20"
       )}>
-        {currentCompany && <TrialBanner company={currentCompany} isLicensed={isLicensed()} onUpgrade={() => setForceUpgrade(true)} />}
-        
-        {/* Topbar */}
-        <header className={cn(
-          "h-16 border-b flex items-center justify-between px-4 md:px-8 sticky z-30 backdrop-blur-md",
-          currentCompany && !currentCompany.is_paid ? "top-[40px]" : "top-0",
-          theme === 'dark' ? "bg-slate-900/80 border-slate-800" : "bg-white/80 border-slate-200"
-        )}>
+        <div className="sticky top-0 z-40">
+          {currentCompany && <TrialBanner company={currentCompany} isLicensed={isLicensed()} onUpgrade={() => setForceUpgrade(true)} />}
+          
+          {/* Topbar */}
+          <header className={cn(
+            "h-16 border-b flex items-center justify-between px-4 md:px-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md",
+            theme === 'dark' ? "border-slate-800" : "border-slate-200"
+          )}>
           <div className="flex items-center gap-4 flex-1">
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -925,20 +925,20 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             {isLicensedUser && daysLeftLicense !== null && (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 text-[8px] sm:text-[10px] font-black uppercase tracking-wider truncate max-w-[80px] sm:max-w-none">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 text-[8px] sm:text-[10px] font-black uppercase tracking-wider truncate max-w-[60px] sm:max-w-none">
                 <Clock size={10} className="shrink-0" />
-                <span>{daysLeftLicense}D Left</span>
+                <span>{daysLeftLicense}D</span>
               </div>
             )}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 max-w-[150px] md:max-w-none">
+            <div className="flex items-center gap-2 px-2 md:px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 max-w-[120px] md:max-w-none">
               {currentCompany?.logo_url ? (
                 <img src={currentCompany.logo_url} alt="Logo" className="w-5 h-5 object-contain rounded-sm" referrerPolicy="no-referrer" />
               ) : (
                 <Building2 size={16} className="shrink-0" />
               )}
-              <span className="text-sm font-medium truncate">{currentCompany?.name}</span>
+              <span className="text-xs md:text-sm font-medium truncate">{currentCompany?.name}</span>
             </div>
             <button 
               onClick={toggleTheme}
@@ -948,6 +948,7 @@ export default function App() {
             </button>
           </div>
         </header>
+        </div>
 
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
           <AnimatePresence mode="wait">
@@ -990,7 +991,7 @@ export default function App() {
       </main>
 
       {/* Floating Action Button for Mobile */}
-      <div className="fixed bottom-24 right-6 z-50 md:hidden">
+      <div className="fixed bottom-28 right-6 z-40 md:hidden">
         <button 
           onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
           className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-all shadow-indigo-500/40"

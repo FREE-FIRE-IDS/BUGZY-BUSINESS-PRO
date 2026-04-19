@@ -96,11 +96,20 @@ export default function Reports() {
     const companyItems = items.filter(i => i.company_id === currentCompany?.id);
     const companyInvoices = invoices.filter(i => i.company_id === currentCompany?.id);
 
-    const cashInHand = transactions.filter(t => !t.bank_id && t.company_id === currentCompany?.id).reduce((sum, t) => {
-      if (t.type === 'Sale' || (t.type as string) === 'Income') return sum + t.amount;
-      if (t.type === 'Expense' || t.type === 'Payment Out') return sum - t.amount;
-      return sum;
-    }, 0);
+    const cashInHand = transactions
+      .filter(t => t.company_id === currentCompany?.id)
+      .reduce((sum, t) => {
+        if (t.type === 'Withdraw') return sum + t.amount;
+        if (t.type === 'Deposit') return sum - t.amount;
+        if (!t.bank_id && !t.to_bank_id) {
+          if (['Sale', 'Income', 'Payment In', 'Stock In', 'Bank To Party'].includes(t.type)) return sum + t.amount;
+          if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank'].includes(t.type)) return sum - t.amount;
+        }
+        return sum;
+      }, 0) + 
+      invoices
+        .filter(i => i.company_id === currentCompany?.id && i.status === 'Paid' && i.payment_type === 'Cash')
+        .reduce((sum, i) => i.type === 'Sale' ? sum + i.total : sum - i.total, 0);
     const totalBankBalance = companyBanks.reduce((sum, b) => sum + b.balance, 0);
 
     let result = [];

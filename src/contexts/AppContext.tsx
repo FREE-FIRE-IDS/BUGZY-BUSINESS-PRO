@@ -812,6 +812,11 @@ const deleteFromCloud = async (table: string, id: string) => {
         if (inv.type === 'Purchase') partyBalances[inv.party_id] -= inv.total;
       }
       
+      if (inv.status === 'Paid' && inv.payment_type === 'Bank' && inv.bank_id && bankBalances[inv.bank_id] !== undefined) {
+        if (inv.type === 'Sale') bankBalances[inv.bank_id] += inv.total;
+        if (inv.type === 'Purchase') bankBalances[inv.bank_id] -= inv.total;
+      }
+      
       if (inv.items) {
         inv.items.forEach(item => {
           if (item.item_id && itemStock[item.item_id] !== undefined) {
