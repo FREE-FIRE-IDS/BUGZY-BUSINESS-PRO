@@ -754,9 +754,13 @@ NOTIFY pgrst, 'reload schema';
                 <p className="text-[10px] md:text-xs text-slate-500">Use this code to restore your company data on any device.</p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex-1 md:flex-none px-6 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-mono font-bold text-indigo-600 dark:text-indigo-400 text-center">
-                  {currentCompany.recovery_code || 'No code set'}
-                </div>
+                <input 
+                  type="text"
+                  value={currentCompany.recovery_code || ''}
+                  onChange={(e) => updateCompany(currentCompany.id, { recovery_code: e.target.value.toLowerCase() })}
+                  className="flex-1 md:flex-none px-4 md:px-6 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-mono font-bold text-indigo-600 dark:text-indigo-400 text-center outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
+                  placeholder="custom-code"
+                />
                 <button 
                   onClick={() => {
                     if (currentCompany.recovery_code) {

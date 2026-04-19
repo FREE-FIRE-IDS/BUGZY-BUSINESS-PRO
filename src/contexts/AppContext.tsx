@@ -62,6 +62,7 @@ interface AppContextType {
   setSelectedBankId: (id: string | null) => void;
   session: any;
   signOut: () => Promise<void>;
+  restoreCompany: (code: string) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);

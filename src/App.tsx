@@ -27,7 +27,8 @@ import {
   Loader2,
   Check,
   ArrowLeft,
-  ShieldCheck
+  ShieldCheck,
+  Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -1038,7 +1039,7 @@ export default function App() {
 }
 
 function SetupCompany() {
-  const { addCompany, loginWithUsername, restoreCompany, syncStatus, session } = useApp();
+  const { addCompany, loginWithUsername, restoreCompany, restoreData, syncStatus, session } = useApp();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
@@ -1077,8 +1078,21 @@ function SetupCompany() {
     }
   };
 
-  const title = mode === 'login' ? 'Login' : mode === 'restore' ? 'Restore Company' : 'Create Account';
-  const subTitle = mode === 'login' ? 'Access your business data' : mode === 'restore' ? 'Enter recovery code to restore data' : 'Start managing your business';
+  const handleFileRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        await restoreData(content);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const title = mode === 'login' ? 'Login' : mode === 'restore' ? 'Restore Data' : 'Create Account';
+  const subTitle = mode === 'login' ? 'Access your business data' : mode === 'restore' ? 'Enter recovery code or upload backup file' : 'Start managing your business';
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
@@ -1120,15 +1134,30 @@ function SetupCompany() {
               />
             </div>
           ) : (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Recovery Code</label>
-              <input 
-                type="text" 
-                value={recoveryCode}
-                onChange={(e) => setRecoveryCode(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50 font-mono uppercase tracking-widest text-center"
-                placeholder="e.g. abcd-1234"
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Recovery Code</label>
+                <input 
+                  type="text" 
+                  value={recoveryCode}
+                  onChange={(e) => setRecoveryCode(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50 font-mono uppercase tracking-widest text-center"
+                  placeholder="e.g. abcd-1234"
+                />
+              </div>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="w-full border-t border-slate-100 dark:border-slate-800"></div>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white dark:bg-slate-900 px-2 text-slate-400">Or use backup file</span>
+                </div>
+              </div>
+              <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl hover:border-indigo-500 transition-all cursor-pointer group">
+                <input type="file" accept=".json" onChange={handleFileRestore} className="hidden" />
+                <Upload className="text-slate-400 group-hover:text-indigo-500 mb-2" size={24} />
+                <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Restore from Backup File</span>
+              </label>
             </div>
           )}
 
