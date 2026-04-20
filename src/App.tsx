@@ -674,22 +674,29 @@ export default function App() {
     { id: 'parties', label: 'Parties', icon: Users, premium: true },
     { id: 'banks', label: 'Banks', icon: Building2, premium: true },
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
-    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2 }] : []),
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
     { id: 'more', label: 'More', icon: Menu },
   ];
 
   const moreItems = [
-    { id: 'inventory', label: 'Inventory', icon: Package },
+    { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
     { id: 'reports', label: 'Reports', icon: History, premium: true },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
-    ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Buy Now', icon: Sparkles }] : []),
-    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2 }] : []),
+    ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Buy Now', icon: Sparkles, premium: true }] : []),
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
   ];
 
   const renderPage = () => {
     const tab = activeTab === 'more' ? 'settings' : activeTab;
     
+    // Automatic redirection for premium pages if trial and license expired
+    const isPremiumPage = [...menuItems, ...moreItems].find(i => i.id === tab)?.premium;
+    if (isPremiumPage && !isLicensedUser && isTrialExpired) {
+        setForceUpgrade(true);
+        return <Dashboard />; // Render dashboard behind the payment screen if needed, but App.tsx handles the overlay
+    }
+
     if (tab === 'upgrade') {
       setForceUpgrade(true);
       setActiveTab('dashboard');
@@ -831,7 +838,11 @@ export default function App() {
             <button
               key={item.id}
               onClick={() => {
-                setActiveTab(item.id);
+                if ((item as any).premium && !isLicensed() && isTrialExpired) {
+                  setForceUpgrade(true);
+                } else {
+                  setActiveTab(item.id);
+                }
               }}
               className={cn(
                 "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative",
@@ -1018,7 +1029,13 @@ export default function App() {
         {menuItems.filter(i => i.id !== 'admin').map((item) => (
           <React.Fragment key={item.id}>
             <button
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                if (item.premium && !isLicensedUser && isTrialExpired) {
+                  setForceUpgrade(true);
+                } else {
+                  setActiveTab(item.id);
+                }
+              }}
               className={cn(
                 "flex flex-col items-center gap-1.5 px-4 py-1 rounded-2xl transition-all relative",
                 activeTab === item.id 
@@ -1032,7 +1049,14 @@ export default function App() {
                   className="absolute inset-x-0 -top-3 h-1 bg-indigo-600 rounded-full mx-4"
                 />
               )}
-              <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+              <div className="relative">
+                <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+                {item.premium && !isLicensedUser && isTrialExpired && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full flex items-center justify-center border border-white">
+                    <Sparkles size={6} className="text-white" />
+                  </div>
+                )}
+              </div>
               <span className={cn(
                 "text-[9px] font-black uppercase tracking-[0.1em]",
                 activeTab === item.id ? "opacity-100" : "opacity-60"

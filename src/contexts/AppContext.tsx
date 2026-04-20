@@ -594,6 +594,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Sanitize data: replace empty strings with null for date fields and strip local metadata
         const sanitize = (obj: any) => {
           const sanitized = { ...obj };
+          if (dbTable === 'transactions' && sanitized.category) {
+            sanitized.description = sanitized.description 
+              ? `[${sanitized.category}] ${sanitized.description}`
+              : `[${sanitized.category}]`;
+            delete sanitized.category;
+          }
           Object.keys(sanitized).forEach(key => {
             // Strip local metadata starting with _ (like _synced)
             if (key.startsWith('_')) {
@@ -633,7 +639,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 // Hard fallback for specific common missing columns if regex fails
-                const commonProblems = ['opening_stock', 'unit'];
+                const commonProblems = ['opening_stock', 'unit', 'category'];
                 for (const col of commonProblems) {
                     if (err.message.includes(col)) {
                         console.warn(`[Sync Robustness] Manually stripping "${col}" and retrying...`);
@@ -724,8 +730,18 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   }, []);
 
   useEffect(() => {
-    refreshData();
+    if (settings.user_email) {
+      refreshData();
+    }
   }, [settings.sync_enabled, settings.user_email]);
+
+  // Handle linking another email explicitly when changed in settings
+  useEffect(() => {
+    if (settings.user_email && !companies.some(c => c.user_email === settings.user_email || c.linked_emails?.includes(settings.user_email!))) {
+       console.log('[Sync] New email linked, fetching companies again...');
+       refreshData(undefined, true);
+    }
+  }, [settings.user_email]);
 
   useEffect(() => {
     if (settings.sync_enabled && settings.user_email && currentCompany) {
