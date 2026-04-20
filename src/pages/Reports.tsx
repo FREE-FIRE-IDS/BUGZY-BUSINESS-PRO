@@ -511,11 +511,11 @@ export default function Reports() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 md:gap-8 overflow-hidden -mx-4 md:mx-0">
+    <div className="flex flex-col lg:flex-row gap-4 md:gap-8 overflow-hidden">
       {/* Sidebar Navigation - Mobile Horizontal Scroll */}
-      <aside className="w-full lg:w-72 flex-shrink-0 px-4 md:px-0">
-        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 lg:mb-4 px-1 lg:px-4">Report Types</h3>
-        <div className="flex lg:grid lg:grid-cols-1 overflow-x-auto lg:overflow-x-visible no-scrollbar pb-2 lg:pb-0 gap-2 px-1 lg:px-0">
+      <aside className="w-full lg:w-72 flex-shrink-0">
+        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 lg:mb-4 px-4">Report Types</h3>
+        <div className="flex lg:grid lg:grid-cols-1 overflow-x-auto lg:overflow-x-visible no-scrollbar pb-2 lg:pb-0 gap-2 px-4 lg:px-0">
           {reportOptions.map((opt) => (
             <button
               key={opt.id}
@@ -539,7 +539,7 @@ export default function Reports() {
       </aside>
 
       {/* Content Area */}
-      <div className="flex-1 min-w-0 space-y-4 md:space-y-6 px-4 md:px-0">
+      <div className="flex-1 min-w-0 space-y-4 md:space-y-6">
         <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl md:rounded-3xl shadow-sm overflow-hidden">
           {/* Responsive Header */}
           <div className="p-4 md:p-8 border-b border-slate-50 dark:border-slate-800">
@@ -625,14 +625,37 @@ export default function Reports() {
             </div>
           </div>
 
-          <div className="overflow-x-auto no-scrollbar">
+          {/* Mobile Card View */}
+          <div className="md:hidden divide-y divide-slate-50 dark:divide-slate-800">
+            {filteredData.map((row, idx) => (
+              <div key={idx} className="p-4 space-y-3">
+                {activeColumns.map(colId => (
+                  <div key={colId} className="flex justify-between items-start gap-4">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0">{colId.replace(/_/g, ' ')}</span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 text-right break-words max-w-[60%]">
+                      {formatValue(colId, row[colId])}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {filteredData.length === 0 && (
+              <div className="px-6 py-16 text-center">
+                <Search size={48} className="mx-auto mb-4 text-slate-200 opacity-40" />
+                <p className="text-sm font-bold text-slate-400 italic">No records found.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto no-scrollbar">
             <div className="inline-block min-w-full align-middle">
               <div className="p-0">
                 <table className="min-w-full divide-y divide-slate-50 dark:divide-slate-800 bg-white dark:bg-slate-900">
                   <thead className="bg-slate-50/50 dark:bg-slate-800/50">
                     <tr>
                       {activeColumns.map(colId => (
-                        <th key={colId} className="px-4 md:px-6 py-3 md:py-4 text-left text-[9px] md:text-[10px] uppercase tracking-wider font-black text-slate-400 whitespace-nowrap">
+                        <th key={colId} className="px-6 py-4 text-left text-[10px] uppercase tracking-wider font-black text-slate-400 whitespace-nowrap">
                           {colId.replace(/_/g, ' ')}
                         </th>
                       ))}
@@ -643,7 +666,7 @@ export default function Reports() {
                       <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
                         {activeColumns.map(colId => (
                           <td key={colId} className={cn(
-                            "px-4 md:px-6 py-3 md:py-4 text-xs font-bold text-slate-700 dark:text-slate-300",
+                            "px-6 py-4 text-xs font-bold text-slate-700 dark:text-slate-300",
                             (colId === 'Party Name' || colId === 'Description' || colId === 'Item Name') ? "min-w-[120px] max-w-[200px] truncate" : "whitespace-nowrap"
                           )}>
                             {formatValue(colId, row[colId])}
