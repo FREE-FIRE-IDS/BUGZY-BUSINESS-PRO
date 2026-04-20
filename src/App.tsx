@@ -150,7 +150,7 @@ function SplashScreen() {
   );
 }
 
-function PaymentScreen({ company }: { company: Company }) {
+function PaymentScreen({ company, onClose }: { company: Company, onClose?: () => void }) {
   const { submitPaymentRequest, activateLicense } = useApp();
   const [step, setStep] = useState<'plan' | 'payment' | 'form' | 'success'>('plan');
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
@@ -249,7 +249,10 @@ function PaymentScreen({ company }: { company: Company }) {
             Admin will verify your payment and activate your subscription shortly.
           </p>
           <button 
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              if (onClose) onClose();
+              else window.location.reload();
+            }}
             className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20"
           >
             Back to Dashboard
@@ -261,9 +264,10 @@ function PaymentScreen({ company }: { company: Company }) {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
-      <div className="max-w-xl w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 relative">
+      <div className="max-w-xl w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 relative focus-within:ring-2 focus-within:ring-indigo-500/20">
         {(step !== 'plan' && step !== 'success') ? (
           <button 
+            type="button"
             onClick={() => setStep(step === 'payment' ? 'plan' : 'payment')}
             className="absolute top-8 left-8 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all z-20"
           >
@@ -271,7 +275,11 @@ function PaymentScreen({ company }: { company: Company }) {
           </button>
         ) : step === 'plan' ? (
           <button 
-            onClick={() => window.location.reload()}
+            type="button"
+            onClick={() => {
+              if (onClose) onClose();
+              else window.location.reload();
+            }}
             className="absolute top-8 left-8 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all z-20"
           >
             <X size={24} />
@@ -638,6 +646,7 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
   const [forceUpgrade, setForceUpgrade] = useState(false);
+  const [dismissedPayment, setDismissedPayment] = useState(false);
 
   useEffect(() => {
     if (!currentCompany && companies.length > 0) {
@@ -694,11 +703,14 @@ export default function App() {
     const isPremiumPage = [...menuItems, ...moreItems].find(i => i.id === tab)?.premium;
     if (isPremiumPage && !isLicensedUser && isTrialExpired) {
         setForceUpgrade(true);
-        return <Dashboard />; // Render dashboard behind the payment screen if needed, but App.tsx handles the overlay
+        setDismissedPayment(false);
+        setActiveTab('dashboard');
+        return <Dashboard />; 
     }
 
     if (tab === 'upgrade') {
       setForceUpgrade(true);
+      setDismissedPayment(false);
       setActiveTab('dashboard');
       return <Dashboard />;
     }
@@ -764,38 +776,10 @@ export default function App() {
     return <SetupCompany />;
   }
 
-  // Trial Check
-  if (currentCompany) {
-    // Only check trial if NOT licensed
-    if (!isLicensedUser) {
-      if (isTrialExpired || forceUpgrade) {
-        return (
-          <div className="relative">
-            <PaymentScreen company={currentCompany} />
-            {forceUpgrade && (
-              <button 
-                onClick={() => setForceUpgrade(false)}
-                className="fixed top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all z-[60]"
-              >
-                <X size={24} />
-              </button>
-            )}
-          </div>
-        );
-      }
-    } else if (forceUpgrade) {
-      return (
-        <div className="relative">
-          <PaymentScreen company={currentCompany} />
-          <button 
-            onClick={() => setForceUpgrade(false)}
-            className="fixed top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all z-[60]"
-          >
-            <X size={24} />
-          </button>
-        </div>
-      );
-    }
+  // Trial Check handled via Overlay and renderPage logic
+  if (currentCompany && isTrialExpired && !isLicensedUser && !dismissedPayment && !forceUpgrade) {
+    // We want to show it by default if expired, but allow dismissing it to see Dashboard
+    // But we don't want to block the entire component here because we want to use the OVERLAY pattern
   }
 
   return (
@@ -840,6 +824,7 @@ export default function App() {
               onClick={() => {
                 if ((item as any).premium && !isLicensed() && isTrialExpired) {
                   setForceUpgrade(true);
+                  setDismissedPayment(false);
                 } else {
                   setActiveTab(item.id);
                 }
@@ -870,7 +855,10 @@ export default function App() {
 
           {currentCompany && !currentCompany.is_paid && !isLicensed() && (
             <button
-              onClick={() => setForceUpgrade(true)}
+              onClick={() => {
+                setForceUpgrade(true);
+                setDismissedPayment(false);
+              }}
               className={cn(
                 "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative mt-6 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 font-bold hover:bg-amber-100 dark:hover:bg-amber-900/40",
                 !isSidebarOpen && "justify-center"
@@ -894,7 +882,16 @@ export default function App() {
         isSidebarOpen ? "md:pl-64" : "md:pl-20"
       )}>
         <div className="sticky top-0 z-40">
-          {currentCompany && <TrialBanner company={currentCompany} isLicensed={isLicensed()} onUpgrade={() => setForceUpgrade(true)} />}
+          {currentCompany && (
+            <TrialBanner 
+              company={currentCompany} 
+              isLicensed={isLicensed()} 
+              onUpgrade={() => {
+                setForceUpgrade(true);
+                setDismissedPayment(false);
+              }} 
+            />
+          )}
           
           {/* Topbar */}
           <header className={cn(
@@ -960,7 +957,10 @@ export default function App() {
             </button>
             {!isLicensedUser && (
               <button 
-                onClick={() => setForceUpgrade(true)}
+                onClick={() => {
+                  setForceUpgrade(true);
+                  setDismissedPayment(false);
+                }}
                 className="flex items-center gap-2 px-3 py-1.5 bg-amber-500 text-white rounded-full text-[10px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20 animate-pulse"
               >
                 <Sparkles size={12} />
@@ -988,6 +988,7 @@ export default function App() {
                       onClick={() => {
                         if (item.premium && !isLicensedUser && isTrialExpired) {
                           setForceUpgrade(true);
+                          setDismissedPayment(false);
                         } else {
                           setActiveTab(item.id);
                         }
@@ -1038,6 +1039,7 @@ export default function App() {
               onClick={() => {
                 if (item.premium && !isLicensedUser && isTrialExpired) {
                   setForceUpgrade(true);
+                  setDismissedPayment(false);
                 } else {
                   setActiveTab(item.id);
                 }
@@ -1074,6 +1076,38 @@ export default function App() {
 
       <GlobalTransactionModal />
       <ShortcutHelper show={isShortcutPopupOpen} />
+
+      {/* Payment Overlay */}
+      {(forceUpgrade || (isTrialExpired && !isLicensedUser && !dismissedPayment)) && currentCompany && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-4xl min-h-screen flex items-center justify-center p-4">
+            <div className="absolute inset-0" onClick={() => {
+              if (activeTab === 'dashboard') setDismissedPayment(true);
+              setForceUpgrade(false);
+            }} />
+            <div className="relative z-10 w-full max-w-xl">
+              <PaymentScreen 
+                company={currentCompany} 
+                onClose={() => {
+                  setForceUpgrade(false);
+                  setDismissedPayment(true);
+                  if (activeTab !== 'dashboard') setActiveTab('dashboard');
+                }} 
+              />
+              <button 
+                onClick={() => {
+                  setForceUpgrade(false);
+                  setDismissedPayment(true);
+                  if (activeTab !== 'dashboard') setActiveTab('dashboard');
+                }}
+                className="absolute top-8 right-8 p-2 text-slate-400 hover:text-white transition-all z-20 md:hidden"
+              >
+                <X size={24} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
