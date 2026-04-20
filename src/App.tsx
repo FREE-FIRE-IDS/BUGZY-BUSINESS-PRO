@@ -641,7 +641,8 @@ export default function App() {
     updateSettings, 
     isAdmin, 
     isDeviceLicensed,
-    isLicensed
+    isLicensed,
+    paymentStatus
   } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
@@ -701,11 +702,24 @@ export default function App() {
     
     // Automatic redirection for premium pages if trial and license expired
     const isPremiumPage = [...menuItems, ...moreItems].find(i => i.id === tab)?.premium;
-    if (isPremiumPage && !isLicensedUser && isTrialExpired) {
-        setForceUpgrade(true);
-        setDismissedPayment(false);
-        setActiveTab('dashboard');
-        return <Dashboard />; 
+    
+    // If trial expired and no approved license
+    if (isTrialExpired && !isLicensedUser) {
+        // If they have a pending request, they can only see the Dashboard
+        if (paymentStatus === 'pending') {
+            if (isPremiumPage && tab !== 'dashboard') {
+                setActiveTab('dashboard');
+                return <Dashboard />;
+            }
+        } else {
+            // No pending request and expired: force upgrade overlay
+            if (isPremiumPage) {
+                setForceUpgrade(true);
+                setDismissedPayment(false);
+                setActiveTab('dashboard');
+                return <Dashboard />;
+            }
+        }
     }
 
     if (tab === 'upgrade') {
@@ -840,7 +854,7 @@ export default function App() {
               {isSidebarOpen && (
                 <div className="flex-1 flex items-center justify-between">
                   <span>{item.label}</span>
-                  {(item as any).premium && !isLicensed() && isTrialExpired && (
+                  {isTrialExpired && !isLicensedUser && (
                     <Sparkles size={14} className="text-amber-400 animate-pulse" />
                   )}
                 </div>
@@ -1002,7 +1016,7 @@ export default function App() {
                     >
                       <div className="p-2 sm:p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl relative">
                         <item.icon size={22} className="sm:w-6 sm:h-6" />
-                        {(item as any).premium && !isLicensedUser && isTrialExpired && (
+                        {isTrialExpired && !isLicensedUser && (
                           <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white shadow-lg">
                             <Sparkles size={8} className="sm:w-2.5 sm:h-2.5" />
                           </div>
@@ -1059,7 +1073,7 @@ export default function App() {
               )}
               <div className="relative">
                 <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                {item.premium && !isLicensedUser && isTrialExpired && (
+                {isTrialExpired && !isLicensedUser && (
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full flex items-center justify-center border border-white">
                     <Sparkles size={6} className="text-white" />
                   </div>
@@ -1078,32 +1092,43 @@ export default function App() {
       <ShortcutHelper show={isShortcutPopupOpen} />
 
       {/* Payment Overlay */}
-      {(forceUpgrade || (isTrialExpired && !isLicensedUser && !dismissedPayment)) && currentCompany && (
+      {(forceUpgrade || (isTrialExpired && !isLicensedUser && !dismissedPayment && paymentStatus !== 'pending')) && currentCompany && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
           <div className="relative w-full max-w-4xl min-h-screen flex items-center justify-center p-4">
             <div className="absolute inset-0" onClick={() => {
-              if (activeTab === 'dashboard') setDismissedPayment(true);
-              setForceUpgrade(false);
+              // Only allow background click search if they forced it or if it's already pending
+              if (paymentStatus === 'pending') {
+                setDismissedPayment(true);
+                setForceUpgrade(false);
+              }
             }} />
             <div className="relative z-10 w-full max-w-xl">
               <PaymentScreen 
                 company={currentCompany} 
                 onClose={() => {
-                  setForceUpgrade(false);
-                  setDismissedPayment(true);
+                  // If trial is expired and no request, don't allow permanent dismissal
+                  if (isTrialExpired && !isLicensedUser && paymentStatus !== 'pending') {
+                      setDismissedPayment(false);
+                      setForceUpgrade(true);
+                  } else {
+                      setForceUpgrade(false);
+                      setDismissedPayment(true);
+                  }
                   if (activeTab !== 'dashboard') setActiveTab('dashboard');
                 }} 
               />
-              <button 
-                onClick={() => {
-                  setForceUpgrade(false);
-                  setDismissedPayment(true);
-                  if (activeTab !== 'dashboard') setActiveTab('dashboard');
-                }}
-                className="absolute top-8 right-8 p-2 text-slate-400 hover:text-white transition-all z-20 md:hidden"
-              >
-                <X size={24} />
-              </button>
+              {(forceUpgrade || paymentStatus === 'pending') && (
+                <button 
+                  onClick={() => {
+                    setForceUpgrade(false);
+                    setDismissedPayment(true);
+                    if (activeTab !== 'dashboard') setActiveTab('dashboard');
+                  }}
+                  className="absolute top-8 right-8 p-2 text-slate-400 hover:text-white transition-all z-20"
+                >
+                  <X size={24} />
+                </button>
+              )}
             </div>
           </div>
         </div>

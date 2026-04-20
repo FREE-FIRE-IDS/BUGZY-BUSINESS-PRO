@@ -49,6 +49,7 @@ interface AppContextType {
   }) => Promise<void>;
   fetchPaymentRequests: () => Promise<PaymentRequest[]>;
   updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected', companyId: string) => Promise<void>;
+  paymentStatus: 'none' | 'pending' | 'approved' | 'rejected';
   activateLicense: (key: string) => Promise<void>;
   fetchLicenses: () => Promise<License[]>;
   resetLicenseDevice: (id: string) => Promise<void>;
@@ -192,6 +193,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     error: null,
     success: null
   });
+  const [paymentStatus, setPaymentStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
   const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
@@ -724,8 +726,21 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       }
       
       // Then pull companies from cloud
-      if (settings.user_email) {
+      if (settings.user_email || currentUser) {
         await refreshData(undefined, true);
+        
+        // Check for pending payment requests
+        const userId = session?.user?.id || currentUser;
+        if (userId) {
+          const { data } = await supabase
+            .from('payment_requests')
+            .select('status')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (data) setPaymentStatus(data.status as any);
+        }
       }
     };
     init();
@@ -1567,9 +1582,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
           localStorage.setItem(`currentCompany_${targetUser}`, JSON.stringify(data));
         }
         
-        // Update settings with the email from the company if available
-        if (data.user_email) {
-          updateSettings({ user_email: data.user_email, sync_enabled: true, is_verified: true });
+        // Only update settings with email if user hasn't already configured sync
+        if (data.user_email && !settings.user_email) {
+          updateSettings({ user_email: data.user_email, sync_enabled: false, is_verified: true });
         }
         
         setSyncStatus({ loading: false, error: null, success: 'Company restored successfully!' });
@@ -1704,6 +1719,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       const { error: error2 } = await supabase.from('payment_requests').insert(fallbackRequest as any);
       if (error2) handleSupabaseError(error2, 'Submit Payment Fallback');
     }
+
+    setPaymentStatus('pending');
   };
 
   const fetchPaymentRequests = async () => {
@@ -1904,6 +1921,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       backupData, restoreData,
       addInvoice, updateInvoice, deleteInvoice,
       submitPaymentRequest, fetchPaymentRequests, updatePaymentRequestStatus,
+      paymentStatus,
       activateLicense, fetchLicenses, resetLicenseDevice,
       isDeviceLicensed,
       isLicensed: () => isDeviceLicensed,
