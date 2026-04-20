@@ -259,6 +259,19 @@ export default function Reports() {
     return result;
   }, [activeReport, selectedEntity, selectedCategory, dateRange, searchQuery, transactions, parties, banks, items, invoices, currentCompany]);
 
+  const activeColumns = useMemo(() => {
+    return allColumns[activeReport].filter(col => selectedColumns.includes(col));
+  }, [activeReport, selectedColumns, allColumns]);
+
+  const formatValue = (col: string, val: any) => {
+    if (val === undefined || val === null) return '-';
+    if (col === 'Date') return formatDate(val);
+    if (col.includes('Balance') || col.includes('Debit') || col.includes('Credit') || col.includes('Amount') || col.includes('Total') || col.includes('Price') || col.includes('Value')) {
+      return formatCurrency(Math.abs(val), settings.currency) + (col === 'Balance' ? (val >= 0 ? ' DR' : ' CR') : '');
+    }
+    return String(val);
+  };
+
   const exportPDF = () => {
     const doc = new jsPDF();
     const companyName = currentCompany?.name || settings.companyName || 'My Business';
@@ -525,195 +538,133 @@ export default function Reports() {
         </div>
       </aside>
 
-      {/* Main Report Area */}
-      <div className="flex-1 space-y-4 md:space-y-6 overflow-hidden min-w-0">
-        <div className="bg-white dark:bg-slate-900 p-4 md:p-8 rounded-2xl md:rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 md:gap-6 mb-6 md:mb-8">
-            <div className="flex-shrink-0">
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white leading-tight">{activeReport}</h2>
-              <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400">View and export business reports</p>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:flex xl:items-center gap-2 md:gap-3">
-              {activeReport === 'All Parties' && (
-                <div className="relative group">
-                  <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl text-xs font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
-                  >
-                    {categories.map(cat => (
-                      <option key={cat} value={cat}>{cat} {cat === 'All' ? 'Categories' : ''}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              
-              <div className="relative group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                <input 
-                  type="text"
-                  placeholder="Search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl text-xs font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all"
-                />
+      {/* Content Area */}
+      <div className="flex-1 min-w-0 space-y-4 md:space-y-6">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl md:rounded-3xl shadow-sm overflow-hidden">
+          {/* Responsive Header */}
+          <div className="p-4 md:p-8 border-b border-slate-50 dark:border-slate-800">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+              <div>
+                <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white leading-tight">{activeReport}</h2>
+                <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1">Export professional business statements</p>
               </div>
 
-              {(activeReport === 'Single Party' || activeReport === 'Single Bank') && (
-                <div className="relative group">
-                  <Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:flex xl:items-center gap-3">
+                {activeReport === 'All Parties' && (
+                  <div className="relative group min-w-[140px]">
+                    <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl text-xs font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
+                    >
+                      {categories.map(cat => (
+                        <option key={cat} value={cat}>{cat} {cat === 'All' ? 'Categories' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
+                <div className="relative group flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                  <input 
+                    type="text"
+                    placeholder="Search reports..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl text-xs font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-400"
+                  />
+                </div>
+
+                {(activeReport === 'Single Party' || activeReport === 'Single Bank') && (
+                  <div className="relative group min-w-[160px]">
+                    <Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <select 
+                      value={selectedEntity}
+                      onChange={(e) => setSelectedEntity(e.target.value)}
+                      className="w-full pl-10 pr-8 py-2.5 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl text-xs font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
+                    >
+                      <option value="">Select {activeReport === 'Single Party' ? 'Party' : 'Bank'}</option>
+                      {(activeReport === 'Single Party' ? parties : banks).map(e => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="relative group min-w-[140px]">
+                  <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <select 
-                    value={selectedEntity}
-                    onChange={(e) => setSelectedEntity(e.target.value)}
+                    value={dateRange}
+                    onChange={(e) => setDateRange(e.target.value)}
                     className="w-full pl-10 pr-8 py-2.5 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl text-xs font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
                   >
-                    <option value="">Select {activeReport === 'Single Party' ? 'Party' : 'Bank'}</option>
-                    {(activeReport === 'Single Party' ? parties : banks).map(e => (
-                      <option key={e.id} value={e.id}>{e.name}</option>
-                    ))}
+                    <option>This Month</option>
+                    <option>All Time</option>
                   </select>
                 </div>
-              )}
 
-              <div className="relative group">
-                <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <select 
-                  value={dateRange}
-                  onChange={(e) => setDateRange(e.target.value)}
-                  className="w-full pl-10 pr-8 py-2.5 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl text-xs font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
-                >
-                  <option>This Month</option>
-                  <option>All Time</option>
-                </select>
-              </div>
-
-              <div className="flex gap-2 w-full sm:w-auto">
-                <button 
-                  onClick={() => setIsColumnModalOpen(true)}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-100 dark:border-slate-700 text-xs shadow-sm"
-                >
-                  <Filter size={16} />
-                  <span>Columns</span>
-                </button>
-                
-                <button 
-                  onClick={exportPDF}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 text-xs whitespace-nowrap"
-                >
-                  <Download size={16} />
-                  <span>Export Report</span>
-                </button>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <button 
+                    onClick={() => setIsColumnModalOpen(true)}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-100 dark:border-slate-700 text-xs shadow-sm"
+                  >
+                    <Filter size={16} />
+                    <span>Columns</span>
+                  </button>
+                  
+                  <button 
+                    onClick={exportPDF}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 text-xs whitespace-nowrap"
+                  >
+                    <Download size={16} />
+                    <span>Export</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto -mx-4 md:mx-0 ring-1 ring-slate-100 dark:ring-slate-800 rounded-xl md:rounded-2xl">
+          <div className="overflow-x-auto no-scrollbar">
             <div className="inline-block min-w-full align-middle">
-              <table className="min-w-full text-left">
-              <thead className="bg-slate-50 dark:bg-slate-50 text-slate-500 dark:text-slate-500 text-xs uppercase tracking-wider">
-                <tr>
-                  {selectedColumns.map(col => (
-                    <th key={col} className={cn("px-6 py-4 font-semibold", col.includes('Balance') || col.includes('Debit') || col.includes('Credit') || col.includes('Amount') || col.includes('Total') || col.includes('Price') || col.includes('Qty') || col.includes('Stock') || col.includes('Value') ? "text-right" : "")}>
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredData.map((row, i) => {
-                  let currentBalance = 0;
-                  if (activeReport === 'Single Party' || activeReport === 'Single Bank') {
-                    for (let j = 0; j <= i; j++) {
-                      const item = filteredData[j];
-                      if (item.isOpening) {
-                        currentBalance = item.amount;
-                        continue;
-                      }
-                      const itemIsDebit = item.type === 'Sale' || item.type === 'Payment In' || item.type === 'Deposit' || item.type === 'Party To Bank' || item.type === 'Bank To Party';
-                      if (itemIsDebit) currentBalance += (item.amount || item.total || 0);
-                      else currentBalance -= (item.amount || item.total || 0);
-                    }
-                  }
-
-                  return (
-                    <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      {selectedColumns.map(col => {
-                        let content: React.ReactNode = '-';
-                        let className = "px-6 py-4 text-sm font-medium text-slate-900";
-
-                        if (col === 'Party Name' || col === 'Bank Name' || col === 'Item Name' || col === 'Party') {
-                          content = row.name || row.party_name;
-                          className += " font-bold";
-                        } else if (col === 'Type' || col === 'Category') {
-                          content = row.type || row.category || '-';
-                        } else if (col === 'Date') {
-                          content = formatDate(row.date);
-                        } else if (col === 'Description') {
-                          content = row.description || row.type || '-';
-                          className = "px-6 py-4 text-sm text-slate-500";
-                        } else if (col === 'Account #') {
-                          content = row.account || '-';
-                        } else if (col === 'SKU') {
-                          content = row.sku || '-';
-                        } else if (col === 'Stock') {
-                          content = row.stock;
-                          className += " text-right";
-                        } else if (col === 'Value') {
-                          content = formatCurrency(row.value, settings.currency);
-                          className += " text-right text-indigo-600 font-bold";
-                        } else if (col === 'Debit (DR)' || col === 'Debit' || col === 'Deposit') {
-                          const isDebit = row.type === 'Sale' || row.type === 'Payment In' || row.type === 'Deposit' || row.type === 'Party To Bank' || row.type === 'Bank To Party' || row.to_bank_id === selectedEntity || row.balance >= 0;
-                          const amount = row.amount || row.total || (row.balance >= 0 ? row.balance : 0);
-                          content = isDebit ? formatCurrency(amount, settings.currency) : '-';
-                          className += " text-right text-emerald-600 font-bold";
-                        } else if (col === 'Credit (CR)' || col === 'Credit' || col === 'Withdrawal') {
-                          const isCredit = row.type === 'Purchase' || row.type === 'Payment Out' || row.type === 'Withdraw' || row.type === 'Bank To Party' || row.type === 'Party To Bank' || row.bank_id === selectedEntity || row.balance < 0;
-                          const amount = (row.amount || row.total) || (row.balance < 0 ? Math.abs(row.balance) : 0);
-                          content = isCredit ? formatCurrency(amount, settings.currency) : '-';
-                          className += " text-right text-rose-600 font-bold";
-                        } else if (col === 'Balance') {
-                          const balance = activeReport.includes('Single') ? currentBalance : row.balance;
-                          content = `${formatCurrency(Math.abs(balance), settings.currency)} ${balance >= 0 ? 'DR' : 'CR'}`;
-                          className += cn(" text-right font-bold", balance >= 0 ? "text-emerald-600" : "text-rose-600");
-                        } else if (col === 'Amount' || col === 'Total') {
-                          content = formatCurrency(row.amount || row.total || row.item_total, settings.currency);
-                          className += cn(" text-right font-bold", activeReport === 'Sale' ? "text-emerald-600" : "text-rose-600");
-                        } else if (col === 'Invoice #') {
-                          content = row.invoice_number || '-';
-                        } else if (col === 'Item') {
-                          content = row.item_name || '-';
-                        } else if (col === 'Qty') {
-                          content = row.qty || row.quantity || '1';
-                          className += " text-right";
-                        } else if (col === 'Unit') {
-                          content = row.unit || '-';
-                        } else if (col === 'Price') {
-                          content = formatCurrency(row.unit_price || row.price, settings.currency);
-                          className += " text-right";
-                        } else if (col === 'Paid From') {
-                          content = row.paid_from || 'Cash';
-                        }
-
-                        return <td key={col} className={className}>{content}</td>;
-                      })}
+              <div className="p-0 md:p-1">
+                <table className="min-w-full divide-y divide-slate-50 dark:divide-slate-800">
+                  <thead className="bg-slate-50/50 dark:bg-slate-800/50">
+                    <tr>
+                      {activeColumns.map(colId => (
+                        <th key={colId} className="px-6 py-4 text-left text-[10px] uppercase tracking-wider font-black text-slate-400">
+                          {colId.replace(/_/g, ' ')}
+                        </th>
+                      ))}
                     </tr>
-                  );
-                })}
-                {filteredData.length === 0 && (
-                  <tr>
-                    <td colSpan={selectedColumns.length} className="px-6 py-12 text-center text-slate-400">
-                      No data found for this report.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                    {filteredData.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+                        {activeColumns.map(colId => (
+                          <td key={colId} className="px-6 py-4 whitespace-nowrap text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {formatValue(colId, row[colId])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                    {filteredData.length === 0 && (
+                      <tr>
+                        <td colSpan={activeColumns.length} className="px-6 py-16 text-center">
+                          <div className="flex flex-col items-center justify-center opacity-40">
+                            <Search size={48} className="mb-4 text-slate-200" />
+                            <p className="text-sm font-bold text-slate-400 italic">No records found matching filters.</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
       {/* Column Selection Modal */}
       <AnimatePresence>

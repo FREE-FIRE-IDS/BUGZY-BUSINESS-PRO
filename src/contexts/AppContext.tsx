@@ -397,11 +397,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         query = query.eq('username', username);
       }
 
+      const localCompanies = companies;
       const { data: cloudCompanies, error: compError } = await query;
       
-      if (compError) throw compError;
+      if (compError) {
+        console.error('Error fetching companies:', compError);
+        // If we have local companies, continue with them. If not, stop.
+        if (localCompanies.length === 0) {
+            setSyncStatus({ loading: false, error: 'Failed to connect to cloud', success: null });
+            return;
+        }
+      }
       
-      const localCompanies = companies;
       const { merged: mergedCompanies, toUpload: companiesToUpload } = mergeData(localCompanies, cloudCompanies || []);
       
       const nonDeletedCompanies = mergedCompanies.filter(c => !c.deleted_at);
@@ -423,49 +430,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return;
       }
 
-      const companyId = activeCompany.id;
+      // 2. Multi-Company Detail Sync (Sync active first, then others)
+      const otherCompanies = nonDeletedCompanies.filter(c => c.id !== activeCompany?.id);
 
-      // 2. Pull Data for activeCompany
-      const fetchAndMerge = async (table: string, setter: (data: any[]) => void) => {
-        try {
-          let dbTable = table === 'items' ? 'inventory' : table;
-          
-          const { data: cloudData, error } = await supabase
-            .from(dbTable)
-            .select('*')
-            .eq('company_id', companyId);
-          
-          if (error) {
-              console.error(`Fetch error for ${dbTable}:`, error);
+      const syncOneCompany = async (comp: Company) => {
+        const fetchAndMerge = async (table: string, setter: (data: any[]) => void) => {
+          try {
+            const dbTable = table === 'items' ? 'inventory' : table;
+            const { data, error } = await supabase.from(dbTable).select('*').eq('company_id', comp.id);
+            if (error) {
               if (error.code === 'PGRST116' || error.message.includes('relation')) return;
               throw error;
+            }
+            
+            const localKey = `${table}_${comp.id}`;
+            const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+            const { merged, toUpload } = mergeData(localData, data || []);
+            
+            localStorage.setItem(localKey, JSON.stringify(merged));
+            if (comp.id === activeCompany?.id) {
+              isInternalUpdate.current = true;
+              setter(merged.filter(i => {
+                  if (!i) return false;
+                  if (i.deleted_at && i.deleted_at !== '') return false;
+                  return true;
+              }));
+              isInternalUpdate.current = false;
+            }
+            
+            if (toUpload.length > 0 && settings.sync_enabled) {
+              await syncToCloud(table, toUpload, false, comp.id);
+            }
+          } catch (err) {
+            console.error(`Sync error for ${table} in ${comp.name}:`, err);
           }
-          
-          const localData = JSON.parse(localStorage.getItem(`${table}_${companyId}`) || '[]');
-          const { merged, toUpload } = mergeData(localData, cloudData || []);
-          
-          isInternalUpdate.current = true;
-          setter(merged.filter(i => !i.deleted_at));
-          localStorage.setItem(`${table}_${companyId}`, JSON.stringify(merged));
-          isInternalUpdate.current = false;
+        };
 
-          if (toUpload.length > 0) {
-            await syncToCloud(table, toUpload);
-          }
-        } catch (e) {
-          console.error(`Failed to sync ${table}:`, e);
-        }
+        return Promise.allSettled([
+          fetchAndMerge('parties', setParties),
+          fetchAndMerge('banks', setBanks),
+          fetchAndMerge('items', setItems),
+          fetchAndMerge('transactions', setTransactions),
+          fetchAndMerge('invoices', setInvoices),
+        ]);
       };
 
-      await Promise.allSettled([
-        fetchAndMerge('parties', setParties),
-        fetchAndMerge('banks', setBanks),
-        fetchAndMerge('items', setItems),
-        fetchAndMerge('transactions', setTransactions),
-        fetchAndMerge('invoices', setInvoices),
-      ]);
-      
-      hasInitialSynced.current[activeCompany.id] = true;
+      if (activeCompany) {
+          await syncOneCompany(activeCompany);
+      }
+      otherCompanies.forEach(comp => syncOneCompany(comp));
+
+      hasInitialSynced.current[activeCompany?.id || ''] = true;
       setSyncStatus({ loading: false, error: null, success: 'Synced' });
     } catch (error: any) {
       console.error('Sync error:', error);
@@ -550,7 +565,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const syncToCloud = async (table: string, data: any, isNew: boolean = false) => {
+  const syncToCloud = async (table: string, data: any, isNew: boolean = false, companyIdOverride?: string) => {
+    const companyId = companyIdOverride || currentCompany?.id;
     const email = settings.user_email || currentCompany?.user_email || (currentCompany?.username ? `${currentCompany.username}@bugzy.app` : null);
     const isUsernameAccount = !!currentCompany?.username;
     
@@ -734,42 +750,66 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
                 if (!record) return;
 
                 const recordCompanyId = record?.company_id;
-                let isRelevant = table === 'companies' || (recordCompanyId && recordCompanyId === currentCompany.id);
+                // Multi-company sync: is relevant if it's a company record or belongs to ANY of our companies
+                const managedCompanyIds = new Set(companies.map(c => c.id));
+                let isRelevant = table === 'companies' || (recordCompanyId && managedCompanyIds.has(recordCompanyId));
                 
                 if (!isRelevant && eventType === 'DELETE') {
-                    // For deletes, we might not have company_id in oldRecord if it wasn't selected
-                    // But usually oldRecord has the primary key
+                    // Fallback for deletions where company_id might be missing from oldRecord
+                    // We check if the ID exists in ANY of our local company caches
                     isRelevant = true; 
                 }
                 
                 if (isRelevant) {
                     const updateState = (key: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => {
                         isInternalUpdate.current = true;
-                        setter(prev => {
-                            const localAll = JSON.parse(localStorage.getItem(`${key}_${currentCompany.id}`) || '[]');
+                        
+                        // We might need to update multiple companies' local storage if we don't know the exact company_id (for DELETE)
+                        // But for INSERT/UPDATE we usually have recordCompanyId
+                        const targetIds = (eventType === 'DELETE' && !recordCompanyId) 
+                            ? Array.from(managedCompanyIds)
+                            : [recordCompanyId || currentCompany?.id].filter(Boolean) as string[];
+
+                        targetIds.forEach(targetId => {
+                            const localAll = JSON.parse(localStorage.getItem(`${key}_${targetId}`) || '[]');
                             let updatedAll = [...localAll];
+                            let changed = false;
 
                             if (eventType === 'INSERT' || eventType === 'UPDATE') {
                                 const index = updatedAll.findIndex(i => i.id === record.id);
                                 if (index !== -1) {
-                                    // Only update if the incoming record is newer
                                     const localTime = new Date(updatedAll[index].updated_at || updatedAll[index].created_at || 0).getTime();
                                     const remoteTime = new Date(record.updated_at || record.created_at || 0).getTime();
                                     if (remoteTime >= localTime) {
                                         updatedAll[index] = { ...record, _synced: true };
+                                        changed = true;
                                     }
                                 } else {
                                     updatedAll = [{ ...record, _synced: true }, ...updatedAll];
+                                    changed = true;
                                 }
                             } else if (eventType === 'DELETE') {
                                 const id = record.id || (oldRecord as any)?.id;
-                                if (!id) return prev;
-                                updatedAll = updatedAll.filter(i => i.id !== id);
+                                if (id) {
+                                    const originalSize = updatedAll.length;
+                                    updatedAll = updatedAll.filter(i => i.id !== id);
+                                    if (updatedAll.length !== originalSize) changed = true;
+                                }
                             }
 
-                            localStorage.setItem(`${key}_${currentCompany.id}`, JSON.stringify(updatedAll));
-                            return updatedAll.filter(i => !i.deleted_at);
+                            if (changed) {
+                                localStorage.setItem(`${key}_${targetId}`, JSON.stringify(updatedAll));
+                                // Only update active state if it matches current company
+                                if (targetId === currentCompany?.id) {
+                                    setter(updatedAll.filter(i => {
+                                        if (!i) return false;
+                                        if (i.deleted_at && i.deleted_at !== '') return false;
+                                        return true;
+                                    }));
+                                }
+                            }
                         });
+                        
                         setTimeout(() => { isInternalUpdate.current = false; }, 100);
                     };
 
