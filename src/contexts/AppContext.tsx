@@ -463,14 +463,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         fetchAndMerge('items', setItems),
         fetchAndMerge('transactions', setTransactions),
         fetchAndMerge('invoices', setInvoices),
-        fetchAndMerge('expenses', (data) => {
-            if (data.length > 0) {
-                setTransactions(prev => {
-                    const { merged } = mergeData(prev, data);
-                    return merged.filter(t => !t.deleted_at);
-                });
-            }
-        })
       ]);
       
       hasInitialSynced.current[activeCompany.id] = true;
@@ -580,6 +572,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Map 'items' to 'inventory' for Supabase
     let dbTable = table;
     if (table === 'items') dbTable = 'inventory';
+    if (table === 'expenses') dbTable = 'transactions';
     
     try {
         // Sanitize data: replace empty strings with null for date fields and strip local metadata
@@ -780,7 +773,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
                         setTimeout(() => { isInternalUpdate.current = false; }, 100);
                     };
 
-                    if (table === 'transactions' || table === 'expenses') updateState('transactions', setTransactions);
+                    if (table === 'transactions' || table === 'expenses') {
+                        updateState('transactions', setTransactions);
+                    }
                     else if (table === 'parties') updateState('parties', setParties);
                     else if (table === 'banks') updateState('banks', setBanks);
                     else if (table === 'inventory') updateState('items', setItems);
@@ -1183,6 +1178,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         const filteredAll = localAll.filter((t: any) => t.id !== id);
         localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(filteredAll));
         if (settings.sync_enabled) {
+            // We use 'expenses' here to trigger the mapping in deleteFromCloud, but unify logic
             const table = tx.type === 'Expense' ? 'expenses' : 'transactions';
             await deleteFromCloud(table, id);
         }
