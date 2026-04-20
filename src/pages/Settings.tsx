@@ -1053,11 +1053,18 @@ NOTIFY pgrst, 'reload schema';
                           <p className="text-xs text-indigo-600 dark:text-indigo-400">Pull your companies from another device</p>
                         </div>
                         <button 
-                          onClick={() => pullCompanies(settings.user_email || '')}
+                          onClick={async () => {
+                            const success = await pullCompanies(settings.user_email || '');
+                            if (success) {
+                              setToast({ message: 'Cloud companies found and restored!', type: 'success' });
+                            } else {
+                              setToast({ message: 'No linked companies found for this Gmail.', type: 'error' });
+                            }
+                          }}
                           disabled={syncStatus.loading}
                           className="px-4 py-2 bg-white dark:bg-white text-indigo-600 dark:text-indigo-600 rounded-xl text-xs font-bold border border-indigo-100 dark:border-indigo-200 hover:bg-indigo-50 transition-all disabled:opacity-50"
                         >
-                          Pull Companies
+                          {syncStatus.loading ? 'Searching...' : 'Pull Companies'}
                         </button>
                       </div>
 

@@ -392,7 +392,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       let query = supabase.from('companies').select('*');
       
       if (email) {
-        query = query.or(`user_email.eq.${email},linked_emails.cs.{${email}}`);
+        // PostgREST cs syntax for arrays with dots requires quoting the value inside the braces
+        // Also quoting the user_email eq value for safety with dots
+        query = query.or(`user_email.eq."${email}",linked_emails.cs.{"${email}"}`);
       } else if (username) {
         query = query.eq('username', username);
       }
@@ -515,7 +517,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       let query = supabase.from('companies').select('*');
       
       if (targetEmail) {
-        query = query.or(`user_email.eq.${targetEmail},linked_emails.cs.{${targetEmail}}`);
+        query = query.or(`user_email.eq."${targetEmail}",linked_emails.cs.{"${targetEmail}"}`);
       } else {
         query = query.eq('username', username);
       }
@@ -1650,7 +1652,16 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const updateSettings = (newSettings: Partial<AppSettings>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
+    setSettings(prev => {
+      const updated = { ...prev, ...newSettings };
+      localStorage.setItem('app_settings', JSON.stringify(updated));
+      return updated;
+    });
+    
+    if (newSettings.user_email) {
+      setCurrentUser(newSettings.user_email);
+      localStorage.setItem('currentUser', newSettings.user_email);
+    }
   };
 
   const handleSupabaseError = (error: any, context: string) => {
