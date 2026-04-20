@@ -155,10 +155,13 @@ export default function Dashboard() {
               <span className="text-sm font-bold">Pro Active</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-100 dark:border-amber-800">
-              <Clock size={16} />
-              <span className="text-sm font-bold">Trial Mode</span>
-            </div>
+            <button 
+              onClick={() => navigateTo('settings')}
+              className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl border border-amber-400 shadow-lg shadow-amber-500/20 animate-pulse active:scale-95 transition-all"
+            >
+              <Sparkles size={16} />
+              <span className="text-sm font-black uppercase tracking-wider">Buy Premium</span>
+            </button>
           )}
         </div>
         <div className="flex items-center gap-2">

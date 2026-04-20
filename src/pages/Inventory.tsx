@@ -10,7 +10,8 @@ import {
   History,
   TrendingUp,
   TrendingDown,
-  Download
+  Download,
+  Sparkles
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
@@ -20,7 +21,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function Inventory() {
-  const { items, addItem, updateItem, deleteItem, addTransaction, settings, currentCompany } = useApp();
+  const { items, addItem, updateItem, deleteItem, addTransaction, settings, currentCompany, isLicensed } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
@@ -85,6 +86,20 @@ export default function Inventory() {
 
   return (
     <div className="space-y-6">
+      {!isLicensed() && (
+        <div className="bg-amber-500 text-white p-4 rounded-2xl flex items-center justify-between shadow-lg shadow-amber-500/20">
+          <div className="flex items-center gap-3">
+             <Sparkles className="animate-pulse" />
+             <span className="font-bold">Upgrade to Pro for full inventory management!</span>
+          </div>
+          <button 
+            onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'settings' }))}
+            className="bg-white text-amber-600 px-4 py-1.5 rounded-xl text-xs font-black uppercase"
+          >
+            Upgrade
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md">
           <div className="flex items-center gap-4">

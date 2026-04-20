@@ -749,14 +749,12 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
                 
                 if (!record) return;
 
-                const recordCompanyId = record?.company_id;
-                // Multi-company sync: is relevant if it's a company record or belongs to ANY of our companies
+                const recordCompanyId = record?.company_id || (oldRecord as any)?.company_id;
                 const managedCompanyIds = new Set(companies.map(c => c.id));
                 let isRelevant = table === 'companies' || (recordCompanyId && managedCompanyIds.has(recordCompanyId));
                 
-                if (!isRelevant && eventType === 'DELETE') {
-                    // Fallback for deletions where company_id might be missing from oldRecord
-                    // We check if the ID exists in ANY of our local company caches
+                // FORCE relevance for deletions to ensure propagation across devices even if replica identity is partial
+                if (eventType === 'DELETE' || (record && record.deleted_at)) {
                     isRelevant = true; 
                 }
                 
@@ -764,19 +762,20 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
                     const updateState = (key: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => {
                         isInternalUpdate.current = true;
                         
-                        // We might need to update multiple companies' local storage if we don't know the exact company_id (for DELETE)
-                        // But for INSERT/UPDATE we usually have recordCompanyId
-                        const targetIds = (eventType === 'DELETE' && !recordCompanyId) 
-                            ? Array.from(managedCompanyIds)
-                            : [recordCompanyId || currentCompany?.id].filter(Boolean) as string[];
+                        const targetIds = (recordCompanyId) 
+                            ? [recordCompanyId]
+                            : Array.from(managedCompanyIds);
 
                         targetIds.forEach(targetId => {
                             const localAll = JSON.parse(localStorage.getItem(`${key}_${targetId}`) || '[]');
+                            if (!Array.isArray(localAll)) return;
+                            
                             let updatedAll = [...localAll];
                             let changed = false;
+                            const recordId = record.id || (oldRecord as any)?.id;
 
                             if (eventType === 'INSERT' || eventType === 'UPDATE') {
-                                const index = updatedAll.findIndex(i => i.id === record.id);
+                                const index = updatedAll.findIndex(i => i.id === recordId);
                                 if (index !== -1) {
                                     const localTime = new Date(updatedAll[index].updated_at || updatedAll[index].created_at || 0).getTime();
                                     const remoteTime = new Date(record.updated_at || record.created_at || 0).getTime();
@@ -789,10 +788,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
                                     changed = true;
                                 }
                             } else if (eventType === 'DELETE') {
-                                const id = record.id || (oldRecord as any)?.id;
-                                if (id) {
+                                if (recordId) {
                                     const originalSize = updatedAll.length;
-                                    updatedAll = updatedAll.filter(i => i.id !== id);
+                                    updatedAll = updatedAll.filter(i => i.id !== recordId);
                                     if (updatedAll.length !== originalSize) changed = true;
                                 }
                             }
@@ -801,11 +799,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
                                 localStorage.setItem(`${key}_${targetId}`, JSON.stringify(updatedAll));
                                 // Only update active state if it matches current company
                                 if (targetId === currentCompany?.id) {
-                                    setter(updatedAll.filter(i => {
-                                        if (!i) return false;
-                                        if (i.deleted_at && i.deleted_at !== '') return false;
-                                        return true;
-                                    }));
+                                    setter(updatedAll.filter(i => !i.deleted_at));
                                 }
                             }
                         });
@@ -1218,9 +1212,12 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         const filteredAll = localAll.filter((t: any) => t.id !== id);
         localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(filteredAll));
         if (settings.sync_enabled) {
-            // We use 'expenses' here to trigger the mapping in deleteFromCloud, but unify logic
-            const table = tx.type === 'Expense' ? 'expenses' : 'transactions';
-            await deleteFromCloud(table, id);
+            // Mapping for syncToCloud is done internally, but here we trigger both potentially
+            await deleteFromCloud('transactions', id);
+            if (tx.type === 'Expense') {
+                // Also explicitly try 'expenses' literal table just in case legacy data exists
+                await supabase.from('expenses').delete().eq('id', id);
+            }
         }
       } else {
         const updatedAll = localAll.map((t: any) => t.id === id ? { ...t, deleted_at: now, updated_at: now } : t);

@@ -947,6 +947,15 @@ export default function App() {
             >
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
+            {!isLicensedUser && (
+              <button 
+                onClick={() => setForceUpgrade(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-amber-500 text-white rounded-full text-[10px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20 animate-pulse"
+              >
+                <Sparkles size={12} />
+                <span>Premium</span>
+              </button>
+            )}
           </div>
         </header>
         </div>
@@ -1007,28 +1016,38 @@ export default function App() {
         theme === 'dark' ? "bg-slate-900/95 border-slate-800" : "bg-white/95 border-slate-200"
       )}>
         {menuItems.filter(i => i.id !== 'admin').map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActiveTab(item.id)}
-            className={cn(
-              "flex flex-col items-center gap-1.5 px-4 py-1 rounded-2xl transition-all relative",
-              activeTab === item.id 
-                ? "text-indigo-600" 
-                : theme === 'dark' ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-900"
+          <React.Fragment key={item.id}>
+            <button
+              onClick={() => setActiveTab(item.id)}
+              className={cn(
+                "flex flex-col items-center gap-1.5 px-4 py-1 rounded-2xl transition-all relative",
+                activeTab === item.id 
+                  ? "text-indigo-600" 
+                  : theme === 'dark' ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-900"
+              )}
+            >
+              {activeTab === item.id && (
+                <motion.div 
+                  layoutId="activeTab"
+                  className="absolute inset-x-0 -top-3 h-1 bg-indigo-600 rounded-full mx-4"
+                />
+              )}
+              <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+              <span className={cn(
+                "text-[9px] font-black uppercase tracking-[0.1em]",
+                activeTab === item.id ? "opacity-100" : "opacity-60"
+              )}>{item.label}</span>
+            </button>
+            {item.id === 'banks' && !isLicensedUser && (
+              <button
+                onClick={() => setForceUpgrade(true)}
+                className="flex flex-col items-center gap-1.5 px-4 py-1 text-amber-500 relative"
+              >
+                <Sparkles size={22} className="animate-pulse" />
+                <span className="text-[9px] font-black uppercase tracking-[0.1em]">Premium</span>
+              </button>
             )}
-          >
-            {activeTab === item.id && (
-              <motion.div 
-                layoutId="activeTab"
-                className="absolute inset-x-0 -top-3 h-1 bg-indigo-600 rounded-full mx-4"
-              />
-            )}
-            <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-            <span className={cn(
-              "text-[9px] font-black uppercase tracking-[0.1em]",
-              activeTab === item.id ? "opacity-100" : "opacity-60"
-            )}>{item.label}</span>
-          </button>
+          </React.Fragment>
         ))}
       </nav>
 
