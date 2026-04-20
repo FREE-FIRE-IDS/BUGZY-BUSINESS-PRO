@@ -1043,7 +1043,7 @@ export default function App() {
                 }
               }}
               className={cn(
-                "flex flex-col items-center gap-1.5 px-4 py-1 rounded-2xl transition-all relative",
+                "flex flex-col items-center gap-1 px-2 py-1 rounded-2xl transition-all relative min-w-[64px]",
                 activeTab === item.id 
                   ? "text-indigo-600" 
                   : theme === 'dark' ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-900"
@@ -1068,15 +1068,6 @@ export default function App() {
                 activeTab === item.id ? "opacity-100" : "opacity-60"
               )}>{item.label}</span>
             </button>
-            {item.id === 'banks' && !isLicensedUser && (
-              <button
-                onClick={() => setForceUpgrade(true)}
-                className="flex flex-col items-center gap-1.5 px-4 py-1 text-amber-500 relative"
-              >
-                <Sparkles size={22} className="animate-pulse" />
-                <span className="text-[9px] font-black uppercase tracking-[0.1em]">Premium</span>
-              </button>
-            )}
           </React.Fragment>
         ))}
       </nav>
