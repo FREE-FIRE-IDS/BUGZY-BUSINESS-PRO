@@ -118,7 +118,16 @@ export default function Reports() {
       case 'All Parties':
         result = companyParties
           .filter(p => selectedCategory === 'All' || p.type === selectedCategory)
-          .map(p => ({ name: p.name, balance: p.balance, type: p.type }));
+          .map(p => ({ 
+            name: p.name, 
+            balance: p.balance, 
+            type: p.type,
+            'Party Name': p.name,
+            'Type': p.type,
+            'Debit (DR)': p.balance >= 0 ? p.balance : 0,
+            'Credit (CR)': p.balance < 0 ? Math.abs(p.balance) : 0,
+            'Balance': p.balance
+          }));
         break;
       case 'Single Party':
         const selectedParty = parties.find(p => p.id === selectedEntity);
@@ -133,17 +142,53 @@ export default function Reports() {
         }));
         const baseData = filterByDate([...partyTxs, ...partyInvoices]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         
+        let pBal = selectedParty?.opening_balance || 0;
+        const mappedPartyData = baseData.map(item => {
+          let d = 0, c = 0;
+          if (['Sale', 'Payment Out', 'Stock Out'].includes(item.type)) d = item.amount || item.total || 0;
+          else if (['Purchase', 'Payment In', 'Stock In'].includes(item.type)) c = item.amount || item.total || 0;
+          pBal += (d - c);
+          return {
+            ...item,
+            'Date': item.date,
+            'Description': item.description || item.type,
+            'Debit': d,
+            'Credit': c,
+            'Balance': pBal
+          };
+        });
+
         if (selectedParty) {
           result = [
-            { id: 'opening', date: selectedParty.created_at, type: 'Opening Balance', description: 'Opening Balance', amount: selectedParty.opening_balance, isOpening: true },
-            ...baseData
+            { 
+              id: 'opening', 
+              date: selectedParty.created_at, 
+              type: 'Opening Balance', 
+              'Date': selectedParty.created_at,
+              'Description': 'Opening Balance', 
+              'Debit': selectedParty.opening_balance >= 0 ? selectedParty.opening_balance : 0,
+              'Credit': selectedParty.opening_balance < 0 ? Math.abs(selectedParty.opening_balance) : 0,
+              'Balance': selectedParty.opening_balance,
+              amount: selectedParty.opening_balance, 
+              isOpening: true 
+            },
+            ...mappedPartyData
           ];
         } else {
-          result = baseData;
+          result = mappedPartyData;
         }
         break;
       case 'All Banks':
-        result = companyBanks.map(b => ({ name: b.name, balance: b.balance, account: b.account_number }));
+        result = companyBanks.map(b => ({ 
+          name: b.name, 
+          balance: b.balance, 
+          account: b.account_number,
+          'Bank Name': b.name,
+          'Account #': b.account_number,
+          'Debit (DR)': b.balance >= 0 ? b.balance : 0,
+          'Credit (CR)': b.balance < 0 ? Math.abs(b.balance) : 0,
+          'Balance': b.balance
+        }));
         break;
       case 'Single Bank':
         const selectedBank = banks.find(b => b.id === selectedEntity);
@@ -158,13 +203,46 @@ export default function Reports() {
         }));
         const baseBankData = filterByDate([...bankTxs, ...bankInvoices]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         
+        let bBal = selectedBank?.opening_balance || 0;
+        const mappedBankData = baseBankData.map(item => {
+          let d = 0, c = 0;
+          if (viewMode === 'app') {
+            if (['Deposit', 'Payment In', 'Sale'].includes(item.type)) d = item.amount || item.total || 0;
+            else if (['Withdraw', 'Payment Out', 'Purchase', 'Expense'].includes(item.type)) c = item.amount || item.total || 0;
+          } else {
+             // Accounting mode swap
+             if (['Deposit', 'Payment In', 'Sale'].includes(item.type)) c = item.amount || item.total || 0;
+             else if (['Withdraw', 'Payment Out', 'Purchase', 'Expense'].includes(item.type)) d = item.amount || item.total || 0;
+          }
+          bBal += (d - c);
+          return {
+            ...item,
+            'Date': item.date,
+            'Description': item.description || item.type,
+            [viewMode === 'app' ? 'Withdrawal' : 'Credit']: c,
+            [viewMode === 'app' ? 'Deposit' : 'Debit']: d,
+            'Balance': bBal
+          };
+        });
+
         if (selectedBank) {
           result = [
-            { id: 'opening', date: selectedBank.created_at, type: 'Opening Balance', description: 'Opening Balance', amount: selectedBank.opening_balance, isOpening: true },
-            ...baseBankData
+            { 
+              id: 'opening', 
+              date: selectedBank.created_at, 
+              type: 'Opening Balance', 
+              'Date': selectedBank.created_at,
+              'Description': 'Opening Balance',
+              [viewMode === 'app' ? 'Withdrawal' : 'Credit']: selectedBank.opening_balance < 0 ? Math.abs(selectedBank.opening_balance) : 0,
+              [viewMode === 'app' ? 'Deposit' : 'Debit']: selectedBank.opening_balance >= 0 ? selectedBank.opening_balance : 0,
+              'Balance': selectedBank.opening_balance,
+              amount: selectedBank.opening_balance, 
+              isOpening: true 
+            },
+            ...mappedBankData
           ];
         } else {
-          result = baseBankData;
+          result = mappedBankData;
         }
         break;
       case 'Stock':
@@ -174,7 +252,13 @@ export default function Reports() {
           unit: (i as any).unit || 'Unit', 
           price: i.price, 
           stock: i.stock, 
-          value: i.stock * i.price 
+          value: i.stock * i.price,
+          'Item Name': i.name,
+          'SKU': i.sku || '-',
+          'Unit': (i as any).unit || 'Unit',
+          'Price': i.price,
+          'Stock': i.stock,
+          'Value': i.stock * i.price
         }));
         break;
       case 'Purchase':
@@ -187,7 +271,14 @@ export default function Reports() {
             qty: item.quantity,
             unit: item.unit || 'Unit',
             price: item.price,
-            total: item.total
+            total: item.total,
+            'Date': inv.date,
+            'Party': parties.find(p => p.id === inv.party_id)?.name || 'Walk-in',
+            'Item': item.name,
+            'Qty': item.quantity,
+            'Unit': item.unit || 'Unit',
+            'Price': item.price,
+            'Total': item.total
           }))
         );
         const purchaseTransactions = companyTransactions.filter(t => t.type === 'Purchase').map(t => ({
@@ -198,7 +289,14 @@ export default function Reports() {
           qty: t.quantity || 1,
           unit: (companyItems.find(i => i.id === t.item_id) as any)?.unit || 'Unit',
           price: t.quantity ? t.amount / t.quantity : t.amount,
-          total: t.amount
+          total: t.amount,
+          'Date': t.date,
+          'Party': parties.find(p => p.id === t.party_id)?.name || 'N/A',
+          'Item': t.item_id ? companyItems.find(i => i.id === t.item_id)?.name : (t.description || 'General Purchase'),
+          'Qty': t.quantity || 1,
+          'Unit': (companyItems.find(i => i.id === t.item_id) as any)?.unit || 'Unit',
+          'Price': t.quantity ? t.amount / t.quantity : t.amount,
+          'Total': t.amount
         }));
         result = filterByDate([...purchaseInvoices, ...purchaseTransactions]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
@@ -212,7 +310,14 @@ export default function Reports() {
             qty: item.quantity,
             unit: item.unit || 'Unit',
             price: item.price,
-            total: item.total
+            total: item.total,
+            'Date': inv.date,
+            'Party': parties.find(p => p.id === inv.party_id)?.name || 'Walk-in',
+            'Item': item.name,
+            'Qty': item.quantity,
+            'Unit': item.unit || 'Unit',
+            'Price': item.price,
+            'Total': item.total
           }))
         );
         const saleTransactions = companyTransactions.filter(t => t.type === 'Sale').map(t => ({
@@ -223,14 +328,26 @@ export default function Reports() {
           qty: t.quantity || 1,
           unit: (companyItems.find(i => i.id === t.item_id) as any)?.unit || 'Unit',
           price: t.quantity ? t.amount / t.quantity : t.amount,
-          total: t.amount
+          total: t.amount,
+          'Date': t.date,
+          'Party': parties.find(p => p.id === t.party_id)?.name || 'N/A',
+          'Item': t.item_id ? companyItems.find(i => i.id === t.item_id)?.name : (t.description || 'General Sale'),
+          'Qty': t.quantity || 1,
+          'Unit': (companyItems.find(i => i.id === t.item_id) as any)?.unit || 'Unit',
+          'Price': t.quantity ? t.amount / t.quantity : t.amount,
+          'Total': t.amount
         }));
         result = filterByDate([...saleInvoices, ...saleTransactions]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
       case 'Expense':
         result = filterByDate(companyTransactions.filter(t => t.type === 'Expense')).map(t => ({
           ...t,
-          paid_from: t.bank_id ? companyBanks.find(b => b.id === t.bank_id)?.name : 'Cash'
+          paid_from: t.bank_id ? companyBanks.find(b => b.id === t.bank_id)?.name : 'Cash',
+          'Date': t.date,
+          'Description': t.description || '-',
+          'Category': t.category || '-',
+          'Paid From': t.bank_id ? companyBanks.find(b => b.id === t.bank_id)?.name : 'Cash',
+          'Amount': t.amount
         })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
       case 'Invoice':
@@ -241,7 +358,14 @@ export default function Reports() {
             qty: item.quantity,
             unit: item.unit || '-',
             unit_price: item.price,
-            item_total: item.total
+            item_total: item.total,
+            'Invoice #': inv.invoice_number,
+            'Date': inv.date,
+            'Item': item.name,
+            'Qty': item.quantity,
+            'Unit': item.unit || '-',
+            'Price': item.price,
+            'Total': item.total
           }))
         );
         break;
