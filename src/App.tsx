@@ -682,7 +682,7 @@ export default function App() {
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
     { id: 'reports', label: 'Reports', icon: History, premium: true },
-    { id: 'settings', label: 'Settings', icon: SettingsIcon },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true },
     ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Buy Now', icon: Sparkles, premium: true }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
   ];
@@ -981,27 +981,33 @@ export default function App() {
               transition={{ duration: 0.2 }}
             >
               {activeTab === 'more' ? (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
                   {moreItems.map(item => (
                     <button
                       key={item.id}
-                      onClick={() => setActiveTab(item.id)}
+                      onClick={() => {
+                        if (item.premium && !isLicensedUser && isTrialExpired) {
+                          setForceUpgrade(true);
+                        } else {
+                          setActiveTab(item.id);
+                        }
+                      }}
                       className={cn(
-                        "flex flex-col items-center justify-center p-6 rounded-2xl border transition-all gap-3",
+                        "flex flex-col items-center justify-center p-4 sm:p-6 rounded-2xl border transition-all gap-2 sm:gap-3",
                         theme === 'dark' 
                           ? "bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-50" 
                           : "bg-white border-slate-200 hover:bg-slate-50 text-slate-900"
                       )}
                     >
-                      <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl relative">
-                        <item.icon size={24} />
-                        {(item as any).premium && !isLicensed() && isTrialExpired && (
-                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white">
-                            <Sparkles size={10} />
+                      <div className="p-2 sm:p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl relative">
+                        <item.icon size={22} className="sm:w-6 sm:h-6" />
+                        {(item as any).premium && !isLicensedUser && isTrialExpired && (
+                          <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white shadow-lg">
+                            <Sparkles size={8} className="sm:w-2.5 sm:h-2.5" />
                           </div>
                         )}
                       </div>
-                      <span className="font-bold text-sm uppercase tracking-wider">{item.label}</span>
+                      <span className="font-bold text-[10px] sm:text-sm uppercase tracking-wider">{item.label}</span>
                     </button>
                   ))}
                 </div>
