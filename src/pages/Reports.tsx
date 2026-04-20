@@ -511,10 +511,10 @@ export default function Reports() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 md:gap-8 overflow-hidden">
+    <div className="flex flex-col lg:flex-row gap-4 md:gap-8 overflow-hidden -mx-4 md:mx-0">
       {/* Sidebar Navigation - Mobile Horizontal Scroll */}
-      <aside className="w-full lg:w-72 flex-shrink-0">
-        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 lg:mb-4 px-1 lg:px-4">Report Types</h3>
+      <aside className="w-full lg:w-72 flex-shrink-0 px-4 md:px-0">
+        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 lg:mb-4 px-1 lg:px-4">Report Types</h3>
         <div className="flex lg:grid lg:grid-cols-1 overflow-x-auto lg:overflow-x-visible no-scrollbar pb-2 lg:pb-0 gap-2 px-1 lg:px-0">
           {reportOptions.map((opt) => (
             <button
@@ -524,39 +524,39 @@ export default function Reports() {
                 setSelectedEntity('');
               }}
               className={cn(
-                "flex items-center gap-3 p-3 lg:p-4 rounded-xl lg:rounded-2xl transition-all group whitespace-nowrap lg:whitespace-normal flex-shrink-0 lg:w-full",
+                "flex items-center gap-2 lg:gap-3 p-2.5 lg:p-4 rounded-xl lg:rounded-2xl transition-all group whitespace-nowrap lg:whitespace-normal flex-shrink-0 lg:w-full",
                 activeReport === opt.id 
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
                   : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-800"
               )}
             >
-              <opt.icon size={18} className="flex-shrink-0" />
-              <span className="font-bold text-xs lg:text-sm">{opt.label}</span>
-              <ChevronRight size={16} className={cn("ml-auto transition-transform hidden lg:block", activeReport === opt.id ? "rotate-90" : "")} />
+              <opt.icon size={16} className="flex-shrink-0 lg:w-4 lg:h-4" />
+              <span className="font-bold text-[11px] lg:text-sm">{opt.label}</span>
+              <ChevronRight size={14} className={cn("ml-auto transition-transform hidden lg:block", activeReport === opt.id ? "rotate-90" : "")} />
             </button>
           ))}
         </div>
       </aside>
 
       {/* Content Area */}
-      <div className="flex-1 min-w-0 space-y-4 md:space-y-6">
+      <div className="flex-1 min-w-0 space-y-4 md:space-y-6 px-4 md:px-0">
         <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl md:rounded-3xl shadow-sm overflow-hidden">
           {/* Responsive Header */}
           <div className="p-4 md:p-8 border-b border-slate-50 dark:border-slate-800">
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 md:gap-6">
               <div>
-                <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white leading-tight">{activeReport}</h2>
-                <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1">Export professional business statements</p>
+                <h2 className="text-lg md:text-2xl font-bold text-slate-900 dark:text-white leading-tight">{activeReport}</h2>
+                <p className="text-[10px] md:text-sm text-slate-500 dark:text-slate-400 mt-0.5 md:mt-1">Export professional business statements</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:flex xl:items-center gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:flex xl:items-center gap-2 md:gap-3">
                 {activeReport === 'All Parties' && (
-                  <div className="relative group min-w-[140px]">
-                    <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <div className="relative group">
+                    <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <select
                       value={selectedCategory}
                       onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl text-xs font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
+                      className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[11px] font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
                     >
                       {categories.map(cat => (
                         <option key={cat} value={cat}>{cat} {cat === 'All' ? 'Categories' : ''}</option>
@@ -566,23 +566,23 @@ export default function Reports() {
                 )}
                 
                 <div className="relative group flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                   <input 
                     type="text"
                     placeholder="Search reports..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl text-xs font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-400"
+                    className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[11px] font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-400"
                   />
                 </div>
 
                 {(activeReport === 'Single Party' || activeReport === 'Single Bank') && (
-                  <div className="relative group min-w-[160px]">
-                    <Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <div className="relative group">
+                    <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <select 
                       value={selectedEntity}
                       onChange={(e) => setSelectedEntity(e.target.value)}
-                      className="w-full pl-10 pr-8 py-2.5 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl text-xs font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
+                      className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[11px] font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
                     >
                       <option value="">Select {activeReport === 'Single Party' ? 'Party' : 'Bank'}</option>
                       {(activeReport === 'Single Party' ? parties : banks).map(e => (
@@ -592,12 +592,12 @@ export default function Reports() {
                   </div>
                 )}
 
-                <div className="relative group min-w-[140px]">
-                  <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <div className="relative group">
+                  <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <select 
                     value={dateRange}
                     onChange={(e) => setDateRange(e.target.value)}
-                    className="w-full pl-10 pr-8 py-2.5 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-xl text-xs font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
+                    className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[11px] font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
                   >
                     <option>This Month</option>
                     <option>All Time</option>
@@ -607,17 +607,17 @@ export default function Reports() {
                 <div className="flex gap-2 w-full sm:w-auto">
                   <button 
                     onClick={() => setIsColumnModalOpen(true)}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-100 dark:border-slate-700 text-xs shadow-sm"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-100 dark:border-slate-700 text-[10px] shadow-sm uppercase tracking-wider"
                   >
-                    <Filter size={16} />
+                    <Filter size={14} />
                     <span>Columns</span>
                   </button>
                   
                   <button 
                     onClick={exportPDF}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 text-xs whitespace-nowrap"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 text-[10px] whitespace-nowrap uppercase tracking-wider"
                   >
-                    <Download size={16} />
+                    <Download size={14} />
                     <span>Export</span>
                   </button>
                 </div>
@@ -627,12 +627,12 @@ export default function Reports() {
 
           <div className="overflow-x-auto no-scrollbar">
             <div className="inline-block min-w-full align-middle">
-              <div className="p-0 md:p-1">
-                <table className="min-w-full divide-y divide-slate-50 dark:divide-slate-800">
+              <div className="p-0">
+                <table className="min-w-full divide-y divide-slate-50 dark:divide-slate-800 bg-white dark:bg-slate-900">
                   <thead className="bg-slate-50/50 dark:bg-slate-800/50">
                     <tr>
                       {activeColumns.map(colId => (
-                        <th key={colId} className="px-6 py-4 text-left text-[10px] uppercase tracking-wider font-black text-slate-400">
+                        <th key={colId} className="px-4 md:px-6 py-3 md:py-4 text-left text-[9px] md:text-[10px] uppercase tracking-wider font-black text-slate-400 whitespace-nowrap">
                           {colId.replace(/_/g, ' ')}
                         </th>
                       ))}
@@ -642,7 +642,10 @@ export default function Reports() {
                     {filteredData.map((row, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
                         {activeColumns.map(colId => (
-                          <td key={colId} className="px-6 py-4 whitespace-nowrap text-xs font-bold text-slate-700 dark:text-slate-300">
+                          <td key={colId} className={cn(
+                            "px-4 md:px-6 py-3 md:py-4 text-xs font-bold text-slate-700 dark:text-slate-300",
+                            (colId === 'Party Name' || colId === 'Description' || colId === 'Item Name') ? "min-w-[120px] max-w-[200px] truncate" : "whitespace-nowrap"
+                          )}>
                             {formatValue(colId, row[colId])}
                           </td>
                         ))}
