@@ -5,9 +5,11 @@ import { useApp } from '../contexts/AppContext';
 import { TransactionType } from '../types';
 
 export default function GlobalTransactionModal() {
-  const { parties, banks, addTransaction, currentCompany, selectedPartyId, selectedBankId } = useApp();
+  const { parties, banks, addTransaction, updateTransaction, currentCompany, selectedPartyId, selectedBankId } = useApp();
   const [isOpen, setIsOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [type, setType] = useState<TransactionType>('Payment In');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [partyId, setPartyId] = useState('');
   const [bankId, setBankId] = useState('');
   const [toPartyId, setToPartyId] = useState('');
@@ -16,15 +18,33 @@ export default function GlobalTransactionModal() {
   const [description, setDescription] = useState('');
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !editingId) {
       if (selectedPartyId) setPartyId(selectedPartyId);
       if (selectedBankId) setBankId(selectedBankId);
     }
-  }, [isOpen, selectedPartyId, selectedBankId]);
+  }, [isOpen, selectedPartyId, selectedBankId, editingId]);
 
   useEffect(() => {
     const handleOpen = (e: any) => {
-      setType(e.detail || 'Payment In');
+      const data = e.detail;
+      if (data && typeof data === 'object' && data.id) {
+        // We are editing
+        const tx = data;
+        setEditingId(tx.id);
+        setType(tx.type);
+        setDate(tx.date.split('T')[0]);
+        setPartyId(tx.party_id || '');
+        setBankId(tx.bank_id || '');
+        setToPartyId(tx.to_party_id || '');
+        setToBankId(tx.to_bank_id || '');
+        setAmount(String(tx.amount));
+        setDescription(tx.description || '');
+      } else {
+        setEditingId(null);
+        setType(data || 'Payment In');
+        setDate(new Date().toISOString().split('T')[0]);
+        resetForm();
+      }
       setIsOpen(true);
     };
     window.addEventListener('open-tx', handleOpen);
@@ -35,9 +55,9 @@ export default function GlobalTransactionModal() {
     e.preventDefault();
     if (!amount || isNaN(Number(amount))) return;
 
-    addTransaction({
+    const txData = {
       company_id: currentCompany?.id || 'default',
-      date: new Date().toISOString(),
+      date: new Date(date).toISOString(),
       type,
       amount: Number(amount),
       description,
@@ -45,7 +65,13 @@ export default function GlobalTransactionModal() {
       bank_id: bankId || undefined,
       to_party_id: toPartyId || undefined,
       to_bank_id: toBankId || undefined,
-    });
+    };
+
+    if (editingId) {
+      updateTransaction(editingId, txData);
+    } else {
+      addTransaction(txData);
+    }
 
     setIsOpen(false);
     resetForm();
@@ -79,37 +105,72 @@ export default function GlobalTransactionModal() {
           className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800"
         >
           <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">{type}</h2>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+              {editingId ? 'Edit Transaction' : type}
+            </h2>
             <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors text-slate-500">
               <X size={20} />
             </button>
           </div>
           
           <form className="p-8 space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[100%] overflow-y-auto">
+              {/* Type Selection */}
+              <div>
+                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Transaction Type</label>
+                <select 
+                  value={type} 
+                  onChange={(e) => setType(e.target.value as TransactionType)}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="Payment In">Payment In</option>
+                  <option value="Payment Out">Payment Out</option>
+                  <option value="Sale">Sale (Cash/Credit)</option>
+                  <option value="Purchase">Purchase (Cash/Credit)</option>
+                  <option value="Expense">Expense</option>
+                  <option value="Deposit">Deposit (To Bank)</option>
+                  <option value="Withdraw">Withdraw (From Bank)</option>
+                  <option value="Bank To Bank">Bank to Bank</option>
+                  <option value="Bank To Party">Bank to Party</option>
+                  <option value="Party To Bank">Party to Bank</option>
+                  <option value="Party To Party">Party to Party</option>
+                </select>
+              </div>
+
+              {/* Date Selection */}
+              <div>
+                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Date</label>
+                <input 
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
               {/* Party Selection */}
-              {(type.includes('Party') || type === 'Payment In' || type === 'Payment Out') && (
+              {(type.includes('Party') || type === 'Payment In' || type === 'Payment Out' || type === 'Sale' || type === 'Purchase') && (
                 <div>
                   <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
-                    {type === 'Payment In' || type === 'Payment Out' ? 'Select Party' : 'From Party'}
+                    {type.startsWith('Bank To') ? 'To Party' : (type === 'Party To Party' || type === 'Party To Bank' ? 'From Party' : 'Party')}
                   </label>
                   <select 
                     value={partyId} 
                     onChange={(e) => setPartyId(e.target.value)}
-                    required 
+                    required={type !== 'Sale' && type !== 'Purchase'}
                     className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="">Select Party</option>
+                    <option value="">{type === 'Sale' || type === 'Purchase' ? 'Walk-in (No Party)' : 'Select Party'}</option>
                     {parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
               )}
 
               {/* Bank Selection */}
-              {(type.includes('Bank') || type === 'Payment In' || type === 'Payment Out') && (
+              {(type.includes('Bank') || type === 'Payment In' || type === 'Payment Out' || type === 'Expense' || type === 'Sale' || type === 'Purchase') && (
                 <div>
                   <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
-                    {type === 'Payment In' || type === 'Payment Out' ? 'Select Bank (Optional for Cash)' : 'From Bank'}
+                    {type === 'Deposit' || type === 'Bank To Bank' ? 'From Bank' : (type === 'Withdraw' ? 'From Bank' : 'Bank (Optional for Cash)')}
                   </label>
                   <select 
                     value={bankId} 
@@ -139,7 +200,7 @@ export default function GlobalTransactionModal() {
               )}
 
               {/* Destination Bank */}
-              {type === 'Bank To Bank' && (
+              {(type === 'Bank To Bank' || type === 'Deposit' || type === 'Party To Bank') && (
                 <div>
                   <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">To Bank</label>
                   <select 

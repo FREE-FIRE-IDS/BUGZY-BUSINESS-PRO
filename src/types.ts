@@ -95,6 +95,7 @@ export interface Transaction {
   to_bank_id?: string;
   item_id?: string;
   quantity?: number;
+  payment_type?: 'Cash' | 'Bank' | 'Credit';
   created_at: string;
   updated_at?: string;
   deleted_at?: string;
@@ -158,4 +159,5 @@ export interface AppSettings {
   is_verified?: boolean;
   verification_code?: string;
   onboarding_completed?: boolean;
+  show_dr_cr?: boolean;
 }

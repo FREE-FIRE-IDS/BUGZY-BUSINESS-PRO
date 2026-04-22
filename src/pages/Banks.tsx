@@ -10,16 +10,38 @@ import {
   Trash2,
   Download,
   ArrowLeft,
-  X
+  X,
+  FileText
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
-import { formatCurrency, formatDate, cn } from '../lib/utils';
+import { formatCurrency, formatDate, formatBalance, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { BankAccount as Bank, Transaction, TransactionType } from '../types';
 import { generateBankStatement } from '../lib/pdfGenerator';
 
+const DrCrToggle = ({ enabled, onToggle }: { enabled: boolean, onToggle: (val: boolean) => void }) => (
+  <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 pointer-events-auto">
+    <span className="text-[10px] font-black uppercase text-slate-500 ml-1">DR/CR</span>
+    <button 
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle(!enabled);
+      }}
+      className={cn(
+        "relative w-8 h-4 rounded-full transition-all duration-300",
+        enabled ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-600"
+      )}
+    >
+      <div className={cn(
+        "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-300 shadow-sm",
+        enabled ? "left-4.5" : "left-0.5"
+      )} />
+    </button>
+  </div>
+);
+
 export default function Banks() {
-  const { banks, transactions, invoices, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, parties, currentCompany, setSelectedBankId } = useApp();
+  const { banks, transactions, invoices, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, updateSettings, parties, currentCompany, setSelectedBankId } = useApp();
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
   const [viewMode, setViewMode] = useState<'app' | 'accounting'>('app');
 
@@ -48,12 +70,33 @@ export default function Banks() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingBank, setEditingBank] = useState<Bank | null>(null);
-  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-  const [transferType, setTransferType] = useState<TransactionType>('Bank To Bank');
-  const [isEditTxModalOpen, setIsEditTxModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
   const [isHardDelete, setIsHardDelete] = useState(false);
-  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [showCashTransactions, setShowCashTransactions] = useState(false);
+
+  const cashTransactions = useMemo(() => {
+    const txs = transactions.filter(t => {
+      // Direct cash transactions
+      if (!t.bank_id && !t.to_bank_id) return true;
+      // Withdrawals bring cash in
+      if (t.type === 'Withdraw') return true;
+      // Deposits take cash out
+      if (t.type === 'Deposit') return true;
+      return false;
+    });
+
+    const invs = invoices.filter(i => i.status === 'Paid' && i.payment_type === 'Cash').map(i => ({
+      id: i.id,
+      date: i.date,
+      type: i.type === 'Sale' ? 'Sale' : 'Purchase',
+      amount: i.total,
+      description: `Invoice #${i.invoice_number}`,
+      company_id: i.company_id,
+      isInvoice: true
+    }));
+
+    return [...txs, ...invs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [transactions, invoices]);
 
   const bankLedger = useMemo(() => {
     if (!selectedBank) return [];
@@ -77,9 +120,6 @@ export default function Banks() {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [selectedBank, transactions]);
 
-  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
-  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
-
   const handleExportPDF = () => {
     if (currentCompany && selectedBank) {
       // Filter out pseudo-entry for opening balance
@@ -98,13 +138,142 @@ export default function Banks() {
   };
 
   const handleEditTx = (tx: Transaction) => {
-    setEditingTx(tx);
-    setIsEditTxModalOpen(true);
+    window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }));
   };
 
   return (
     <div className="space-y-6 pb-24 md:pb-6">
-      {selectedBank ? (
+      {showCashTransactions ? (
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="space-y-6"
+        >
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+            <div className="flex items-center gap-3 md:gap-4">
+              <button 
+                onClick={() => setShowCashTransactions(false)}
+                className="p-2 md:p-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl md:rounded-2xl text-slate-500 transition-all shrink-0"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div className="min-w-0">
+                <h2 className="text-lg md:text-2xl font-black text-slate-900 dark:text-white truncate">Cash Transactions</h2>
+                <div className="flex items-center gap-2 mt-0.5 md:mt-1">
+                  <span className="px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[8px] md:text-[10px] font-bold uppercase rounded shrink-0">Cash in Hand</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3">
+               <div className="bg-emerald-50 dark:bg-emerald-900/20 px-6 py-2 rounded-2xl border border-emerald-100 dark:border-emerald-800 flex flex-col justify-center">
+                  <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Balance</p>
+                  <p className="text-xl font-black text-emerald-700 dark:text-emerald-300 tracking-tight">{formatBalance(stats.cashInHand, settings.currency, settings.show_dr_cr)}</p>
+               </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+               <h3 className="font-bold text-slate-900 dark:text-white">Cash Ledger</h3>
+            </div>
+            <div className="overflow-x-auto hidden md:block">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
+                  <tr>
+                    <th className="px-6 py-4 font-semibold">Date</th>
+                    <th className="px-6 py-4 font-semibold">Type</th>
+                    <th className="px-6 py-4 font-semibold">Description</th>
+                    <th className="px-6 py-4 font-semibold text-right">In (+)</th>
+                    <th className="px-6 py-4 font-semibold text-right">Out (-)</th>
+                    <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {cashTransactions.map((tx) => {
+                    const isIncome = ['Sale', 'Income', 'Payment In', 'Stock In', 'Withdraw', 'Bank To Party'].includes(tx.type);
+                    return (
+                      <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-300">{formatDate(tx.date)}</td>
+                        <td className="px-6 py-4">
+                          <span className={cn(
+                            "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
+                            isIncome ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                          )}>
+                            {tx.type}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{tx.description || '-'}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-right text-emerald-600 dark:text-emerald-400">
+                          {isIncome ? formatCurrency(tx.amount, settings.currency) : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-bold text-right text-rose-600 dark:text-rose-400">
+                          {!isIncome ? formatCurrency(tx.amount, settings.currency) : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {!(tx as any).isInvoice && (
+                            <div className="flex justify-end gap-2">
+                              <button 
+                                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))} 
+                                className="p-2 text-slate-400 hover:text-indigo-600"
+                              >
+                                <FileText size={16} />
+                              </button>
+                              <button onClick={() => deleteTransaction(tx.id)} className="p-2 text-slate-400 hover:text-rose-600">
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Mobile View for Cash Ledger */}
+            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+               {cashTransactions.map((tx) => {
+                 const isIncome = ['Sale', 'Income', 'Payment In', 'Stock In', 'Withdraw', 'Bank To Party'].includes(tx.type);
+                 return (
+                   <div key={tx.id} className="p-4 space-y-3">
+                     <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-xs text-slate-500">{formatDate(tx.date)}</p>
+                          <p className="font-bold text-slate-900 dark:text-white truncate">{tx.description || tx.type}</p>
+                        </div>
+                        <span className={cn(
+                          "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
+                          isIncome ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                        )}>
+                          {tx.type}
+                        </span>
+                     </div>
+                     <div className="flex justify-between items-center">
+                        <p className={cn("text-lg font-black", isIncome ? "text-emerald-600" : "text-rose-600")}>
+                          {isIncome ? '+' : '-'}{formatCurrency(tx.amount, settings.currency)}
+                        </p>
+                        {!(tx as any).isInvoice && (
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))} 
+                              className="p-2 text-slate-400 hover:text-indigo-600"
+                            >
+                              <FileText size={16} />
+                            </button>
+                            <button onClick={() => deleteTransaction(tx.id)} className="p-2 text-slate-400 hover:text-rose-600">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )}
+                     </div>
+                   </div>
+                 );
+               })}
+            </div>
+          </div>
+        </motion.div>
+      ) : selectedBank ? (
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -128,21 +297,21 @@ export default function Banks() {
             </div>
             <div className="grid grid-cols-2 md:flex gap-2 md:gap-3">
               <button 
-                onClick={() => setIsDepositModalOpen(true)}
+                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Deposit' }))}
                 className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold text-sm"
               >
                 <ArrowDownLeft size={16} />
                 Deposit
               </button>
               <button 
-                onClick={() => setIsWithdrawModalOpen(true)}
+                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Withdraw' }))}
                 className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 font-bold text-sm"
               >
                 <ArrowUpRight size={16} />
                 Withdraw
               </button>
               <button 
-                onClick={() => setIsTransferModalOpen(true)}
+                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Bank To Bank' }))}
                 className="col-span-2 md:col-auto flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold text-sm"
               >
                 <ArrowLeftRight size={16} />
@@ -150,89 +319,6 @@ export default function Banks() {
               </button>
             </div>
           </div>
-
-          {/* Deposit Modal */}
-          <AnimatePresence>
-            {isDepositModalOpen && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDepositModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
-                  <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <h2 className="text-xl font-bold dark:text-white">Deposit to {selectedBank.name}</h2>
-                    <button onClick={() => setIsDepositModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-200 rounded-xl transition-colors"><X size={20} /></button>
-                  </div>
-                  <form className="p-8 space-y-6" onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.currentTarget);
-                    addTransaction({
-                      company_id: currentCompany?.id,
-                      date: new Date().toISOString(),
-                      type: 'Deposit',
-                      amount: Number(formData.get('amount')),
-                      description: formData.get('description') as string,
-                      to_bank_id: selectedBank.id,
-                    });
-                    setIsDepositModalOpen(false);
-                  }}>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Amount</label>
-                        <input name="amount" type="number" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
-                        <input name="description" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Cash deposit" />
-                      </div>
-                    </div>
-                    <div className="flex gap-3 pt-4">
-                      <button type="button" onClick={() => setIsDepositModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
-                      <button type="submit" className="flex-1 px-6 py-3 rounded-xl font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">Deposit</button>
-                    </div>
-                  </form>
-                </motion.div>
-              </div>
-            )}
-
-            {isWithdrawModalOpen && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsWithdrawModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
-                  <div className="p-8 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
-                    <h2 className="text-xl font-bold">Withdraw from {selectedBank.name}</h2>
-                    <button onClick={() => setIsWithdrawModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-200 rounded-xl transition-colors"><X size={20} /></button>
-                  </div>
-                  <form className="p-8 space-y-6" onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.currentTarget);
-                    addTransaction({
-                      company_id: currentCompany?.id,
-                      date: new Date().toISOString(),
-                      type: 'Withdraw',
-                      amount: Number(formData.get('amount')),
-                      description: formData.get('description') as string,
-                      bank_id: selectedBank.id,
-                    });
-                    setIsWithdrawModalOpen(false);
-                  }}>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Amount</label>
-                        <input name="amount" type="number" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
-                        <input name="description" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Cash withdrawal" />
-                      </div>
-                    </div>
-                    <div className="flex gap-3 pt-4">
-                      <button type="button" onClick={() => setIsWithdrawModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
-                      <button type="submit" className="flex-1 px-6 py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">Withdraw</button>
-                    </div>
-                  </form>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
             <div className="bg-white dark:bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">
@@ -412,11 +498,18 @@ export default function Banks() {
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-emerald-500 p-6 rounded-[2rem] text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden"
+              onClick={() => setShowCashTransactions(true)}
+              className="bg-emerald-500 p-6 rounded-[2rem] text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-all"
             >
-              <div className="relative z-10">
-                <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Cash in Hand</p>
-                <h3 className="text-3xl font-black">{formatCurrency(stats.cashInHand, settings.currency)}</h3>
+              <div className="relative z-10 flex justify-between items-start">
+                <div>
+                  <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1 text-left">Cash in Hand</p>
+                  <h3 className="text-3xl font-black">{formatBalance(stats.cashInHand, settings.currency, settings.show_dr_cr)}</h3>
+                </div>
+                <DrCrToggle 
+                  enabled={!!settings.show_dr_cr} 
+                  onToggle={(val) => updateSettings({ show_dr_cr: val })} 
+                />
               </div>
               <ArrowDownLeft className="absolute -right-4 -bottom-4 text-white/10 w-24 h-24" />
             </motion.div>
@@ -426,9 +519,15 @@ export default function Banks() {
               transition={{ delay: 0.1 }}
               className="bg-indigo-600 p-6 rounded-[2rem] text-white shadow-lg shadow-indigo-600/20 relative overflow-hidden"
             >
-              <div className="relative z-10">
-                <p className="text-indigo-100 text-xs font-bold uppercase tracking-widest mb-1">Total Bank Balance</p>
-                <h3 className="text-3xl font-black">{formatCurrency(stats.totalBankBalance, settings.currency)}</h3>
+              <div className="relative z-10 flex justify-between items-start text-left">
+                <div>
+                  <p className="text-indigo-100 text-xs font-bold uppercase tracking-widest mb-1">Total Bank Balance</p>
+                  <h3 className="text-3xl font-black">{formatBalance(stats.totalBankBalance, settings.currency, settings.show_dr_cr)}</h3>
+                </div>
+                <DrCrToggle 
+                  enabled={!!settings.show_dr_cr} 
+                  onToggle={(val) => updateSettings({ show_dr_cr: val })} 
+                />
               </div>
               <Building2 className="absolute -right-4 -bottom-4 text-white/10 w-24 h-24" />
             </motion.div>
@@ -590,102 +689,6 @@ export default function Banks() {
           </div>
         )}
 
-        {isTransferModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsTransferModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-200 flex items-center justify-between">
-                <h2 className="text-xl font-bold">Transfer from {selectedBank.name}</h2>
-                <button onClick={() => setIsTransferModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-200 rounded-xl transition-colors"><X size={20} /></button>
-              </div>
-              <form className="p-8 space-y-6" onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const type = formData.get('type') as any;
-                addTransaction({
-                  company_id: currentCompany?.id,
-                  date: new Date().toISOString(),
-                  type,
-                  amount: Number(formData.get('amount')),
-                  description: formData.get('description') as string,
-                  bank_id: formData.get('bank_id') as string,
-                  to_bank_id: formData.get('to_bank_id') as string,
-                  party_id: formData.get('party_id') as string,
-                  to_party_id: formData.get('to_party_id') as string,
-                });
-                setIsTransferModalOpen(false);
-              }}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Transfer Type</label>
-                    <select 
-                      name="type" 
-                      value={transferType}
-                      onChange={(e) => setTransferType(e.target.value as any)}
-                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="Bank To Bank">Bank to Bank</option>
-                      <option value="Bank To Party">Bank to Party</option>
-                      <option value="Party To Bank">Party to Bank</option>
-                      <option value="Party To Party">Party to Party</option>
-                    </select>
-                  </div>
-
-                  {(transferType === 'Bank To Bank' || transferType === 'Bank To Party' || transferType === 'Party To Bank') && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-500 mb-1">Source/Target Bank</label>
-                      <select name="bank_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value={selectedBank.id}>{selectedBank.name} (Current)</option>
-                        {banks.filter(b => b.id !== selectedBank.id).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                      </select>
-                    </div>
-                  )}
-
-                  {transferType === 'Bank To Bank' && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-500 mb-1">Destination Bank</label>
-                      <select name="to_bank_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
-                        {banks.filter(b => b.id !== selectedBank.id).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                      </select>
-                    </div>
-                  )}
-
-                  {(transferType === 'Bank To Party' || transferType === 'Party To Bank' || transferType === 'Party To Party') && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-500 mb-1">Source/Target Party</label>
-                      <select name="party_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
-                        {parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                    </div>
-                  )}
-
-                  {transferType === 'Party To Party' && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-500 mb-1">Destination Party</label>
-                      <select name="to_party_id" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
-                        {parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Amount</label>
-                    <input name="amount" type="number" required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
-                    <input name="description" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Internal transfer" />
-                  </div>
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => setIsTransferModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
-                  <button type="submit" className="flex-1 px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">Confirm Transfer</button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-
         {isEditModalOpen && editingBank && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEditModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
@@ -722,48 +725,6 @@ export default function Banks() {
                 <div className="flex gap-3 pt-4">
                   <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">Update Bank</button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-
-        {isEditTxModalOpen && editingTx && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEditTxModalOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <h2 className="text-xl font-bold">Edit Transaction</h2>
-                <button onClick={() => setIsEditTxModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
-              </div>
-              <form className="p-8 space-y-6" onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const dateStr = formData.get('date') as string;
-                updateTransaction(editingTx.id, {
-                  amount: Number(formData.get('amount')),
-                  description: formData.get('description') as string,
-                  date: dateStr ? new Date(dateStr).toISOString() : editingTx.date,
-                });
-                setIsEditTxModalOpen(false);
-              }}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Date</label>
-                    <input name="date" type="date" defaultValue={editingTx.date.split('T')[0]} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Amount</label>
-                    <input name="amount" type="number" defaultValue={editingTx.amount} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
-                    <input name="description" defaultValue={editingTx.description} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
-                  </div>
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => setIsEditTxModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
-                  <button type="submit" className="flex-1 px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">Update Transaction</button>
                 </div>
               </form>
             </motion.div>

@@ -47,7 +47,6 @@ export default function Parties() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [editingParty, setEditingParty] = useState<Party | null>(null);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   const filteredParties = useMemo(() => {
     return parties.filter(p => {
@@ -89,9 +88,6 @@ export default function Parties() {
     return [openingEntry, ...partyTransactions, ...partyInvoices]
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [currentSelectedParty, transactions, invoices]);
-
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
-  const [txType, setTxType] = useState<TransactionType>('Payment In');
 
   const handleExportPDF = () => {
     if (currentCompany && currentSelectedParty) {
@@ -148,7 +144,7 @@ export default function Parties() {
                 Edit
               </button>
               <button 
-                onClick={() => setIsTransactionModalOpen(true)}
+                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
                 className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold"
               >
                 <Plus size={18} />
@@ -156,103 +152,6 @@ export default function Parties() {
               </button>
             </div>
           </div>
-
-          {/* Transaction Modal */}
-          <AnimatePresence>
-            {(isTransactionModalOpen || editingTransaction) && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setIsTransactionModalOpen(false); setEditingTransaction(null); }} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-                <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
-                  <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">{editingTransaction ? 'Edit Transaction' : `New Transaction for ${currentSelectedParty.name}`}</h2>
-                    <button onClick={() => { setIsTransactionModalOpen(false); setEditingTransaction(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
-                      <X size={20} />
-                    </button>
-                  </div>
-                  <form className="p-8 space-y-6" onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.currentTarget);
-                    const amount = Number(formData.get('amount'));
-                    const type = formData.get('type') as TransactionType;
-                    const bank_id = formData.get('bank_id') as string;
-                    const to_party_id = formData.get('to_party_id') as string;
-                    
-                    if (editingTransaction) {
-                      updateTransaction(editingTransaction.id, {
-                        type,
-                        amount,
-                        description: formData.get('description') as string,
-                        bank_id: (type === 'Party To Bank' || type === 'Bank To Party') ? bank_id : undefined,
-                        to_party_id: type === 'Party To Party' ? to_party_id : undefined,
-                      });
-                    } else {
-                      addTransaction({
-                        company_id: currentCompany?.id || 'default',
-                        date: new Date().toISOString(),
-                        type,
-                        amount,
-                        description: formData.get('description') as string,
-                        party_id: currentSelectedParty.id,
-                        bank_id: (type === 'Party To Bank' || type === 'Bank To Party') ? bank_id : undefined,
-                        to_party_id: type === 'Party To Party' ? to_party_id : undefined,
-                      });
-                    }
-                    setIsTransactionModalOpen(false);
-                    setEditingTransaction(null);
-                  }}>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Transaction Type</label>
-                        <select 
-                          name="type" 
-                          defaultValue={editingTransaction?.type || txType}
-                          onChange={(e) => setTxType(e.target.value as any)}
-                          className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                          <option value="Payment In">Payment IN (Receive)</option>
-                          <option value="Payment Out">Payment OUT (Pay)</option>
-                          <option value="Party To Party">Party to Party Transfer</option>
-                          <option value="Party To Bank">Party to Bank Transfer</option>
-                          <option value="Bank To Party">Bank to Party Transfer</option>
-                        </select>
-                      </div>
-                      
-                      {(txType === 'Party To Bank' || txType === 'Bank To Party') && (
-                        <div>
-                          <label className="block text-sm font-medium text-slate-500 mb-1">Select Bank</label>
-                          <select name="bank_id" defaultValue={editingTransaction?.bank_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
-                            {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                          </select>
-                        </div>
-                      )}
-
-                      {txType === 'Party To Party' && (
-                        <div>
-                          <label className="block text-sm font-medium text-slate-500 mb-1">Select Destination Party</label>
-                          <select name="to_party_id" defaultValue={editingTransaction?.to_party_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
-                            {parties.filter(p => p.id !== selectedParty.id).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                        </div>
-                      )}
-
-                      <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Amount</label>
-                        <input name="amount" type="number" defaultValue={editingTransaction?.amount} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-500 mb-1">Description</label>
-                        <input name="description" defaultValue={editingTransaction?.description} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Monthly payment" />
-                      </div>
-                    </div>
-                    <div className="flex gap-3 pt-4">
-                      <button type="button" onClick={() => { setIsTransactionModalOpen(false); setEditingTransaction(null); }} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
-                      <button type="submit" className="flex-1 px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">Save</button>
-                    </div>
-                  </form>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
@@ -334,10 +233,10 @@ export default function Parties() {
                          (tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party')) ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {tx.id !== 'opening' && (
+                        {tx.id !== 'opening' && tx.source === 'transaction' && (
                           <div className="flex justify-end gap-2">
                           <button 
-                            onClick={() => { setEditingTransaction(tx); setTxType(tx.type); }}
+                            onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))}
                             className="flex items-center gap-1 px-2 py-1 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors text-xs font-bold"
                           >
                             <FileText size={14} />
@@ -391,13 +290,13 @@ export default function Parties() {
                     </div>
                     <div className="flex gap-2">
                       <button 
-                        onClick={() => { setEditingTransaction(tx); setTxType(tx.type); }}
+                        onClick={() => tx.source === 'transaction' && window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))}
                         className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg"
                       >
                         <FileText size={16} />
                       </button>
                       <button 
-                        onClick={() => deleteTransaction(tx.id)}
+                        onClick={() => tx.source === 'transaction' && deleteTransaction(tx.id)}
                         className="p-2 text-slate-400 hover:text-rose-600"
                       >
                         <Trash2 size={16} />

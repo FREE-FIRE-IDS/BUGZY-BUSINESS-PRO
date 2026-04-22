@@ -17,16 +17,18 @@ import {
   X
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
-import { formatCurrency, formatDate, cn } from '../lib/utils';
+import { formatCurrency, formatDate, formatBalance, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 type ReportType = 
+  | 'Cash in Hand'
   | 'Single Party' 
   | 'All Parties' 
   | 'Single Bank' 
   | 'All Banks' 
+  | 'Combined Statement'
   | 'Stock' 
   | 'Purchase' 
   | 'Sale'
@@ -58,10 +60,12 @@ export default function Reports() {
   const companyInvoices = invoices.filter(i => i.company_id === currentCompany?.id);
 
   const allColumns: Record<ReportType, string[]> = useMemo(() => ({
-    'All Parties': ['Party Name', 'Type', 'Debit (DR)', 'Credit (CR)', 'Balance'],
+    'Cash in Hand': ['Date', 'Description', 'In (+)', 'Out (-)', 'Balance'],
     'Single Party': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
-    'All Banks': ['Bank Name', 'Account #', 'Debit (DR)', 'Credit (CR)', 'Balance'],
+    'All Parties': ['Party Name', 'Type', 'Debit (DR)', 'Credit (CR)', 'Balance'],
     'Single Bank': ['Date', 'Description', viewMode === 'app' ? 'Withdrawal' : 'Credit', viewMode === 'app' ? 'Deposit' : 'Debit', 'Balance'],
+    'All Banks': ['Bank Name', 'Account #', 'Debit (DR)', 'Credit (CR)', 'Balance'],
+    'Combined Statement': ['Date', 'Account/Party', 'In (+)', 'Out (-)', 'Balance'],
     'Stock': ['Item Name', 'SKU', 'Unit', 'Price', 'Stock', 'Value'],
     'Purchase': ['Date', 'Party', 'Item', 'Qty', 'Unit', 'Price', 'Total'],
     'Sale': ['Date', 'Party', 'Item', 'Qty', 'Unit', 'Price', 'Total'],
@@ -74,10 +78,12 @@ export default function Reports() {
   }, [activeReport, allColumns]);
 
   const reportOptions = [
-    { id: 'All Parties', label: 'All Parties Balance', icon: Users },
+    { id: 'Cash in Hand', label: 'Cash in Hand Report', icon: Building2 },
     { id: 'Single Party', label: 'Party Statement', icon: Users },
-    { id: 'All Banks', label: 'All Banks Balance', icon: Building2 },
+    { id: 'All Parties', label: 'All Parties Balance', icon: Users },
     { id: 'Single Bank', label: 'Bank Statement', icon: Building2 },
+    { id: 'All Banks', label: 'All Banks Balance', icon: Building2 },
+    { id: 'Combined Statement', label: 'Combined Statement', icon: FileSpreadsheet },
     { id: 'Stock', label: 'Stock Report', icon: Package },
     { id: 'Purchase', label: 'Purchase Report', icon: Receipt },
     { id: 'Sale', label: 'Sale Report', icon: ArrowUpRight },
@@ -115,6 +121,32 @@ export default function Reports() {
 
     let result = [];
     switch (activeReport) {
+      case 'Cash in Hand':
+        const cashTxs = companyTransactions.filter(t => !t.bank_id && !t.to_bank_id || t.type === 'Withdraw' || t.type === 'Deposit');
+        const cashInvs = companyInvoices.filter(i => i.status === 'Paid' && i.payment_type === 'Cash').map(i => ({
+          ...i,
+          isInvoice: true,
+          amount_val: i.total,
+          is_in: i.type === 'Sale'
+        }));
+        
+        const sortedCash = [...cashTxs, ...cashInvs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        let cashBal = 0;
+        result = sortedCash.map(item => {
+          const is_in = (item as any).isInvoice ? (item as any).is_in : ['Sale', 'Income', 'Payment In', 'Stock In', 'Withdraw', 'Bank To Party'].includes(item.type);
+          const amount = (item as any).amount || (item as any).total || 0;
+          if (is_in) cashBal += amount;
+          else cashBal -= amount;
+          return {
+            ...item,
+            'Date': item.date,
+            'Description': item.description || (item as any).type,
+            'In (+)': is_in ? amount : 0,
+            'Out (-)': !is_in ? amount : 0,
+            'Balance': cashBal
+          };
+        });
+        break;
       case 'All Parties':
         result = companyParties
           .filter(p => selectedCategory === 'All' || p.type === selectedCategory)
@@ -189,6 +221,29 @@ export default function Reports() {
           'Credit (CR)': b.balance < 0 ? Math.abs(b.balance) : 0,
           'Balance': b.balance
         }));
+        break;
+      case 'Combined Statement':
+        const allTransactionsForComb = companyTransactions;
+        const allInvoicesForComb = companyInvoices.filter(i => i.status === 'Paid');
+        
+        const combined = [...allTransactionsForComb, ...allInvoicesForComb].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        let combBal = 0;
+        result = combined.map(item => {
+          const amount = (item as any).amount || (item as any).total || 0;
+          // Simple heuristic: everything that increases company wealth is "In"
+          const is_in = ['Sale', 'Income', 'Payment In', 'Stock In', 'Deposit', 'Bank To Party'].includes(item.type);
+          if (is_in) combBal += amount;
+          else combBal -= amount;
+          
+          return {
+            ...item,
+            'Date': item.date,
+            'Account/Party': (item as any).party_id ? parties.find(p => p.id === (item as any).party_id)?.name : (item as any).bank_id ? banks.find(b => b.id === (item as any).bank_id)?.name : 'Cash',
+            'In (+)': is_in ? amount : 0,
+            'Out (-)': !is_in ? amount : 0,
+            'Balance': combBal
+          };
+        });
         break;
       case 'Single Bank':
         const selectedBank = banks.find(b => b.id === selectedEntity);
@@ -391,7 +446,7 @@ export default function Reports() {
     if (val === undefined || val === null) return '-';
     if (col === 'Date') return formatDate(val);
     if (col.includes('Balance') || col.includes('Debit') || col.includes('Credit') || col.includes('Amount') || col.includes('Total') || col.includes('Price') || col.includes('Value')) {
-      return formatCurrency(Math.abs(val), settings.currency) + (col === 'Balance' ? (val >= 0 ? ' DR' : ' CR') : '');
+      return formatBalance(val, settings.currency, settings.show_dr_cr);
     }
     return String(val);
   };

@@ -13,6 +13,17 @@ export function formatCurrency(amount: number, currency: string = 'PKR') {
   }).format(amount);
 }
 
+export function formatBalance(amount: number, currency: string = 'PKR', showDrCr: boolean = false) {
+  const absAmount = Math.abs(amount);
+  const formatted = formatCurrency(absAmount, currency);
+  
+  if (!showDrCr) return formatted;
+  
+  if (amount > 0) return `${formatted} Dr`;
+  if (amount < 0) return `${formatted} Cr`;
+  return formatted;
+}
+
 export function formatDate(date: string | Date) {
   return new Date(date).toLocaleDateString('en-GB', {
     day: '2-digit',

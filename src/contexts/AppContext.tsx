@@ -1419,8 +1419,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         localStorage.setItem('currentUser', newCompany.username);
       }
       
-      // Enable sync by default for username accounts
-      updateSettings({ sync_enabled: true });
+      // Sync is disabled by default, user must enable it in settings
+      updateSettings({ sync_enabled: false });
       setSyncStatus({ loading: false, error: null, success: 'Company created successfully' });
     } catch (e: any) {
       console.error('Failed to create company:', e);
@@ -1582,10 +1582,13 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
           localStorage.setItem(`currentCompany_${targetUser}`, JSON.stringify(data));
         }
         
-        // Only update settings with email if user hasn't already configured sync
+        // Force is_verified so it shows in premium context if needed, but sync stays off or as is
+        const newSettings: Partial<AppSettings> = { is_verified: true };
         if (data.user_email && !settings.user_email) {
-          updateSettings({ user_email: data.user_email, sync_enabled: false, is_verified: true });
+          newSettings.user_email = data.user_email;
+          newSettings.sync_enabled = false;
         }
+        updateSettings(newSettings);
         
         setSyncStatus({ loading: false, error: null, success: 'Company restored successfully!' });
         

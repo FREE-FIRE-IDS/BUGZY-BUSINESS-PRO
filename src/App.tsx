@@ -28,7 +28,8 @@ import {
   Check,
   ArrowLeft,
   ShieldCheck,
-  Upload
+  Upload,
+  Crown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -693,7 +694,7 @@ export default function App() {
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
     { id: 'reports', label: 'Reports', icon: History, premium: true },
     { id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true },
-    ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Buy Now', icon: Sparkles, premium: true }] : []),
+    ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Premium Status', icon: Sparkles, premium: true }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
   ];
 
@@ -705,18 +706,23 @@ export default function App() {
     
     // If trial expired and no approved license
     if (isTrialExpired && !isLicensedUser) {
-        // If they have a pending request, they can only see the Dashboard
+        // If they have a pending request, they MUST stay on Dashboard
         if (paymentStatus === 'pending') {
             if (isPremiumPage && tab !== 'dashboard') {
+                // Special case: if they click upgrade, show the pending status but don't force overlay if we are already in dashboard?
+                // Actually the prompt says "direct link in to payment don't leave payment page if user close again open"
+                // But for "submit request then go to dashboard but don't open parties... just stay on dashboard"
                 setActiveTab('dashboard');
                 return <Dashboard />;
             }
         } else {
-            // No pending request and expired: force upgrade overlay
+            // No pending request and expired: force upgrade overlay if they try to access premium
             if (isPremiumPage) {
                 setForceUpgrade(true);
                 setDismissedPayment(false);
-                setActiveTab('dashboard');
+                if (tab !== 'dashboard') {
+                    setActiveTab('dashboard');
+                }
                 return <Dashboard />;
             }
         }
@@ -853,9 +859,9 @@ export default function App() {
               <item.icon size={22} />
               {isSidebarOpen && (
                 <div className="flex-1 flex items-center justify-between">
-                  <span>{item.label}</span>
-                  {isTrialExpired && !isLicensedUser && (
-                    <Sparkles size={14} className="text-amber-400 animate-pulse" />
+                  <span className="truncate">{item.label}</span>
+                  {item.premium && isTrialExpired && !isLicensedUser && (
+                    <Crown size={14} className="text-amber-400 fill-amber-400" />
                   )}
                 </div>
               )}
@@ -1016,9 +1022,9 @@ export default function App() {
                     >
                       <div className="p-2 sm:p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl relative">
                         <item.icon size={22} className="sm:w-6 sm:h-6" />
-                        {isTrialExpired && !isLicensedUser && (
+                        {item.premium && isTrialExpired && !isLicensedUser && (
                           <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white shadow-lg">
-                            <Sparkles size={8} className="sm:w-2.5 sm:h-2.5" />
+                            <Crown size={8} className="sm:w-2.5 sm:h-2.5 fill-white" />
                           </div>
                         )}
                       </div>
