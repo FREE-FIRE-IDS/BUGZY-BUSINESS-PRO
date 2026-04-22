@@ -479,8 +479,11 @@ export default function Reports() {
   const formatValue = (col: string, val: any) => {
     if (val === undefined || val === null) return '-';
     if (col === 'Date') return formatDate(val);
-    if (col.includes('Balance') || col.includes('Debit') || col.includes('Credit') || col.includes('Amount') || col.includes('Total') || col.includes('Price') || col.includes('Value')) {
+    if (col.includes('Balance') || col === 'Amount' || col === 'Total') {
       return formatBalance(val, settings.currency, settings.show_dr_cr);
+    }
+    if (col.includes('Debit') || col.includes('Credit') || col.includes('Price') || col.includes('Value') || col === 'Qty' || col.includes('In (+)') || col.includes('Out (-)')) {
+      return formatCurrency(val, settings.currency);
     }
     return String(val);
   };
@@ -537,8 +540,8 @@ export default function Reports() {
         const row: any[] = [];
         if (selectedColumns.includes('Party Name')) row.push(d.name);
         if (selectedColumns.includes('Type')) row.push(d.type);
-        if (selectedColumns.includes('Debit (DR)')) row.push(d.balance >= 0 ? formatBalance(d.balance, settings.currency, settings.show_dr_cr) : '-');
-        if (selectedColumns.includes('Credit (CR)')) row.push(d.balance < 0 ? formatBalance(Math.abs(d.balance), settings.currency, settings.show_dr_cr) : '-');
+        if (selectedColumns.includes('Debit (DR)')) row.push(d.balance >= 0 ? formatCurrency(d.balance, settings.currency) : '-');
+        if (selectedColumns.includes('Credit (CR)')) row.push(d.balance < 0 ? formatCurrency(Math.abs(d.balance), settings.currency) : '-');
         if (selectedColumns.includes('Balance')) row.push(formatBalance(d.balance, settings.currency, settings.show_dr_cr));
         return row;
       });
@@ -554,8 +557,8 @@ export default function Reports() {
         foot: [visibleCols.map(col => {
           if (col === 'Party Name') return '';
           if (col === 'Type') return 'Total';
-          if (col === 'Debit (DR)') return formatBalance(totalDebit, settings.currency, settings.show_dr_cr);
-          if (col === 'Credit (CR)') return formatBalance(totalCredit, settings.currency, settings.show_dr_cr);
+          if (col === 'Debit (DR)') return formatCurrency(totalDebit, settings.currency);
+          if (col === 'Credit (CR)') return formatCurrency(totalCredit, settings.currency);
           if (col === 'Balance') return formatBalance(finalBalance, settings.currency, settings.show_dr_cr);
           return '';
         })],
@@ -578,8 +581,8 @@ export default function Reports() {
         const row: any[] = [];
         if (selectedColumns.includes('Date')) row.push(d.isOpening ? '-' : formatDate(d.date));
         if (selectedColumns.includes('Description')) row.push(d.description || d.type);
-        if (selectedColumns.includes('Debit') || selectedColumns.includes('Deposit')) row.push((!d.isOpening && isDebit) ? formatBalance(amountValue, settings.currency, settings.show_dr_cr) : '-');
-        if (selectedColumns.includes('Credit') || selectedColumns.includes('Withdrawal')) row.push((!d.isOpening && !isDebit) ? formatBalance(amountValue, settings.currency, settings.show_dr_cr) : '-');
+        if (selectedColumns.includes('Debit') || selectedColumns.includes('Deposit')) row.push((!d.isOpening && isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
+        if (selectedColumns.includes('Credit') || selectedColumns.includes('Withdrawal')) row.push((!d.isOpening && !isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
         if (selectedColumns.includes('Balance')) row.push(formatBalance(runningBalance, settings.currency, settings.show_dr_cr));
         return row;
       });
@@ -589,8 +592,8 @@ export default function Reports() {
         const row: any[] = [];
         if (selectedColumns.includes('Bank Name')) row.push(d.name);
         if (selectedColumns.includes('Account #')) row.push(d.account || '-');
-        if (selectedColumns.includes('Debit (DR)')) row.push(d.balance >= 0 ? formatBalance(d.balance, settings.currency, settings.show_dr_cr) : '-');
-        if (selectedColumns.includes('Credit (CR)')) row.push(d.balance < 0 ? formatBalance(Math.abs(d.balance), settings.currency, settings.show_dr_cr) : '-');
+        if (selectedColumns.includes('Debit (DR)')) row.push(d.balance >= 0 ? formatCurrency(d.balance, settings.currency) : '-');
+        if (selectedColumns.includes('Credit (CR)')) row.push(d.balance < 0 ? formatCurrency(Math.abs(d.balance), settings.currency) : '-');
         if (selectedColumns.includes('Balance')) row.push(formatBalance(d.balance, settings.currency, settings.show_dr_cr));
         return row;
       });
@@ -606,8 +609,8 @@ export default function Reports() {
           foot: [visibleCols.map(col => {
             const nameCol = activeReport === 'All Banks' ? 'Bank Name' : 'Account #';
             if (col === nameCol) return 'Total';
-            if (col === 'Debit (DR)') return formatBalance(totalDebit, settings.currency, settings.show_dr_cr);
-            if (col === 'Credit (CR)') return formatBalance(totalCredit, settings.currency, settings.show_dr_cr);
+            if (col === 'Debit (DR)') return formatCurrency(totalDebit, settings.currency);
+            if (col === 'Credit (CR)') return formatCurrency(totalCredit, settings.currency);
             if (col === 'Balance') return formatBalance(finalBalance, settings.currency, settings.show_dr_cr);
             return '';
           })],
@@ -692,8 +695,9 @@ export default function Reports() {
             })];
           }
           return [visibleCols.map(col => {
-            if (col === 'Amount' || col === 'Value' || col === 'Total' || col === 'Balance') return formatBalance(total, settings.currency, settings.show_dr_cr);
-            if (col === 'Description' || col === 'SKU' || col === 'Price') return 'Total';
+            if (col === 'Balance') return formatBalance(total, settings.currency, settings.show_dr_cr);
+            if (col === 'Amount' || col === 'Value' || col === 'Total' || col.includes('In (+)') || col.includes('Out (-)')) return formatCurrency(total, settings.currency);
+            if (col === 'Description' || col === 'SKU' || col === 'Price' || col.includes('DR') || col.includes('CR')) return 'Total';
             return '';
           })];
         })(),
