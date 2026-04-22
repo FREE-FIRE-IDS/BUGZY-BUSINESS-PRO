@@ -11,7 +11,8 @@ import {
   Download,
   ArrowLeft,
   X,
-  FileText
+  FileText,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, formatBalance, cn } from '../lib/utils';
@@ -41,7 +42,19 @@ const DrCrToggle = ({ enabled, onToggle }: { enabled: boolean, onToggle: (val: b
 );
 
 export default function Banks() {
-  const { banks, transactions, invoices, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, updateSettings, parties, currentCompany, setSelectedBankId } = useApp();
+  const { banks, transactions, invoices, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, updateSettings, parties, currentCompany, setSelectedBankId, refreshData } = useApp();
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      await refreshData(undefined, true);
+    } catch (e) {
+      console.error('Sync failed', e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
   const [viewMode, setViewMode] = useState<'app' | 'accounting'>('app');
 
@@ -295,20 +308,38 @@ export default function Banks() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 md:flex gap-2 md:gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="flex items-center gap-2 mr-2">
+                <button 
+                  onClick={handleSync}
+                  disabled={isSyncing}
+                  className={cn(
+                    "p-2 md:p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 hover:text-indigo-600 transition-all shadow-sm",
+                    isSyncing && "animate-spin text-indigo-600"
+                  )}
+                  title="Sync Data"
+                >
+                  <RefreshCw size={18} />
+                </button>
+                <DrCrToggle 
+                  enabled={settings.show_dr_cr || false} 
+                  onToggle={(val) => updateSettings({ show_dr_cr: val })} 
+                />
+              </div>
+              <div className="grid grid-cols-2 md:flex gap-2 md:gap-3">
               <button 
                 onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Deposit' }))}
                 className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold text-sm"
               >
                 <ArrowDownLeft size={16} />
-                Deposit
+                Receive
               </button>
               <button 
                 onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Withdraw' }))}
                 className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 font-bold text-sm"
               >
                 <ArrowUpRight size={16} />
-                Withdraw
+                Pay Out
               </button>
               <button 
                 onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Bank To Bank' }))}
@@ -319,6 +350,7 @@ export default function Banks() {
               </button>
             </div>
           </div>
+        </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
             <div className="bg-white dark:bg-white p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm">

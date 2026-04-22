@@ -14,13 +14,35 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   ArrowLeftRight,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, formatBalance, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+const DrCrToggle = ({ enabled, onToggle }: { enabled: boolean, onToggle: (val: boolean) => void }) => (
+  <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 pointer-events-auto shrink-0">
+    <span className="text-[10px] font-black uppercase text-slate-500 ml-1">DR/CR</span>
+    <button 
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle(!enabled);
+      }}
+      className={cn(
+        "relative w-8 h-4 rounded-full transition-all duration-300",
+        enabled ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-600"
+      )}
+    >
+      <div className={cn(
+        "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-300 shadow-sm",
+        enabled ? "left-4.5" : "left-0.5"
+      )} />
+    </button>
+  </div>
+);
 
 type ReportType = 
   | 'Cash in Hand'
@@ -36,7 +58,19 @@ type ReportType =
   | 'Invoice';
 
 export default function Reports() {
-  const { transactions, parties, banks, items, invoices, settings, currentCompany } = useApp();
+  const { transactions, parties, banks, items, invoices, settings, updateSettings, currentCompany, refreshData, pullCompanies } = useApp();
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      await refreshData(undefined, true);
+    } catch (e) {
+      console.error('Sync failed', e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
   const [activeReport, setActiveReport] = useState<ReportType>('All Parties');
   const [selectedEntity, setSelectedEntity] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -503,9 +537,9 @@ export default function Reports() {
         const row: any[] = [];
         if (selectedColumns.includes('Party Name')) row.push(d.name);
         if (selectedColumns.includes('Type')) row.push(d.type);
-        if (selectedColumns.includes('Debit (DR)')) row.push(d.balance >= 0 ? formatCurrency(d.balance, settings.currency) : '-');
-        if (selectedColumns.includes('Credit (CR)')) row.push(d.balance < 0 ? formatCurrency(Math.abs(d.balance), settings.currency) : '-');
-        if (selectedColumns.includes('Balance')) row.push(`${formatCurrency(Math.abs(d.balance), settings.currency)} ${d.balance >= 0 ? 'DR' : 'CR'}`);
+        if (selectedColumns.includes('Debit (DR)')) row.push(d.balance >= 0 ? formatBalance(d.balance, settings.currency, settings.show_dr_cr) : '-');
+        if (selectedColumns.includes('Credit (CR)')) row.push(d.balance < 0 ? formatBalance(Math.abs(d.balance), settings.currency, settings.show_dr_cr) : '-');
+        if (selectedColumns.includes('Balance')) row.push(formatBalance(d.balance, settings.currency, settings.show_dr_cr));
         return row;
       });
       const totalDebit = filteredData.filter(d => d.balance >= 0).reduce((sum, d) => sum + d.balance, 0);
@@ -520,9 +554,9 @@ export default function Reports() {
         foot: [visibleCols.map(col => {
           if (col === 'Party Name') return '';
           if (col === 'Type') return 'Total';
-          if (col === 'Debit (DR)') return formatCurrency(totalDebit, settings.currency);
-          if (col === 'Credit (CR)') return formatCurrency(totalCredit, settings.currency);
-          if (col === 'Balance') return `${formatCurrency(Math.abs(finalBalance), settings.currency)} ${finalBalance >= 0 ? 'DR' : 'CR'}`;
+          if (col === 'Debit (DR)') return formatBalance(totalDebit, settings.currency, settings.show_dr_cr);
+          if (col === 'Credit (CR)') return formatBalance(totalCredit, settings.currency, settings.show_dr_cr);
+          if (col === 'Balance') return formatBalance(finalBalance, settings.currency, settings.show_dr_cr);
           return '';
         })],
         footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
@@ -544,9 +578,9 @@ export default function Reports() {
         const row: any[] = [];
         if (selectedColumns.includes('Date')) row.push(d.isOpening ? '-' : formatDate(d.date));
         if (selectedColumns.includes('Description')) row.push(d.description || d.type);
-        if (selectedColumns.includes('Debit') || selectedColumns.includes('Deposit')) row.push((!d.isOpening && isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
-        if (selectedColumns.includes('Credit') || selectedColumns.includes('Withdrawal')) row.push((!d.isOpening && !isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
-        if (selectedColumns.includes('Balance')) row.push(`${formatCurrency(Math.abs(runningBalance), settings.currency)} ${runningBalance >= 0 ? 'DR' : 'CR'}`);
+        if (selectedColumns.includes('Debit') || selectedColumns.includes('Deposit')) row.push((!d.isOpening && isDebit) ? formatBalance(amountValue, settings.currency, settings.show_dr_cr) : '-');
+        if (selectedColumns.includes('Credit') || selectedColumns.includes('Withdrawal')) row.push((!d.isOpening && !isDebit) ? formatBalance(amountValue, settings.currency, settings.show_dr_cr) : '-');
+        if (selectedColumns.includes('Balance')) row.push(formatBalance(runningBalance, settings.currency, settings.show_dr_cr));
         return row;
       });
       total = runningBalance;
@@ -555,9 +589,9 @@ export default function Reports() {
         const row: any[] = [];
         if (selectedColumns.includes('Bank Name')) row.push(d.name);
         if (selectedColumns.includes('Account #')) row.push(d.account || '-');
-        if (selectedColumns.includes('Debit (DR)')) row.push(d.balance >= 0 ? formatCurrency(d.balance, settings.currency) : '-');
-        if (selectedColumns.includes('Credit (CR)')) row.push(d.balance < 0 ? formatCurrency(Math.abs(d.balance), settings.currency) : '-');
-        if (selectedColumns.includes('Balance')) row.push(`${formatCurrency(Math.abs(d.balance), settings.currency)} ${d.balance >= 0 ? 'DR' : 'CR'}`);
+        if (selectedColumns.includes('Debit (DR)')) row.push(d.balance >= 0 ? formatBalance(d.balance, settings.currency, settings.show_dr_cr) : '-');
+        if (selectedColumns.includes('Credit (CR)')) row.push(d.balance < 0 ? formatBalance(Math.abs(d.balance), settings.currency, settings.show_dr_cr) : '-');
+        if (selectedColumns.includes('Balance')) row.push(formatBalance(d.balance, settings.currency, settings.show_dr_cr));
         return row;
       });
       const totalDebit = filteredData.filter(d => d.balance >= 0).reduce((sum, d) => sum + d.balance, 0);
@@ -570,11 +604,11 @@ export default function Reports() {
           startY: 68,
           theme: 'grid',
           foot: [visibleCols.map(col => {
-            if (col === 'Bank Name') return '';
-            if (col === 'Account #') return 'Total';
-            if (col === 'Debit (DR)') return formatCurrency(totalDebit, settings.currency);
-            if (col === 'Credit (CR)') return formatCurrency(totalCredit, settings.currency);
-            if (col === 'Balance') return `${formatCurrency(Math.abs(finalBalance), settings.currency)} ${finalBalance >= 0 ? 'DR' : 'CR'}`;
+            const nameCol = activeReport === 'All Banks' ? 'Bank Name' : 'Account #';
+            if (col === nameCol) return 'Total';
+            if (col === 'Debit (DR)') return formatBalance(totalDebit, settings.currency, settings.show_dr_cr);
+            if (col === 'Credit (CR)') return formatBalance(totalCredit, settings.currency, settings.show_dr_cr);
+            if (col === 'Balance') return formatBalance(finalBalance, settings.currency, settings.show_dr_cr);
             return '';
           })],
           footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
@@ -652,13 +686,13 @@ export default function Reports() {
         foot: (() => {
           if (activeReport === 'Single Party' || activeReport === 'Single Bank') {
             return [visibleCols.map(col => {
-              if (col === 'Balance') return `${formatCurrency(Math.abs(total), settings.currency)} ${total >= 0 ? 'DR' : 'CR'}`;
+              if (col === 'Balance') return formatBalance(total, settings.currency, settings.show_dr_cr);
               if (col === 'Credit' || col === 'Withdrawal') return 'Total Balance';
               return '';
             })];
           }
           return [visibleCols.map(col => {
-            if (col === 'Amount' || col === 'Value' || col === 'Total' || col === 'Balance') return formatCurrency(total, settings.currency);
+            if (col === 'Amount' || col === 'Value' || col === 'Total' || col === 'Balance') return formatBalance(total, settings.currency, settings.show_dr_cr);
             if (col === 'Description' || col === 'SKU' || col === 'Price') return 'Total';
             return '';
           })];
@@ -723,9 +757,28 @@ export default function Reports() {
           {/* Responsive Header */}
           <div className="p-4 sm:p-6 border-b border-slate-50 dark:border-slate-800">
             <div className="flex flex-col gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white leading-tight">{activeReport}</h2>
-                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">Export professional business statements</p>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white leading-tight">{activeReport}</h2>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">Export professional business statements</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={handleSync}
+                    disabled={isSyncing}
+                    className={cn(
+                      "p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-indigo-600 transition-all",
+                      isSyncing && "animate-spin"
+                    )}
+                    title="Sync Data"
+                  >
+                    <RefreshCw size={16} />
+                  </button>
+                  <DrCrToggle 
+                    enabled={settings.show_dr_cr || false} 
+                    onToggle={(val) => updateSettings({ show_dr_cr: val })} 
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col gap-2">
