@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../contexts/AppContext';
@@ -7,6 +7,7 @@ import { TransactionType } from '../types';
 export default function GlobalTransactionModal() {
   const { parties, banks, addTransaction, updateTransaction, currentCompany, selectedPartyId, selectedBankId } = useApp();
   const [isOpen, setIsOpen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [type, setType] = useState<TransactionType>('Payment In');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -16,6 +17,38 @@ export default function GlobalTransactionModal() {
   const [toBankId, setToBankId] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) {
+        setTimeout(() => {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+      }
+    };
+
+    const container = scrollRef.current;
+    if (container) {
+      container.addEventListener('focusin', handleFocus);
+    }
+    
+    const handleResize = () => {
+      if (document.activeElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        document.activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      if (container) {
+        container.removeEventListener('focusin', handleFocus);
+      }
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && !editingId) {
@@ -113,8 +146,12 @@ export default function GlobalTransactionModal() {
             </button>
           </div>
           
-          <form className="p-8 space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-4 max-h-[100%] overflow-y-auto">
+          <form className="p-0 flex flex-col h-[100vh]" onSubmit={handleSubmit}>
+            <div 
+              ref={scrollRef}
+              className="px-8 pt-8 pb-[200px] space-y-6 overflow-y-auto flex-1 scroll-smooth"
+            >
+              <div className="space-y-4">
               {/* Type Selection */}
               <div>
                 <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Transaction Type</label>
@@ -240,7 +277,8 @@ export default function GlobalTransactionModal() {
                 />
               </div>
             </div>
-            <div className="flex gap-3 pt-4">
+          </div>
+          <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex gap-3">
               <button type="button" onClick={() => setIsOpen(false)} className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
               <button type="submit" className="flex-1 px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">Save Transaction</button>
             </div>

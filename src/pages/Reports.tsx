@@ -476,11 +476,35 @@ export default function Reports() {
     return allColumns[activeReport].filter(col => selectedColumns.includes(col));
   }, [activeReport, selectedColumns, allColumns]);
 
-  const formatValue = (col: string, val: any) => {
-    if (val === undefined || val === null) return '-';
+  const tableTotals = useMemo(() => {
+    if (!filteredData.length) return null;
+    
+    if (activeReport === 'All Parties' || activeReport === 'All Banks') {
+      const dr = filteredData.filter(d => d.balance >= 0).reduce((s, d) => s + d.balance, 0);
+      const cr = filteredData.filter(d => d.balance < 0).reduce((s, d) => s + Math.abs(d.balance), 0);
+      return { 'Debit (DR)': dr, 'Credit (CR)': cr, 'Balance': dr - cr };
+    }
+    
+    if (activeReport === 'Single Party' || activeReport === 'Single Bank' || activeReport === 'Cash in Hand') {
+      const last = filteredData[filteredData.length - 1];
+      return { 'Balance': last.Balance || last.balance || 0 };
+    }
+
+    if (activeReport === 'Stock') return { 'Value': filteredData.reduce((s, d) => s + d.value, 0) };
+    if (activeReport === 'Purchase' || activeReport === 'Sale') return { 'Total': filteredData.reduce((s, d) => s + (d.total || d.amount), 0) };
+    if (activeReport === 'Expense') return { 'Amount': filteredData.reduce((s, d) => s + d.amount, 0) };
+    if (activeReport === 'Invoice') return { 'Total': filteredData.reduce((s, d) => s + (d.item_total || 0), 0) };
+    
+    return null;
+  }, [filteredData, activeReport]);
+
+  const formatValue = (col: string, val: any, isTotal: boolean = false) => {
+    if (val === undefined || val === null) return isTotal ? '' : '-';
     if (col === 'Date') return formatDate(val);
     if (col.includes('Balance') || col === 'Amount' || col === 'Total') {
-      return formatBalance(val, settings.currency, settings.show_dr_cr);
+      // Force DR/CR if it's a total row balance, otherwise follow setting
+      const showDrCr = (col.includes('Balance') && isTotal) ? true : settings.show_dr_cr;
+      return formatBalance(val, settings.currency, showDrCr);
     }
     if (col.includes('Debit') || col.includes('Credit') || col.includes('Price') || col.includes('Value') || col === 'Qty' || col.includes('In (+)') || col.includes('Out (-)')) {
       return formatCurrency(val, settings.currency);
@@ -559,7 +583,7 @@ export default function Reports() {
           if (col === 'Type') return 'Total';
           if (col === 'Debit (DR)') return formatCurrency(totalDebit, settings.currency);
           if (col === 'Credit (CR)') return formatCurrency(totalCredit, settings.currency);
-          if (col === 'Balance') return formatBalance(finalBalance, settings.currency, settings.show_dr_cr);
+          if (col === 'Balance') return formatBalance(finalBalance, settings.currency, true);
           return '';
         })],
         footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
@@ -611,7 +635,7 @@ export default function Reports() {
             if (col === nameCol) return 'Total';
             if (col === 'Debit (DR)') return formatCurrency(totalDebit, settings.currency);
             if (col === 'Credit (CR)') return formatCurrency(totalCredit, settings.currency);
-            if (col === 'Balance') return formatBalance(finalBalance, settings.currency, settings.show_dr_cr);
+            if (col === 'Balance') return formatBalance(finalBalance, settings.currency, true);
             return '';
           })],
           footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
@@ -689,13 +713,13 @@ export default function Reports() {
         foot: (() => {
           if (activeReport === 'Single Party' || activeReport === 'Single Bank') {
             return [visibleCols.map(col => {
-              if (col === 'Balance') return formatBalance(total, settings.currency, settings.show_dr_cr);
+              if (col === 'Balance') return formatBalance(total, settings.currency, true);
               if (col === 'Credit' || col === 'Withdrawal') return 'Total Balance';
               return '';
             })];
           }
           return [visibleCols.map(col => {
-            if (col === 'Balance') return formatBalance(total, settings.currency, settings.show_dr_cr);
+            if (col === 'Balance') return formatBalance(total, settings.currency, true);
             if (col === 'Amount' || col === 'Value' || col === 'Total' || col.includes('In (+)') || col.includes('Out (-)')) return formatCurrency(total, settings.currency);
             if (col === 'Description' || col === 'SKU' || col === 'Price' || col.includes('DR') || col.includes('CR')) return 'Total';
             return '';
@@ -892,6 +916,29 @@ export default function Reports() {
                 <p className="text-sm font-bold text-slate-400 italic">No records found.</p>
               </div>
             )}
+            
+            {/* Total Summary Card for Mobile */}
+            {tableTotals && filteredData.length > 0 && (
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t-4 border-indigo-500/20 shadow-inner">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Report Totals</span>
+                  <div className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[8px] font-bold uppercase rounded">Final Summary</div>
+                </div>
+                <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+                  {Object.entries(tableTotals).map(([key, val]) => (
+                    <div key={key} className="flex flex-col gap-1">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">{key}</span>
+                      <span className={cn(
+                        "text-sm font-black",
+                        key.includes('Debit') || key.includes('In (+)') ? "text-emerald-600 dark:text-emerald-400" : (key.includes('Credit') || key.includes('Out (-)') ? "text-rose-600 dark:text-rose-400" : "text-indigo-600 dark:text-indigo-400")
+                      )}>
+                        {formatValue(key, val, true)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Table View - Desktop and Tablet */}
@@ -925,13 +972,39 @@ export default function Reports() {
                       <tr>
                         <td colSpan={activeColumns.length} className="px-6 py-16 text-center">
                           <div className="flex flex-col items-center justify-center opacity-40">
-                            <Search size={48} className="mb-4 text-slate-200 shrink-0" />
-                            <p className="text-sm font-bold text-slate-400 italic">No records matching filters.</p>
+                             <Search size={48} className="mb-4 text-slate-200 shrink-0" />
+                             <p className="text-sm font-bold text-slate-400 italic">No records matching filters.</p>
                           </div>
                         </td>
                       </tr>
                     )}
                   </tbody>
+                  {tableTotals && filteredData.length > 0 && (
+                    <tfoot className="bg-slate-100/80 dark:bg-slate-800/80 border-t-2 border-slate-200 dark:border-slate-700 backdrop-blur-sm sticky bottom-0">
+                      <tr>
+                        {activeColumns.map(colId => {
+                          const totalVal = (tableTotals as any)[colId];
+                          return (
+                            <td key={colId} className="px-6 py-5">
+                              {totalVal !== undefined ? (
+                                <div className="flex flex-col">
+                                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{colId}</span>
+                                  <span className={cn(
+                                    "text-[13px] font-black",
+                                    colId.includes('Debit') || colId.includes('In (+)') ? "text-emerald-700 dark:text-emerald-400" : (colId.includes('Credit') || colId.includes('Out (-)') ? "text-rose-700 dark:text-rose-400" : "text-indigo-700 dark:text-indigo-400")
+                                  )}>
+                                    {formatValue(colId, totalVal, true)}
+                                  </span>
+                                </div>
+                              ) : colId === activeColumns[0] ? (
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Totals</span>
+                              ) : null}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>

@@ -19,9 +19,8 @@ export function formatBalance(amount: number, currency: string = 'PKR', showDrCr
   
   if (!showDrCr) return formatted;
   
-  if (amount > 0) return `${formatted} Dr`;
-  if (amount < 0) return `${formatted} Cr`;
-  return formatted;
+  if (amount >= 0) return `${formatted} Dr`;
+  return `${formatted} Cr`;
 }
 
 export function formatDate(date: string | Date) {
