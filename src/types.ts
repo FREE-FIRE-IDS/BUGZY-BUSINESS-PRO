@@ -5,6 +5,7 @@ export type TransactionType =
   | 'Payment In' 
   | 'Payment Out' 
   | 'Expense' 
+  | 'Income'
   | 'Bank To Bank' 
   | 'Party To Party' 
   | 'Bank To Party' 
@@ -12,7 +13,9 @@ export type TransactionType =
   | 'Deposit' 
   | 'Withdraw'
   | 'Stock In'
-  | 'Stock Out';
+  | 'Stock Out'
+  | 'Cash Adjustment In'
+  | 'Cash Adjustment Out';
 
 export interface Subscription {
   plan: 'monthly' | 'yearly' | 'trial';

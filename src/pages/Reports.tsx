@@ -167,7 +167,7 @@ export default function Reports() {
         const sortedCash = [...cashTxs, ...cashInvs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         let cashBal = 0;
         result = sortedCash.map(item => {
-          const is_in = (item as any).isInvoice ? (item as any).is_in : ['Sale', 'Income', 'Payment In', 'Stock In', 'Withdraw', 'Bank To Party'].includes(item.type);
+          const is_in = (item as any).isInvoice ? (item as any).is_in : ['Sale', 'Income', 'Payment In', 'Stock In', 'Withdraw', 'Bank To Party', 'Cash Adjustment In'].includes(item.type);
           const amount = (item as any).amount || (item as any).total || 0;
           if (is_in) cashBal += amount;
           else cashBal -= amount;
@@ -528,8 +528,8 @@ export default function Reports() {
     if (activeReport === 'All Banks') {
       doc.setFontSize(10);
       doc.text(`Cash in Hand: ${formatCurrency(transactions.filter(t => !t.bank_id && t.company_id === currentCompany?.id).reduce((sum, t) => {
-        if (t.type === 'Sale' || (t.type as string) === 'Income') return sum + t.amount;
-        if (t.type === 'Expense' || t.type === 'Payment Out') return sum - t.amount;
+        if (['Sale', 'Income', 'Cash Adjustment In'].includes(t.type)) return sum + t.amount;
+        if (['Expense', 'Payment Out', 'Cash Adjustment Out'].includes(t.type)) return sum - t.amount;
         return sum;
       }, 0), settings.currency)}`, 14, 55);
       doc.text(`Total Bank Balances: ${formatCurrency(banks.filter(b => b.company_id === currentCompany?.id).reduce((sum, b) => sum + b.balance, 0), settings.currency)}`, 14, 61);

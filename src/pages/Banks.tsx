@@ -65,8 +65,8 @@ export default function Banks() {
         if (t.type === 'Withdraw') return sum + t.amount;
         if (t.type === 'Deposit') return sum - t.amount;
         if (!t.bank_id && !t.to_bank_id) {
-          if (['Sale', 'Income', 'Payment In', 'Stock In', 'Bank To Party'].includes(t.type)) return sum + t.amount;
-          if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank'].includes(t.type)) return sum - t.amount;
+          if (['Sale', 'Income', 'Payment In', 'Stock In', 'Bank To Party', 'Cash Adjustment In'].includes(t.type)) return sum + t.amount;
+          if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank', 'Cash Adjustment Out'].includes(t.type)) return sum - t.amount;
         }
         return sum;
       }, 0) + 
@@ -177,8 +177,8 @@ export default function Banks() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 md:gap-3">
-               <div className="flex items-center gap-2 mr-2">
+            <div className="flex flex-col sm:flex-row items-center gap-3 md:gap-4">
+               <div className="flex items-center gap-2">
                  <button 
                    onClick={handleSync}
                    disabled={isSyncing}
@@ -195,9 +195,27 @@ export default function Banks() {
                    onToggle={(val) => updateSettings({ show_dr_cr: val })} 
                  />
                </div>
-               <div className="bg-emerald-50 dark:bg-emerald-900/20 px-6 py-2 rounded-2xl border border-emerald-100 dark:border-emerald-800 flex flex-col justify-center">
-                  <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Balance</p>
-                  <p className="text-xl font-black text-emerald-700 dark:text-emerald-300 tracking-tight">{formatBalance(stats.cashInHand, settings.currency, settings.show_dr_cr)}</p>
+               
+               <div className="flex gap-2">
+                 <button 
+                   onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Adjustment In' }))}
+                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold text-xs"
+                 >
+                   <Plus size={14} />
+                   Adjust Cash
+                 </button>
+                 <button 
+                   onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Adjustment Out' }))}
+                   className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 font-bold text-xs"
+                 >
+                   <ArrowDownLeft size={14} className="rotate-45" />
+                   Reduce Cash
+                 </button>
+               </div>
+
+               <div className="bg-emerald-50 dark:bg-emerald-900/20 px-6 py-2 rounded-2xl border border-emerald-100 dark:border-emerald-800 flex flex-col justify-center min-w-[120px]">
+                  <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest text-center sm:text-left">Balance</p>
+                  <p className="text-xl font-black text-emerald-700 dark:text-emerald-300 tracking-tight text-center sm:text-left">{formatBalance(stats.cashInHand, settings.currency, settings.show_dr_cr)}</p>
                </div>
             </div>
           </div>
@@ -220,7 +238,7 @@ export default function Banks() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {cashTransactions.map((tx) => {
-                    const isIncome = ['Sale', 'Income', 'Payment In', 'Stock In', 'Withdraw', 'Bank To Party'].includes(tx.type);
+                    const isIncome = ['Sale', 'Income', 'Payment In', 'Stock In', 'Withdraw', 'Bank To Party', 'Cash Adjustment In'].includes(tx.type);
                     return (
                       <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                         <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-300">{formatDate(tx.date)}</td>
@@ -264,7 +282,7 @@ export default function Banks() {
             {/* Mobile View for Cash Ledger */}
             <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
                {cashTransactions.map((tx) => {
-                 const isIncome = ['Sale', 'Income', 'Payment In', 'Stock In', 'Withdraw', 'Bank To Party'].includes(tx.type);
+                 const isIncome = ['Sale', 'Income', 'Payment In', 'Stock In', 'Withdraw', 'Bank To Party', 'Cash Adjustment In'].includes(tx.type);
                  return (
                    <div key={tx.id} className="p-4 space-y-3">
                      <div className="flex justify-between items-start">

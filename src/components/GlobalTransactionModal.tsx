@@ -128,6 +128,9 @@ export default function GlobalTransactionModal() {
                   <option value="Sale">Sale (Cash/Credit)</option>
                   <option value="Purchase">Purchase (Cash/Credit)</option>
                   <option value="Expense">Expense</option>
+                  <option value="Income">Income</option>
+                  <option value="Cash Adjustment In">Adjust Cash (In)</option>
+                  <option value="Cash Adjustment Out">Reduce Cash (Out)</option>
                   <option value="Deposit">Deposit (To Bank)</option>
                   <option value="Withdraw">Withdraw (From Bank)</option>
                   <option value="Bank To Bank">Bank to Bank</option>
@@ -149,7 +152,7 @@ export default function GlobalTransactionModal() {
               </div>
 
               {/* Party Selection */}
-              {(type.includes('Party') || type === 'Payment In' || type === 'Payment Out' || type === 'Sale' || type === 'Purchase') && (
+              {(type.includes('Party') || ['Payment In', 'Payment Out', 'Sale', 'Purchase', 'Income'].includes(type)) && (
                 <div>
                   <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
                     {type.startsWith('Bank To') ? 'To Party' : (type === 'Party To Party' || type === 'Party To Bank' ? 'From Party' : 'Party')}
@@ -157,17 +160,17 @@ export default function GlobalTransactionModal() {
                   <select 
                     value={partyId} 
                     onChange={(e) => setPartyId(e.target.value)}
-                    required={type !== 'Sale' && type !== 'Purchase'}
+                    required={!['Sale', 'Purchase', 'Income'].includes(type)}
                     className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="">{type === 'Sale' || type === 'Purchase' ? 'Walk-in (No Party)' : 'Select Party'}</option>
+                    <option value="">{['Sale', 'Purchase', 'Income'].includes(type) ? 'Walk-in (No Party)' : 'Select Party'}</option>
                     {parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
               )}
 
               {/* Bank Selection */}
-              {(type.includes('Bank') || type === 'Payment In' || type === 'Payment Out' || type === 'Expense' || type === 'Sale' || type === 'Purchase') && (
+              {(type.includes('Bank') || ['Payment In', 'Payment Out', 'Expense', 'Sale', 'Purchase', 'Income', 'Cash Adjustment In', 'Cash Adjustment Out'].includes(type)) && (
                 <div>
                   <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
                     {type === 'Deposit' || type === 'Bank To Bank' ? 'From Bank' : (type === 'Withdraw' ? 'From Bank' : 'Bank (Optional for Cash)')}
