@@ -17,6 +17,31 @@ export default function GlobalTransactionModal() {
   const [toBankId, setToBankId] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [shippingMark, setShippingMark] = useState('');
+  const [totalWeight, setTotalWeight] = useState('');
+  const [shortage, setShortage] = useState('');
+  const [netWeight, setNetWeight] = useState('');
+  const [unitPrice, setUnitPrice] = useState('');
+  const [isAutoCalculating, setIsAutoCalculating] = useState(false);
+
+  useEffect(() => {
+    if (type === 'Sale' || type === 'Purchase') {
+      const tw = Number(totalWeight) || 0;
+      const sh = Number(shortage) || 0;
+      const net = Math.max(0, tw - sh);
+      setNetWeight(String(net));
+    }
+  }, [totalWeight, shortage, type]);
+
+  useEffect(() => {
+    if ((type === 'Sale' || type === 'Purchase') && !isAutoCalculating) {
+      const net = Number(netWeight) || 0;
+      const price = Number(unitPrice) || 0;
+      if (net > 0 && price > 0) {
+        setAmount(String(net * price));
+      }
+    }
+  }, [netWeight, unitPrice, type, isAutoCalculating]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -72,10 +97,20 @@ export default function GlobalTransactionModal() {
         setToBankId(tx.to_bank_id || '');
         setAmount(String(tx.amount));
         setDescription(tx.description || '');
+        setShippingMark(tx.shipping_mark || '');
+        setTotalWeight(tx.total_weight ? String(tx.total_weight) : '');
+        setShortage(tx.shortage ? String(tx.shortage) : '');
+        setNetWeight(tx.net_weight ? String(tx.net_weight) : '');
+        // For quick transactions, we might not have unitPrice stored directly if it's not and Invoice
       } else {
         setEditingId(null);
         setType(data || 'Payment In');
         setDate(new Date().toISOString().split('T')[0]);
+        setShippingMark('');
+        setTotalWeight('');
+        setShortage('');
+        setNetWeight('');
+        setUnitPrice('');
         resetForm();
       }
       setIsOpen(true);
@@ -98,6 +133,10 @@ export default function GlobalTransactionModal() {
       bank_id: bankId || undefined,
       to_party_id: toPartyId || undefined,
       to_bank_id: toBankId || undefined,
+      shipping_mark: shippingMark || undefined,
+      total_weight: totalWeight ? Number(totalWeight) : undefined,
+      shortage: shortage ? Number(shortage) : undefined,
+      net_weight: netWeight ? Number(netWeight) : undefined,
     };
 
     if (editingId) {
@@ -117,6 +156,11 @@ export default function GlobalTransactionModal() {
     setToBankId('');
     setAmount('');
     setDescription('');
+    setShippingMark('');
+    setTotalWeight('');
+    setShortage('');
+    setNetWeight('');
+    setUnitPrice('');
   };
 
   if (!isOpen) return null;
@@ -215,11 +259,15 @@ export default function GlobalTransactionModal() {
                   <select 
                     value={bankId} 
                     onChange={(e) => setBankId(e.target.value)}
-                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500"
+                    disabled={type === 'Cash Adjustment In' || type === 'Cash Adjustment Out'}
+                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                   >
                     <option value="">Cash</option>
                     {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
+                  {(type === 'Cash Adjustment In' || type === 'Cash Adjustment Out') && (
+                    <p className="text-[10px] text-indigo-500 mt-1 font-bold">Adjustments apply directly to Cash in Hand.</p>
+                  )}
                 </div>
               )}
 
@@ -255,12 +303,70 @@ export default function GlobalTransactionModal() {
                 </div>
               )}
 
+              {(type === 'Sale' || type === 'Purchase') && (
+                <div className="grid grid-cols-2 gap-4 border-y border-slate-100 dark:border-slate-800 py-4 my-2">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Shipping Mark</label>
+                    <input 
+                      type="text" 
+                      value={shippingMark} 
+                      onChange={(e) => setShippingMark(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500" 
+                      placeholder="e.g. 145 Bags Good" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Total Weight</label>
+                    <input 
+                      type="number" 
+                      value={totalWeight} 
+                      onChange={(e) => setTotalWeight(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500" 
+                      placeholder="0.00" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Shortage</label>
+                    <input 
+                      type="number" 
+                      value={shortage} 
+                      onChange={(e) => setShortage(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500" 
+                      placeholder="0.00" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Net Weight</label>
+                    <input 
+                      type="number" 
+                      value={netWeight} 
+                      readOnly
+                      className="w-full p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 outline-none" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Price / Unit</label>
+                    <input 
+                      type="number" 
+                      value={unitPrice} 
+                      onChange={(e) => setUnitPrice(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500" 
+                      placeholder="0.00" 
+                    />
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Amount</label>
                 <input 
                   type="number" 
                   value={amount} 
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    setAmount(e.target.value);
+                    setIsAutoCalculating(true);
+                  }}
+                  onBlur={() => setIsAutoCalculating(false)}
                   required 
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500" 
                   placeholder="0.00" 

@@ -104,7 +104,7 @@ export default function Reports() {
     'Purchase': ['Date', 'Party', 'Item', 'Qty', 'Unit', 'Price', 'Total'],
     'Sale': ['Date', 'Party', 'Item', 'Qty', 'Unit', 'Price', 'Total'],
     'Expense': ['Date', 'Description', 'Category', 'Paid From', 'Amount'],
-    'Invoice': ['Invoice #', 'Date', 'Item', 'Qty', 'Unit', 'Price', 'Total']
+    'Invoice': ['Invoice #', 'Date', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total']
   }), [viewMode]);
 
   useEffect(() => {
@@ -143,8 +143,8 @@ export default function Reports() {
         if (t.type === 'Withdraw') return sum + t.amount;
         if (t.type === 'Deposit') return sum - t.amount;
         if (!t.bank_id && !t.to_bank_id) {
-          if (['Sale', 'Payment In', 'Stock In', 'Bank To Party'].includes(t.type)) return sum + t.amount;
-          if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank'].includes(t.type)) return sum - t.amount;
+          if (['Sale', 'Payment In', 'Stock In', 'Bank To Party', 'Cash Adjustment In'].includes(t.type)) return sum + t.amount;
+          if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank', 'Cash Adjustment Out'].includes(t.type)) return sum - t.amount;
         }
         return sum;
       }, 0) + 
@@ -445,14 +445,21 @@ export default function Reports() {
             ...inv,
             item_name: item.name,
             qty: item.quantity,
+            shipping_mark: item.shipping_mark || '-',
+            total_weight: item.total_weight || 0,
+            shortage: item.shortage || 0,
+            net_weight: item.net_weight || 0,
             unit: item.unit || '-',
             unit_price: item.price,
             item_total: item.total,
             'Invoice #': inv.invoice_number,
             'Date': inv.date,
+            'Shipping Mark': item.shipping_mark || '-',
             'Item': item.name,
             'Qty': item.quantity,
-            'Unit': item.unit || '-',
+            'Total Wt': item.total_weight || 0,
+            'Shortage': item.shortage || 0,
+            'Net Wt': item.net_weight || 0,
             'Price': item.price,
             'Total': item.total
           }))
@@ -501,6 +508,9 @@ export default function Reports() {
   const formatValue = (col: string, val: any, isTotal: boolean = false) => {
     if (val === undefined || val === null) return isTotal ? '' : '-';
     if (col === 'Date') return formatDate(val);
+    if (col === 'Qty' || col === 'Total Wt' || col === 'Shortage' || col === 'Net Wt') {
+      return val.toLocaleString(undefined, { minimumFractionDigits: col === 'Qty' ? 0 : 2 });
+    }
     if (col.includes('Balance') || col === 'Amount' || col === 'Total') {
       // Force DR/CR if it's a total row balance, otherwise follow setting
       const showDrCr = (col.includes('Balance') && isTotal) ? true : settings.show_dr_cr;

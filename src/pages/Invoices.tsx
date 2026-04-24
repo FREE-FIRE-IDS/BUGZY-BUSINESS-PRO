@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, 
   Search, 
@@ -25,9 +25,51 @@ export default function Invoices() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<any | null>(null);
-  const [selectedItems, setSelectedItems] = useState<{ item_id: string, quantity: number, unit: string, price: number }[]>([]);
+  const [selectedItems, setSelectedItems] = useState<{ 
+    item_id: string, 
+    quantity: number, 
+    unit: string, 
+    price: number,
+    shipping_mark?: string,
+    total_weight?: number,
+    shortage?: number,
+    net_weight?: number
+  }[]>([]);
   const [paymentType, setPaymentType] = useState<'Cash' | 'Bank' | 'Credit'>('Cash');
   const [manualTax, setManualTax] = useState<number>(0);
+
+  const scrollRef = React.useRef<HTMLFormElement>(null);
+  const editScrollRef = React.useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    const handleFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) {
+        setTimeout(() => {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+      }
+    };
+
+    const addContainer = scrollRef.current;
+    if (addContainer) addContainer.addEventListener('focusin', handleFocus);
+    
+    const editContainer = editScrollRef.current;
+    if (editContainer) editContainer.addEventListener('focusin', handleFocus);
+    
+    const handleResize = () => {
+      if (document.activeElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        document.activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      if (addContainer) addContainer.removeEventListener('focusin', handleFocus);
+      if (editContainer) editContainer.removeEventListener('focusin', handleFocus);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isAddModalOpen, isEditModalOpen]);
 
   const commonUnits = ['pcs', 'kg', 'liter', 'dozen', 'box', 'meter', 'sqft', 'bag', 'bundle'];
 
@@ -37,12 +79,13 @@ export default function Invoices() {
   );
 
   const handleAddItem = () => {
-    setSelectedItems([...selectedItems, { item_id: '', quantity: 1, unit: 'pcs', price: 0 }]);
+    setSelectedItems([...selectedItems, { item_id: '', quantity: 1, unit: 'pcs', price: 0, total_weight: 0, shortage: 0, net_weight: 0 }]);
   };
 
   const updateItem = (index: number, field: string, value: any) => {
     const updated = [...selectedItems];
     updated[index] = { ...updated[index], [field]: value };
+    
     if (field === 'item_id') {
       const item = items.find(i => i.id === value);
       if (item) {
@@ -50,6 +93,13 @@ export default function Invoices() {
         if ((item as any).unit) updated[index].unit = (item as any).unit;
       }
     }
+
+    if (field === 'total_weight' || field === 'shortage') {
+      const tw = field === 'total_weight' ? Number(value) : (updated[index].total_weight || 0);
+      const sh = field === 'shortage' ? Number(value) : (updated[index].shortage || 0);
+      updated[index].net_weight = Math.max(0, tw - sh);
+    }
+
     setSelectedItems(updated);
   };
 
@@ -57,100 +107,149 @@ export default function Invoices() {
     setSelectedItems(selectedItems.filter((_, i) => i !== index));
   };
 
+  const numberToWords = (num: number) => {
+    const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+    const formatShort = (n: number) => {
+      if (n < 20) return a[n];
+      const digit = n % 10;
+      return b[Math.floor(n / 10)] + (digit ? ' ' + a[digit] : '');
+    };
+
+    const convert = (n: number): string => {
+      if (n === 0) return '';
+      if (n < 100) return formatShort(n);
+      if (n < 1000) return a[Math.floor(n / 100)] + ' Hundred' + (n % 100 === 0 ? '' : ' and ' + convert(n % 100));
+      if (n < 100000) return convert(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 === 0 ? '' : ' ' + convert(n % 1000));
+      if (n < 10000000) return convert(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 === 0 ? '' : ' ' + convert(n % 100000));
+      return convert(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 === 0 ? '' : ' ' + convert(n % 10000000));
+    };
+
+    return num === 0 ? 'Zero' : convert(Math.floor(num));
+  };
+
   const exportInvoicePDF = (invoice: any) => {
     const doc = new jsPDF();
     const party = parties.find(p => p.id === invoice.party_id);
-    const companyName = currentCompany?.name || settings.companyName || 'My Business';
     
-    // Company Header
-    doc.setFontSize(24);
-    doc.setTextColor(30, 41, 59); // Slate-800
-    doc.text(companyName, 14, 22);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139); // Slate-500
-    doc.text(currentCompany?.address || settings.companyAddress || '', 14, 28);
-    
-    // Invoice Title & Details
-    doc.setFontSize(32);
-    doc.setTextColor(99, 102, 241); // Indigo-600
-    doc.text('INVOICE', 140, 25);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(30, 41, 59);
-    doc.text(`Date: ${formatDate(invoice.date)}`, 140, 35);
-    if (invoice.due_date) doc.text(`Due Date: ${formatDate(invoice.due_date)}`, 140, 41);
-
-    // Bill To
-    doc.setFontSize(12);
-    doc.setTextColor(100, 116, 139);
-    doc.text('BILL TO:', 14, 55);
+    // Header - Centered Box
+    doc.setDrawColor(30, 41, 59);
+    doc.setLineWidth(0.5);
+    doc.rect(14, 10, 182, 10);
     doc.setFontSize(14);
-    doc.setTextColor(30, 41, 59);
-    doc.text(party?.name || 'Unknown Party', 14, 63);
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text(party?.address || '', 14, 69);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SALE INVOICE', 105, 17, { align: 'center' });
 
-    const tableData = invoice.items.map((item: any) => [
+    // Info Section
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Bill To.', 14, 30);
+    doc.setFont('helvetica', 'normal');
+    doc.text(party?.name || 'Cash Customer', 40, 30);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text('Invoice No.', 150, 30);
+    doc.setFont('helvetica', 'normal');
+    doc.text(invoice.invoice_number, 196, 30, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Contact.', 14, 40);
+    doc.setFont('helvetica', 'normal');
+    doc.text(party?.phone || '-', 40, 40);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Date', 150, 40);
+    doc.setFont('helvetica', 'normal');
+    doc.text(formatDate(invoice.date), 196, 40, { align: 'right' });
+
+    // Table
+    const tableData = invoice.items.map((item: any, idx: number) => [
+      idx + 1,
+      item.shipping_mark || '-',
       item.name,
       item.quantity,
-      item.unit || '',
-      formatCurrency(item.price, settings.currency),
-      formatCurrency(item.total, settings.currency)
+      item.total_weight ? item.total_weight.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-',
+      item.shortage ? item.shortage.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00',
+      item.net_weight ? item.net_weight.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-',
+      item.price.toLocaleString(undefined, { minimumFractionDigits: 2 }),
+      item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })
     ]);
 
     autoTable(doc, {
-      head: [['Item Name', 'Qty', 'Unit', 'Unit Price', 'Total']],
+      head: [['No.', 'Shipping Mark', 'Item Name', 'Qty', 'Total Wt', 'Shortage', 'NetWt', 'Price / Kg', 'Total']],
       body: tableData,
-      startY: 80,
+      startY: 48,
       theme: 'grid',
       headStyles: { 
-        fillColor: [99, 102, 241],
+        fillColor: [59, 130, 246], // Blue-500
         textColor: [255, 255, 255],
-        fontSize: 10,
-        fontStyle: 'bold'
+        fontSize: 8,
+        fontStyle: 'bold',
+        halign: 'center'
       },
       styles: {
-        fontSize: 9,
-        cellPadding: 4
+        fontSize: 8,
+        cellPadding: 2,
+        valign: 'middle'
       },
       columnStyles: {
-        0: { cellWidth: 'auto' },
-        1: { cellWidth: 15, halign: 'center' },
-        2: { cellWidth: 20, halign: 'center' },
-        3: { cellWidth: 30, halign: 'right' },
-        4: { cellWidth: 30, halign: 'right' }
+        0: { halign: 'center', cellWidth: 10 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 35 },
+        3: { halign: 'center', cellWidth: 10 },
+        4: { halign: 'right', cellWidth: 20 },
+        5: { halign: 'right', cellWidth: 15 },
+        6: { halign: 'right', cellWidth: 20 },
+        7: { halign: 'right', cellWidth: 15 },
+        8: { halign: 'right', cellWidth: 25 }
       }
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 15;
-    
-    // Totals
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text('Subtotal:', 130, finalY);
-    doc.setTextColor(30, 41, 59);
-    doc.text(formatCurrency(invoice.subtotal, settings.currency), 196, finalY, { align: 'right' });
-    
-    doc.setTextColor(100, 116, 139);
-    doc.text('Tax:', 130, finalY + 7);
-    doc.setTextColor(30, 41, 59);
-    doc.text(formatCurrency(invoice.tax || 0, settings.currency), 196, finalY + 7, { align: 'right' });
-    
-    doc.setDrawColor(226, 232, 240); // Slate-200
-    doc.line(130, finalY + 11, 196, finalY + 11);
-    
-    doc.setFontSize(16);
-    doc.setTextColor(99, 102, 241);
-    doc.text('Total Amount:', 130, finalY + 20);
-    doc.text(formatCurrency(invoice.total, settings.currency), 196, finalY + 20, { align: 'right' });
+    const finalY = (doc as any).lastAutoTable.finalY + 0;
 
-    // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(148, 163, 184);
-    doc.text('Thank you for your business!', 105, 285, { align: 'center' });
-    doc.text(`Generated by Bugzy Pro - ${new Date().toLocaleString()}`, 105, 290, { align: 'center' });
+    // Amount in Words Header
+    doc.setFillColor(59, 130, 246);
+    doc.rect(14, finalY + 5, 120, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.text('Amount in Words', 16, finalY + 11);
+
+    // Amount in Words Text
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Rupees ${numberToWords(invoice.total)} Only`, 14, finalY + 20);
+
+    // Totals Section
+    const totalsX = 135;
+    doc.setFillColor(59, 130, 246);
+    doc.rect(totalsX, finalY + 5, 61, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text('Amount', totalsX + 2, finalY + 11);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    
+    let currentY = finalY + 20;
+    const drawTotalLine = (label: string, value: number, isBold: boolean = false) => {
+      if (isBold) doc.setFont('helvetica', 'bold');
+      doc.text(label, totalsX, currentY);
+      doc.text(value.toLocaleString(undefined, { minimumFractionDigits: 2 }), 196, currentY, { align: 'right' });
+      if (isBold) doc.setFont('helvetica', 'normal');
+      doc.line(totalsX, currentY + 2, 196, currentY + 2);
+      currentY += 8;
+    };
+
+    drawTotalLine('Sub Total', invoice.subtotal);
+    drawTotalLine('Total', invoice.total, true);
+    drawTotalLine('Received', 0); // Assuming 0 for now as we don't track payments in Invoice model yet
+    drawTotalLine('Balance', invoice.total, true);
+    
+    // Previous balance calculation (simplified for now)
+    const prevBalance = party?.balance ? (party.balance - invoice.total) : 0;
+    drawTotalLine('Previous Balance', prevBalance);
+    drawTotalLine('Current Balance', party?.balance || 0, true);
 
     doc.save(`Invoice_${invoice.invoice_number}.pdf`);
   };
@@ -159,9 +258,14 @@ export default function Invoices() {
     setEditingInvoice(invoice);
     setSelectedItems(invoice.items.map((i: any) => ({
       item_id: i.item_id,
+      name: i.name,
       quantity: i.quantity,
       unit: i.unit || 'pcs',
-      price: i.price
+      price: i.price,
+      shipping_mark: i.shipping_mark,
+      total_weight: i.total_weight,
+      shortage: i.shortage,
+      net_weight: i.net_weight
     })));
     setManualTax(invoice.tax || 0);
     setIsEditModalOpen(true);
@@ -293,10 +397,18 @@ export default function Invoices() {
                 <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-100 rounded-xl transition-colors"><X size={20} /></button>
               </div>
               
-              <form className="p-8 space-y-8 overflow-y-auto" onSubmit={(e) => {
-                e.preventDefault();
+              <form 
+                ref={scrollRef}
+                className="p-8 space-y-8 overflow-y-auto pb-[250px] scroll-smooth" 
+                onSubmit={(e) => {
+                  e.preventDefault();
                 const formData = new FormData(e.currentTarget);
-                const subtotal = selectedItems.reduce((sum, si) => sum + (si.quantity * si.price), 0);
+                const subtotal = selectedItems.reduce((sum, si) => {
+                  const lineTotal = (si.net_weight && si.net_weight > 0) 
+                    ? (si.net_weight * si.price) 
+                    : (si.quantity * si.price);
+                  return sum + lineTotal;
+                }, 0);
                 const tax = manualTax;
                 const total = subtotal + tax;
 
@@ -318,14 +430,24 @@ export default function Invoices() {
                   type: formData.get('type') as 'Sale' | 'Purchase',
                   payment_type: formData.get('payment_type') as 'Cash' | 'Bank',
                   bank_id: (formData.get('bank_id') as string) || undefined,
-                  items: selectedItems.map(si => ({
-                    item_id: si.item_id,
-                    name: items.find(i => i.id === si.item_id)?.name || 'Unknown',
-                    quantity: si.quantity,
-                    unit: si.unit,
-                    price: si.price,
-                    total: si.quantity * si.price
-                  })),
+                  items: selectedItems.map(si => {
+                    const lineTotal = (si.net_weight && si.net_weight > 0) 
+                      ? (si.net_weight * si.price) 
+                      : (si.quantity * si.price);
+                    
+                    return {
+                      item_id: si.item_id,
+                      name: items.find(i => i.id === si.item_id)?.name || 'Unknown',
+                      quantity: si.quantity,
+                      shipping_mark: si.shipping_mark,
+                      total_weight: si.total_weight,
+                      shortage: si.shortage,
+                      net_weight: si.net_weight,
+                      unit: si.unit,
+                      price: si.price,
+                      total: lineTotal
+                    };
+                  }),
                   subtotal,
                   tax,
                   total,
@@ -417,7 +539,17 @@ export default function Invoices() {
                             {items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                           </select>
                         </div>
-                        <div className="w-24">
+                        <div className="w-32">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mark</label>
+                          <input 
+                            type="text" 
+                            placeholder="Ship Mark"
+                            value={si.shipping_mark || ''}
+                            onChange={(e) => updateItem(index, 'shipping_mark', e.target.value)}
+                            className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
+                        </div>
+                        <div className="w-20">
                           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Qty</label>
                           <input 
                             type="number" 
@@ -427,22 +559,31 @@ export default function Invoices() {
                             className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                           />
                         </div>
-                        <div className="w-32">
-                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Unit</label>
-                          <div className="relative">
-                            <input 
-                              list={`units-${index}`}
-                              value={si.unit}
-                              onChange={(e) => updateItem(index, 'unit', e.target.value)}
-                              placeholder="Unit"
-                              className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            />
-                            <datalist id={`units-${index}`}>
-                              {commonUnits.map(u => <option key={u} value={u} />)}
-                            </datalist>
-                          </div>
+                        <div className="w-24">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Total Wt</label>
+                          <input 
+                            type="number" 
+                            placeholder="Total Wt"
+                            value={si.total_weight || 0}
+                            onChange={(e) => updateItem(index, 'total_weight', Number(e.target.value))}
+                            className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
                         </div>
-                        <div className="w-32">
+                        <div className="w-20">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Shortage</label>
+                          <input 
+                            type="number" 
+                            placeholder="Short"
+                            value={si.shortage || 0}
+                            onChange={(e) => updateItem(index, 'shortage', Number(e.target.value))}
+                            className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
+                        </div>
+                        <div className="w-24 text-center">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Net Wt</label>
+                          <div className="py-2.5 text-sm font-bold text-slate-600">{(si.net_weight || 0).toFixed(2)}</div>
+                        </div>
+                        <div className="w-28">
                           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Price</label>
                           <input 
                             type="number" 
@@ -452,10 +593,10 @@ export default function Invoices() {
                             className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                           />
                         </div>
-                        <div className="w-32">
+                        <div className="w-28 text-right">
                           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Total</label>
-                          <div className="p-2.5 font-bold text-sm">
-                            {formatCurrency(si.quantity * si.price, settings.currency)}
+                          <div className="py-2.5 font-bold text-sm">
+                            {formatCurrency(((si.net_weight && si.net_weight > 0) ? (si.net_weight * si.price) : (si.quantity * si.price)), settings.currency)}
                           </div>
                         </div>
                         <button type="button" onClick={() => removeItem(index)} className="p-2.5 text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
@@ -505,10 +646,18 @@ export default function Invoices() {
                 <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"><X size={20} /></button>
               </div>
               
-              <form className="p-8 space-y-8 overflow-y-auto" onSubmit={(e) => {
-                e.preventDefault();
+              <form 
+                ref={editScrollRef}
+                className="p-8 space-y-8 overflow-y-auto pb-[250px] scroll-smooth"
+                onSubmit={(e) => {
+                  e.preventDefault();
                 const formData = new FormData(e.currentTarget);
-                const subtotal = selectedItems.reduce((sum, si) => sum + (si.quantity * si.price), 0);
+                const subtotal = selectedItems.reduce((sum, si) => {
+                  const lineTotal = (si.net_weight && si.net_weight > 0) 
+                    ? (si.net_weight * si.price) 
+                    : (si.quantity * si.price);
+                  return sum + lineTotal;
+                }, 0);
                 const tax = manualTax;
                 const total = subtotal + tax;
 
@@ -522,14 +671,24 @@ export default function Invoices() {
                   type: formData.get('type') as 'Sale' | 'Purchase',
                   payment_type: paymentType,
                   bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
-                  items: selectedItems.map(si => ({
-                    item_id: si.item_id,
-                    name: items.find(i => i.id === si.item_id)?.name || 'Unknown',
-                    quantity: si.quantity,
-                    unit: si.unit,
-                    price: si.price,
-                    total: si.quantity * si.price
-                  })),
+                  items: selectedItems.map(si => {
+                    const lineTotal = (si.net_weight && si.net_weight > 0) 
+                      ? (si.net_weight * si.price) 
+                      : (si.quantity * si.price);
+                      
+                    return {
+                      item_id: si.item_id,
+                      name: items.find(i => i.id === si.item_id)?.name || 'Unknown',
+                      quantity: si.quantity,
+                      shipping_mark: si.shipping_mark,
+                      total_weight: si.total_weight,
+                      shortage: si.shortage,
+                      net_weight: si.net_weight,
+                      unit: si.unit,
+                      price: si.price,
+                      total: lineTotal
+                    };
+                  }),
                   subtotal,
                   tax,
                   total,
@@ -629,7 +788,17 @@ export default function Invoices() {
                             {items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                           </select>
                         </div>
-                        <div className="w-24">
+                        <div className="w-32">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mark</label>
+                          <input 
+                            type="text" 
+                            placeholder="Ship Mark"
+                            value={si.shipping_mark || ''}
+                            onChange={(e) => updateItem(index, 'shipping_mark', e.target.value)}
+                            className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
+                        </div>
+                        <div className="w-20">
                           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Qty</label>
                           <input 
                             type="number" 
@@ -638,22 +807,29 @@ export default function Invoices() {
                             className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                           />
                         </div>
-                        <div className="w-32">
-                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Unit</label>
-                          <div className="relative">
-                            <input 
-                              list={`edit-units-${index}`}
-                              value={si.unit}
-                              onChange={(e) => updateItem(index, 'unit', e.target.value)}
-                              placeholder="Unit"
-                              className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                            />
-                            <datalist id={`edit-units-${index}`}>
-                              {commonUnits.map(u => <option key={u} value={u} />)}
-                            </datalist>
-                          </div>
+                        <div className="w-24">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tot Wt</label>
+                          <input 
+                            type="number" 
+                            value={si.total_weight || 0}
+                            onChange={(e) => updateItem(index, 'total_weight', Number(e.target.value))}
+                            className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
                         </div>
-                        <div className="w-32">
+                        <div className="w-20">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Short</label>
+                          <input 
+                            type="number" 
+                            value={si.shortage || 0}
+                            onChange={(e) => updateItem(index, 'shortage', Number(e.target.value))}
+                            className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                          />
+                        </div>
+                        <div className="w-24 text-center">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Net Wt</label>
+                          <div className="py-2.5 text-sm font-bold text-slate-600">{(si.net_weight || 0).toFixed(2)}</div>
+                        </div>
+                        <div className="w-28">
                           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Price</label>
                           <input 
                             type="number" 
@@ -662,10 +838,10 @@ export default function Invoices() {
                             className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                           />
                         </div>
-                        <div className="w-32">
+                        <div className="w-28 text-right px-2">
                           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Total</label>
-                          <div className="p-2.5 font-bold text-sm">
-                            {formatCurrency(si.quantity * si.price, settings.currency)}
+                          <div className="py-2.5 font-bold text-sm">
+                            {formatCurrency(((si.net_weight && si.net_weight > 0) ? (si.net_weight * si.price) : (si.quantity * si.price)), settings.currency)}
                           </div>
                         </div>
                         <button type="button" onClick={() => removeItem(index)} className="p-2.5 text-rose-600 hover:bg-rose-50 rounded-xl transition-all">

@@ -98,6 +98,10 @@ export interface Transaction {
   to_bank_id?: string;
   item_id?: string;
   quantity?: number;
+  shipping_mark?: string;
+  total_weight?: number;
+  shortage?: number;
+  net_weight?: number;
   payment_type?: 'Cash' | 'Bank' | 'Credit';
   created_at: string;
   updated_at?: string;
@@ -115,6 +119,10 @@ export interface Invoice {
     item_id: string;
     name: string;
     quantity: number;
+    shipping_mark?: string;
+    total_weight?: number;
+    shortage?: number;
+    net_weight?: number;
     unit?: string;
     price: number;
     total: number;
