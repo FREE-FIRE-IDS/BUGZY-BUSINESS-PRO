@@ -190,10 +190,10 @@ export default function GlobalTransactionModal() {
             </button>
           </div>
           
-          <form className="p-0 flex flex-col h-[100vh]" onSubmit={handleSubmit}>
+          <form className="p-0 flex flex-col max-h-[85vh]" onSubmit={handleSubmit}>
             <div 
               ref={scrollRef}
-              className="px-8 pt-8 pb-[200px] space-y-6 overflow-y-auto flex-1 scroll-smooth"
+              className="px-6 md:px-8 pt-6 md:pt-8 pb-12 space-y-6 overflow-y-auto flex-1 scroll-smooth"
             >
               <div className="space-y-4">
               {/* Type Selection */}

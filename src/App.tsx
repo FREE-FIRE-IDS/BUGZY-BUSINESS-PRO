@@ -808,40 +808,42 @@ export default function App() {
 
   return (
     <div className={cn(
-      "min-h-screen flex flex-col transition-colors duration-300",
+      "h-screen flex overflow-hidden transition-colors duration-300",
       theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
     )}>
-      {/* Sidebar */}
+      {/* PC Sidebar */}
       <aside className={cn(
-        "fixed left-0 top-0 h-full z-40 transition-all duration-300 border-r hidden md:block",
+        "h-full shrink-0 border-r hidden md:flex flex-col transition-all duration-300 relative z-30",
         theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200",
-        isSidebarOpen ? "w-64 translate-x-0" : "w-20"
+        isSidebarOpen ? "w-64" : "w-20"
       )}>
-        <div className="p-6 flex items-center gap-3">
-          {currentCompany?.logo_url ? (
-            <img src={currentCompany.logo_url} alt="Logo" className="w-10 h-10 object-contain rounded-xl" referrerPolicy="no-referrer" />
-          ) : (
-            <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-bold text-xl relative overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-indigo-800 opacity-90" />
-              <svg className="relative z-10 w-6 h-6" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M50 25 L50 75 M35 45 L35 75 M65 45 L65 75" stroke="white" strokeWidth="8" strokeLinecap="round"/>
-                <path d="M30 75 L70 75" stroke="white" strokeWidth="4"/>
-                <path d="M40 45 L50 35 L60 45" fill="#fbbf24"/>
-              </svg>
-            </div>
-          )}
-          {isSidebarOpen && (
-            <motion.span 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="font-bold text-lg tracking-tight text-white truncate max-w-[150px]"
-            >
-              {currentCompany?.name || 'Bugzy Pro'}
-            </motion.span>
-          )}
+        <div className="h-16 flex items-center px-6 border-b border-transparent shrink-0">
+          <div className="flex items-center gap-3">
+            {currentCompany?.logo_url ? (
+              <img src={currentCompany.logo_url} alt="Logo" className="w-10 h-10 object-contain rounded-xl" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-bold text-xl relative overflow-hidden group shrink-0">
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-indigo-800 opacity-90" />
+                <svg className="relative z-10 w-6 h-6" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M50 25 L50 75 M35 45 L35 75 M65 45 L65 75" stroke="white" strokeWidth="8" strokeLinecap="round"/>
+                  <path d="M30 75 L70 75" stroke="white" strokeWidth="4"/>
+                  <path d="M40 45 L50 35 L60 45" fill="#fbbf24"/>
+                </svg>
+              </div>
+            )}
+            {isSidebarOpen && (
+              <motion.span 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="font-bold text-lg tracking-tight text-slate-900 dark:text-white truncate"
+              >
+                {currentCompany?.name || 'Bugzy Pro'}
+              </motion.span>
+            )}
+          </div>
         </div>
 
-        <nav className="mt-6 px-3 space-y-1 overflow-y-auto max-h-[calc(100vh-120px)]">
+        <nav className="flex-1 mt-6 px-3 space-y-1 overflow-y-auto no-scrollbar">
           {[...menuItems.slice(0, 4), ...moreItems].map((item) => (
             <button
               key={item.id}
@@ -860,12 +862,12 @@ export default function App() {
                   : theme === 'dark' ? "text-slate-400 hover:bg-slate-800" : "text-slate-600 hover:bg-slate-100"
               )}
             >
-              <item.icon size={22} />
+              <item.icon size={22} className="shrink-0" />
               {isSidebarOpen && (
-                <div className="flex-1 flex items-center justify-between">
+                <div className="flex-1 flex items-center justify-between truncate">
                   <span className="truncate">{item.label}</span>
                   {item.premium && isTrialExpired && !isLicensedUser && (
-                    <Crown size={14} className="text-amber-400 fill-amber-400" />
+                    <Crown size={14} className="text-amber-400 fill-amber-400 shrink-0" />
                   )}
                 </div>
               )}
@@ -876,7 +878,7 @@ export default function App() {
               )}
             </button>
           ))}
-
+          
           {currentCompany && !currentCompany.is_paid && !isLicensed() && (
             <button
               onClick={() => {
@@ -888,52 +890,32 @@ export default function App() {
                 !isSidebarOpen && "justify-center"
               )}
             >
-              <Sparkles size={22} className="animate-pulse" />
-              {isSidebarOpen && <span>Buy Now</span>}
-              {!isSidebarOpen && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                  Buy Now
-                </div>
-              )}
+              <Sparkles size={22} className="animate-pulse shrink-0" />
+              {isSidebarOpen && <span className="truncate">Buy Now</span>}
             </button>
           )}
         </nav>
       </aside>
 
-      {/* Main Content */}
-      <main className={cn(
-        "transition-all duration-300 min-h-screen pb-24 md:pb-0 flex flex-col",
-        isSidebarOpen ? "md:pl-64" : "md:pl-20"
-      )}>
-        <div className="sticky top-0 z-40">
-          {currentCompany && (
-            <TrialBanner 
-              company={currentCompany} 
-              isLicensed={isLicensed()} 
-              onUpgrade={() => {
-                setForceUpgrade(true);
-                setDismissedPayment(false);
-              }} 
-            />
-          )}
-          
-          {/* Topbar */}
-          <header className={cn(
-            "h-16 border-b flex items-center justify-between px-4 md:px-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md",
-            theme === 'dark' ? "border-slate-800" : "border-slate-200"
-          )}>
-          <div className="flex items-center gap-4 flex-1">
+      {/* Main Content Viewport */}
+      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+        {/* Topbar */}
+        <header className={cn(
+          "h-16 border-b flex items-center justify-between px-4 md:px-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shrink-0 z-20",
+          theme === 'dark' ? "border-slate-800" : "border-slate-200"
+        )}>
+          <div className="flex items-center gap-4 flex-1 min-w-0">
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors hidden md:block"
             >
               <Menu size={20} />
             </button>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               {currentCompany?.logo_url ? (
                 <img src={currentCompany.logo_url} alt="Logo" className="w-8 h-8 object-contain rounded-lg md:hidden" referrerPolicy="no-referrer" />
               ) : (
-                <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white font-bold text-sm md:hidden relative overflow-hidden">
+                <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white font-bold text-sm md:hidden relative overflow-hidden shrink-0">
                   <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-indigo-800 opacity-90" />
                   <svg className="relative z-10 w-5 h-5" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M50 25 L50 75 M35 45 L35 75 M65 45 L65 75" stroke="white" strokeWidth="8" strokeLinecap="round"/>
@@ -947,7 +929,6 @@ export default function App() {
               </h2>
             </div>
 
-            {/* Top Search Bar */}
             <div className="relative flex-1 max-w-md ml-4 hidden md:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input 
@@ -958,19 +939,15 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex items-center gap-2 md:gap-4 shrink-0">
             {isLicensedUser && daysLeftLicense !== null && (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 text-[8px] sm:text-[10px] font-black uppercase tracking-wider truncate max-w-[60px] sm:max-w-none">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 text-[8px] sm:text-[10px] font-black uppercase tracking-wider truncate">
                 <Clock size={10} className="shrink-0" />
                 <span>{daysLeftLicense}D</span>
               </div>
             )}
             <div className="flex items-center gap-2 px-2 md:px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 max-w-[120px] md:max-w-none">
-              {currentCompany?.logo_url ? (
-                <img src={currentCompany.logo_url} alt="Logo" className="w-5 h-5 object-contain rounded-sm" referrerPolicy="no-referrer" />
-              ) : (
-                <Building2 size={16} className="shrink-0" />
-              )}
+              <Building2 size={16} className="shrink-0" />
               <span className="text-xs md:text-sm font-medium truncate">{currentCompany?.name}</span>
             </div>
             <button 
@@ -979,87 +956,89 @@ export default function App() {
             >
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
-            {!isLicensedUser && (
-              <button 
-                onClick={() => {
-                  setForceUpgrade(true);
-                  setDismissedPayment(false);
-                }}
-                className="flex items-center gap-2 px-3 py-1.5 bg-amber-500 text-white rounded-full text-[10px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20 animate-pulse"
-              >
-                <Sparkles size={12} />
-                <span>Premium</span>
-              </button>
-            )}
           </div>
         </header>
-        </div>
 
-        <div className="p-4 md:p-8 max-w-7xl mx-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activeTab === 'more' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
-                  {moreItems.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        if (item.premium && !isLicensedUser && isTrialExpired) {
-                          setForceUpgrade(true);
-                          setDismissedPayment(false);
-                        } else {
-                          setActiveTab(item.id);
-                        }
-                      }}
-                      className={cn(
-                        "flex flex-col items-center justify-center p-4 sm:p-6 rounded-2xl border transition-all gap-2 sm:gap-3",
-                        theme === 'dark' 
-                          ? "bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-50" 
-                          : "bg-white border-slate-200 hover:bg-slate-50 text-slate-900"
-                      )}
-                    >
-                      <div className="p-2 sm:p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl relative">
-                        <item.icon size={22} className="sm:w-6 sm:h-6" />
-                        {item.premium && isTrialExpired && !isLicensedUser && (
-                          <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white shadow-lg">
-                            <Crown size={8} className="sm:w-2.5 sm:h-2.5 fill-white" />
-                          </div>
+        {/* Scrollable Area */}
+        <main className="flex-1 overflow-y-auto no-scrollbar scroll-smooth">
+          {currentCompany && (
+            <div className="sticky top-0 z-10">
+              <TrialBanner 
+                company={currentCompany} 
+                isLicensed={isLicensed()} 
+                onUpgrade={() => {
+                  setForceUpgrade(true);
+                  setDismissedPayment(false);
+                }} 
+              />
+            </div>
+          )}
+
+          <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {activeTab === 'more' ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 pb-24 lg:pb-0">
+                    {moreItems.map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          if (item.premium && !isLicensedUser && isTrialExpired) {
+                            setForceUpgrade(true);
+                            setDismissedPayment(false);
+                          } else {
+                            setActiveTab(item.id);
+                          }
+                        }}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-4 sm:p-6 rounded-2xl border transition-all gap-2 sm:gap-3",
+                          theme === 'dark' 
+                            ? "bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-50" 
+                            : "bg-white border-slate-200 hover:bg-slate-50 text-slate-900"
                         )}
-                      </div>
-                      <span className="font-bold text-[10px] sm:text-sm uppercase tracking-wider">{item.label}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : renderPage()}
-            </motion.div>
-          </AnimatePresence>
+                      >
+                        <div className="p-2 sm:p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl relative">
+                          <item.icon size={22} className="sm:w-6 sm:h-6" />
+                          {item.premium && isTrialExpired && !isLicensedUser && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white shadow-lg">
+                              <Crown size={8} className="sm:w-2.5 sm:h-2.5 fill-white" />
+                            </div>
+                          )}
+                        </div>
+                        <span className="font-bold text-[10px] sm:text-sm uppercase tracking-wider">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : renderPage()}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </main>
+
+        {/* Floating Action Button for Mobile */}
+        <div className="fixed bottom-28 right-6 z-40 md:hidden">
+          <button 
+            onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
+            className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-all shadow-indigo-500/40"
+          >
+            <Plus size={32} />
+          </button>
         </div>
-      </main>
 
-      {/* Floating Action Button for Mobile */}
-      <div className="fixed bottom-28 right-6 z-40 md:hidden">
-        <button 
-          onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
-          className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-all shadow-indigo-500/40"
-        >
-          <Plus size={32} />
-        </button>
-      </div>
-
-      {/* Mobile Bottom Navigation */}
-      <nav className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 md:hidden flex items-center justify-around p-3 border-t backdrop-blur-md pb-safe",
-        theme === 'dark' ? "bg-slate-900/95 border-slate-800" : "bg-white/95 border-slate-200"
-      )}>
-        {menuItems.filter(i => i.id !== 'admin').map((item) => (
-          <React.Fragment key={item.id}>
+        {/* Mobile Bottom Navigation */}
+        <nav className={cn(
+          "h-20 shrink-0 flex items-center justify-around p-3 border-t backdrop-blur-md pb-safe md:hidden z-50",
+          theme === 'dark' ? "bg-slate-900/95 border-slate-800" : "bg-white/95 border-slate-200"
+        )}>
+          {menuItems.filter(i => i.id !== 'admin').map((item) => (
             <button
+              key={item.id}
               onClick={() => {
                 if (item.premium && !isLicensedUser && isTrialExpired) {
                   setForceUpgrade(true);
@@ -1094,9 +1073,9 @@ export default function App() {
                 activeTab === item.id ? "opacity-100" : "opacity-60"
               )}>{item.label}</span>
             </button>
-          </React.Fragment>
-        ))}
-      </nav>
+          ))}
+        </nav>
+      </div>
 
       <GlobalTransactionModal />
       <ShortcutHelper show={isShortcutPopupOpen} />

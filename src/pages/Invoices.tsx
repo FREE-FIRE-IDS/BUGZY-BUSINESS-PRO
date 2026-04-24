@@ -12,10 +12,15 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
-import { formatCurrency, formatDate, cn } from '../lib/utils';
+import { formatCurrency, formatDate, cn, numberToWords } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import 'jspdf-autotable';
+
+// Extend jsPDF with autotable
+interface jsPDFWithAutoTable extends jsPDF {
+  autoTable: (options: any) => jsPDF;
+}
 
 export default function Invoices() {
   const { invoices, addInvoice, updateInvoice, deleteInvoice, settings, parties, items, currentCompany, banks } = useApp();
@@ -73,10 +78,17 @@ export default function Invoices() {
 
   const commonUnits = ['pcs', 'kg', 'liter', 'dozen', 'box', 'meter', 'sqft', 'bag', 'bundle'];
 
-  const filteredInvoices = invoices.filter(i => 
-    i.invoice_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    parties.find(p => p.id === i.party_id)?.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredInvoices = invoices.filter(i => {
+    const partyName = parties.find(p => p.id === i.party_id)?.name.toLowerCase() || '';
+    const dateStr = formatDate(i.invoice_date).toLowerCase();
+    const searchLow = searchTerm.toLowerCase();
+    
+    return i.invoice_number.toLowerCase().includes(searchLow) ||
+           partyName.includes(searchLow) ||
+           dateStr.includes(searchLow) ||
+           i.total.toString().includes(searchLow) ||
+           i.items.some(item => item.name?.toLowerCase().includes(searchLow));
+  });
 
   const handleAddItem = () => {
     setSelectedItems([...selectedItems, { item_id: '', quantity: 1, unit: 'pcs', price: 0, total_weight: 0, shortage: 0, net_weight: 0 }]);
@@ -131,7 +143,7 @@ export default function Invoices() {
 
   const exportInvoicePDF = (invoice: any) => {
     try {
-      const doc = new jsPDF();
+      const doc = new jsPDF() as jsPDFWithAutoTable;
       const party = parties.find(p => p.id === invoice.party_id);
       
       // Header - Blue Border Box
@@ -184,7 +196,7 @@ export default function Invoices() {
         Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       ]);
 
-      autoTable(doc, {
+      doc.autoTable({
         head: [['No.', 'Shipping Mark', 'Item Name', 'Qty', 'Total Wt', 'Shortage', 'NetWt', 'Price / Kg', 'Total']],
         body: tableData,
         startY: 48,

@@ -23,7 +23,12 @@ import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, formatBalance, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import 'jspdf-autotable';
+
+// Extend jsPDF with autotable
+interface jsPDFWithAutoTable extends jsPDF {
+  autoTable: (options: any) => jsPDF;
+}
 
 const DrCrToggle = ({ enabled, onToggle }: { enabled: boolean, onToggle: (val: boolean) => void }) => (
   <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 pointer-events-auto shrink-0">
@@ -640,7 +645,7 @@ export default function Reports() {
   };
 
   const exportPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF() as jsPDFWithAutoTable;
     const companyName = currentCompany?.name || settings.companyName || 'My Business';
     
     // Header
@@ -691,7 +696,7 @@ export default function Reports() {
 
     const startY = activeReport === 'All Banks' ? 68 : (selectedEntity ? 55 : 50);
 
-    autoTable(doc, {
+    doc.autoTable({
       head,
       body,
       startY,
