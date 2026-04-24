@@ -74,22 +74,31 @@ export default function Expenses() {
 
       const tableData = filteredExpenses.map(e => [
         formatDate(e.date),
+        e.category || '-',
         e.description || 'General Expense',
         e.quantity ? `${e.quantity} ${e.unit || ''}` : '-',
         e.price ? formatCurrency(e.price, settings.currency) : '-',
-        banks.find(b => b.id === e.bank_id)?.name || 'Cash',
+        e.payment_type === 'Bank' 
+          ? (banks.find(b => b.id === e.bank_id)?.name || 'Bank')
+          : e.payment_type === 'Credit'
+            ? (parties.find(p => p.id === e.party_id)?.name || 'Credit Account')
+            : 'Cash',
         formatCurrency(e.amount, settings.currency)
       ]);
 
       autoTable(doc, {
-        head: [['Date', 'Description', 'Qty', 'Price', 'Paid From', 'Amount']],
+        head: [['Date', 'Category', 'Description', 'Qty', 'Price', 'Paid Via', 'Amount']],
         body: tableData,
         startY: 50,
         theme: 'grid',
         headStyles: { fillColor: [225, 29, 72] },
-        styles: { fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: {
+          4: { halign: 'right' },
+          6: { halign: 'right' }
+        },
         foot: [[
-          'Total', '', '', '', '', formatCurrency(totalExpenses, settings.currency)
+          'Total', '', '', '', '', '', formatCurrency(totalExpenses, settings.currency)
         ]],
         footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
       });
