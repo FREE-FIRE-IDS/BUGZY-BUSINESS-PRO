@@ -101,8 +101,8 @@ export default function Reports() {
     'All Banks': ['Bank Name', 'Account #', 'Debit (DR)', 'Credit (CR)', 'Balance'],
     'Combined Statement': ['Date', 'Account/Party', 'In (+)', 'Out (-)', 'Balance'],
     'Stock': ['Item Name', 'SKU', 'Unit', 'Price', 'Stock', 'Value'],
-    'Purchase': ['Date', 'Party', 'Item', 'Qty', 'Unit', 'Price', 'Total'],
-    'Sale': ['Date', 'Party', 'Item', 'Qty', 'Unit', 'Price', 'Total'],
+    'Purchase': ['Date', 'Party', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total'],
+    'Sale': ['Date', 'Party', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total'],
     'Expense': ['Date', 'Description', 'Category', 'Paid From', 'Amount'],
     'Invoice': ['Invoice #', 'Date', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total']
   }), [viewMode]);
@@ -358,14 +358,21 @@ export default function Reports() {
             party_name: parties.find(p => p.id === inv.party_id)?.name || 'Walk-in',
             item_name: item.name,
             qty: item.quantity,
+            shipping_mark: item.shipping_mark || '-',
+            total_weight: item.total_weight || 0,
+            shortage: item.shortage || 0,
+            net_weight: item.net_weight || 0,
             unit: item.unit || 'Unit',
             price: item.price,
             total: item.total,
             'Date': inv.date,
             'Party': parties.find(p => p.id === inv.party_id)?.name || 'Walk-in',
+            'Shipping Mark': item.shipping_mark || '-',
             'Item': item.name,
             'Qty': item.quantity,
-            'Unit': item.unit || 'Unit',
+            'Total Wt': item.total_weight || 0,
+            'Shortage': item.shortage || 0,
+            'Net Wt': item.net_weight || 0,
             'Price': item.price,
             'Total': item.total
           }))
@@ -397,14 +404,21 @@ export default function Reports() {
             party_name: parties.find(p => p.id === inv.party_id)?.name || 'Walk-in',
             item_name: item.name,
             qty: item.quantity,
+            shipping_mark: item.shipping_mark || '-',
+            total_weight: item.total_weight || 0,
+            shortage: item.shortage || 0,
+            net_weight: item.net_weight || 0,
             unit: item.unit || 'Unit',
             price: item.price,
             total: item.total,
             'Date': inv.date,
             'Party': parties.find(p => p.id === inv.party_id)?.name || 'Walk-in',
+            'Shipping Mark': item.shipping_mark || '-',
             'Item': item.name,
             'Qty': item.quantity,
-            'Unit': item.unit || 'Unit',
+            'Total Wt': item.total_weight || 0,
+            'Shortage': item.shortage || 0,
+            'Net Wt': item.net_weight || 0,
             'Price': item.price,
             'Total': item.total
           }))
@@ -498,15 +512,14 @@ export default function Reports() {
     }
 
     if (activeReport === 'Stock') return { 'Value': filteredData.reduce((s, d) => s + d.value, 0) };
-    if (activeReport === 'Purchase' || activeReport === 'Sale') return { 'Total': filteredData.reduce((s, d) => s + (d.total || d.amount), 0) };
     if (activeReport === 'Expense') return { 'Amount': filteredData.reduce((s, d) => s + d.amount, 0) };
-    if (activeReport === 'Invoice') {
+    if (activeReport === 'Purchase' || activeReport === 'Sale' || activeReport === 'Invoice') {
       return { 
         'Qty': filteredData.reduce((s, d) => s + (d.qty || 0), 0),
         'Total Wt': filteredData.reduce((s, d) => s + (d.total_weight || 0), 0),
         'Shortage': filteredData.reduce((s, d) => s + (d.shortage || 0), 0),
         'Net Wt': filteredData.reduce((s, d) => s + (d.net_weight || 0), 0),
-        'Total': filteredData.reduce((s, d) => s + (d.item_total || 0), 0)
+        'Total': filteredData.reduce((s, d) => s + (d.total || d.amount || d.item_total || 0), 0)
       };
     }
     

@@ -134,34 +134,41 @@ export default function Invoices() {
     const party = parties.find(p => p.id === invoice.party_id);
     
     // Header - Centered Box
-    doc.setDrawColor(30, 41, 59);
-    doc.setLineWidth(0.5);
-    doc.rect(14, 10, 182, 10);
+    doc.setDrawColor(59, 130, 246); // Blue-500
+    doc.setLineWidth(0.8);
+    doc.rect(14, 10, 182, 12);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('SALE INVOICE', 105, 17, { align: 'center' });
+    doc.setTextColor(30, 41, 59);
+    doc.text('SALE INVOICE', 105, 18, { align: 'center' });
 
     // Info Section
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Bill To.', 14, 30);
-    doc.setFont('helvetica', 'normal');
-    doc.text(party?.name || 'Cash Customer', 40, 30);
+    doc.setTextColor(0, 0, 0);
     
+    // Bill To
     doc.setFont('helvetica', 'bold');
-    doc.text('Invoice No.', 150, 30);
+    doc.text('Bill To.', 14, 32);
     doc.setFont('helvetica', 'normal');
-    doc.text(invoice.invoice_number, 196, 30, { align: 'right' });
+    doc.text(party?.name || 'Cash Customer', 40, 32);
+    
+    // Invoice No
+    doc.setFont('helvetica', 'bold');
+    doc.text('Invoice No.', 145, 32);
+    doc.setFont('helvetica', 'normal');
+    doc.text(invoice.invoice_number, 196, 32, { align: 'right' });
 
+    // Contact
     doc.setFont('helvetica', 'bold');
-    doc.text('Contact.', 14, 40);
+    doc.text('Contact.', 14, 42);
     doc.setFont('helvetica', 'normal');
-    doc.text(party?.phone || '-', 40, 40);
+    doc.text(party?.phone || '-', 40, 42);
 
+    // Date
     doc.setFont('helvetica', 'bold');
-    doc.text('Date', 150, 40);
+    doc.text('Date', 145, 42);
     doc.setFont('helvetica', 'normal');
-    doc.text(formatDate(invoice.date), 196, 40, { align: 'right' });
+    doc.text(formatDate(invoice.date), 196, 42, { align: 'right' });
 
     // Table
     const tableData = invoice.items.map((item: any, idx: number) => [
@@ -169,84 +176,86 @@ export default function Invoices() {
       item.shipping_mark || '-',
       item.name,
       item.quantity,
-      item.total_weight ? item.total_weight.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-',
-      item.shortage ? item.shortage.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00',
-      item.net_weight ? item.net_weight.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-',
-      item.price.toLocaleString(undefined, { minimumFractionDigits: 2 }),
-      item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })
+      item.total_weight ? Number(item.total_weight).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00',
+      item.shortage ? Number(item.shortage).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00',
+      item.net_weight ? Number(item.net_weight).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00',
+      Number(item.price).toLocaleString(undefined, { minimumFractionDigits: 2 }),
+      Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2 })
     ]);
 
     autoTable(doc, {
       head: [['No.', 'Shipping Mark', 'Item Name', 'Qty', 'Total Wt', 'Shortage', 'NetWt', 'Price / Kg', 'Total']],
       body: tableData,
-      startY: 48,
+      startY: 50,
       theme: 'grid',
       headStyles: { 
         fillColor: [59, 130, 246], // Blue-500
         textColor: [255, 255, 255],
-        fontSize: 8,
+        fontSize: 8.5,
         fontStyle: 'bold',
-        halign: 'center'
+        halign: 'center',
+        valign: 'middle'
       },
       styles: {
-        fontSize: 8,
-        cellPadding: 2,
-        valign: 'middle'
+        fontSize: 8.5,
+        cellPadding: 3,
+        valign: 'middle',
+        textColor: [0, 0, 0]
       },
       columnStyles: {
         0: { halign: 'center', cellWidth: 10 },
         1: { cellWidth: 40 },
         2: { cellWidth: 35 },
         3: { halign: 'center', cellWidth: 10 },
-        4: { halign: 'right', cellWidth: 20 },
+        4: { halign: 'right', cellWidth: 18 },
         5: { halign: 'right', cellWidth: 15 },
-        6: { halign: 'right', cellWidth: 20 },
-        7: { halign: 'right', cellWidth: 15 },
-        8: { halign: 'right', cellWidth: 25 }
+        6: { halign: 'right', cellWidth: 18 },
+        7: { halign: 'right', cellWidth: 18 },
+        8: { halign: 'right', cellWidth: 28 }
       }
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 0;
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
 
-    // Amount in Words Header
+    // Amount in Words Section
     doc.setFillColor(59, 130, 246);
-    doc.rect(14, finalY + 5, 120, 8, 'F');
+    doc.rect(14, finalY, 120, 10, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
-    doc.text('Amount in Words', 16, finalY + 11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Amount in Words', 16, finalY + 7);
 
-    // Amount in Words Text
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Rupees ${numberToWords(invoice.total)} Only`, 14, finalY + 20);
+    doc.text(`Rupees ${numberToWords(invoice.total)} Only`, 14, finalY + 18);
 
     // Totals Section
-    const totalsX = 135;
+    const totalsX = 138;
     doc.setFillColor(59, 130, 246);
-    doc.rect(totalsX, finalY + 5, 61, 8, 'F');
+    doc.rect(totalsX, finalY, 58, 10, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.text('Amount', totalsX + 2, finalY + 11);
+    doc.text('Amount', totalsX + 2, finalY + 7);
 
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     
-    let currentY = finalY + 20;
+    let currentY = finalY + 18;
     const drawTotalLine = (label: string, value: number, isBold: boolean = false) => {
       if (isBold) doc.setFont('helvetica', 'bold');
       doc.text(label, totalsX, currentY);
       doc.text(value.toLocaleString(undefined, { minimumFractionDigits: 2 }), 196, currentY, { align: 'right' });
       if (isBold) doc.setFont('helvetica', 'normal');
+      doc.setDrawColor(200, 200, 200);
       doc.line(totalsX, currentY + 2, 196, currentY + 2);
       currentY += 8;
     };
 
     drawTotalLine('Sub Total', invoice.subtotal);
     drawTotalLine('Total', invoice.total, true);
-    drawTotalLine('Received', 0); // Assuming 0 for now as we don't track payments in Invoice model yet
+    drawTotalLine('Received', 0);
     drawTotalLine('Balance', invoice.total, true);
     
-    // Previous balance calculation (simplified for now)
     const prevBalance = party?.balance ? (party.balance - invoice.total) : 0;
     drawTotalLine('Previous Balance', prevBalance);
     drawTotalLine('Current Balance', party?.balance || 0, true);
