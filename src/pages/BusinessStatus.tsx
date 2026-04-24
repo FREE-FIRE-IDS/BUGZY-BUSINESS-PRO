@@ -125,10 +125,11 @@ export default function BusinessStatus() {
       headStyles: { fillColor: [99, 102, 241] }
     });
 
-    const pdfBlob = doc.output('bloburl');
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
     setPdfPreview({
       isOpen: true,
-      url: (pdfBlob as unknown) as string,
+      url: url,
       title: 'Business Status Report',
       fileName: `Business_Status_${new Date().toISOString().split('T')[0]}.pdf`
     });
