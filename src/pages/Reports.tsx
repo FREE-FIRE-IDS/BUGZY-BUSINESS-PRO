@@ -756,10 +756,11 @@ export default function Reports() {
       );
     }
 
-    const dataUri = doc.output('datauristring');
+    const pdfBlob = doc.output('blob');
+    const url = URL.createObjectURL(pdfBlob);
     setPdfPreview({
       isOpen: true,
-      url: dataUri,
+      url: url,
       title: `${activeReport} Report`,
       fileName: `${activeReport.replace(/\s+/g, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`
     });

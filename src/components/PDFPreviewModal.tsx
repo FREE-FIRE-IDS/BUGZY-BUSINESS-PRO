@@ -39,7 +39,14 @@ export default function PDFPreviewModal({ isOpen, onClose, pdfUrl, title, fileNa
   };
 
   const handleOpenNewTab = () => {
-    window.open(pdfUrl, '_blank');
+    // For blob URLs, sometimes direct window.open can be blocked or empty
+    const win = window.open();
+    if (win) {
+      win.document.write(
+        `<iframe src="${pdfUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`
+      );
+      win.document.title = title;
+    }
   };
 
   return (
@@ -69,7 +76,7 @@ export default function PDFPreviewModal({ isOpen, onClose, pdfUrl, title, fileNa
                 <button 
                   onClick={handleOpenNewTab}
                   className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                  title="Open in new tab"
+                  title="Full screen view"
                 >
                   <ExternalLink size={20} />
                 </button>
@@ -83,16 +90,17 @@ export default function PDFPreviewModal({ isOpen, onClose, pdfUrl, title, fileNa
             </div>
 
             {/* Viewer */}
-            <div className="flex-1 bg-slate-100 dark:bg-slate-800 p-4 md:p-8 overflow-hidden flex flex-col items-center justify-center relative">
+            <div className="flex-1 bg-slate-100 dark:bg-slate-800 p-2 md:p-4 overflow-hidden flex flex-col items-center justify-center relative">
                <iframe 
                 src={pdfUrl} 
-                className="w-full h-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white"
+                className="w-full h-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white shadow-inner"
                 title="PDF Preview"
+                key={pdfUrl}
                />
                <div className="absolute inset-0 pointer-events-none flex items-center justify-center -z-10">
                  <div className="flex flex-col items-center gap-4 text-slate-400">
                     <div className="w-12 h-12 border-4 border-slate-300 border-t-indigo-600 rounded-full animate-spin" />
-                    <p className="font-bold text-sm uppercase tracking-widest">Loading Preview...</p>
+                    <p className="font-bold text-sm uppercase tracking-widest">Rendering PDF...</p>
                  </div>
                </div>
             </div>
@@ -100,29 +108,29 @@ export default function PDFPreviewModal({ isOpen, onClose, pdfUrl, title, fileNa
             {/* Footer Actions */}
             <div className="p-6 md:p-8 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
               <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-                <div className="flex gap-3 w-full sm:w-auto">
+                <div className="flex flex-wrap gap-3 w-full sm:w-auto">
                     <button 
                       onClick={handleDownload}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-8 py-3.5 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
                     >
-                      <Download size={20} />
+                      <Download size={18} />
                       Download PDF
                     </button>
                     <button 
                       onClick={handleDownload}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-all"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
                     >
-                      <Save size={20} />
-                      Save PDF
+                      <Save size={18} />
+                      Export to PC
                     </button>
                 </div>
                 
                 <button 
                   onClick={handleShare}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95"
                 >
-                  <Share2 size={20} />
-                  Share Report
+                  <Share2 size={18} />
+                  Share Document
                 </button>
               </div>
             </div>

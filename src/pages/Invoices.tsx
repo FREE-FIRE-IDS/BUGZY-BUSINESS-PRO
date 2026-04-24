@@ -284,10 +284,11 @@ export default function Invoices() {
       drawTotalLine('Previous Balance', prevBalance);
       drawTotalLine('Current Balance', party?.balance || 0, true);
 
-      const dataUri = doc.output('datauristring');
+      const pdfBlob = doc.output('blob');
+      const url = URL.createObjectURL(pdfBlob);
       setPdfPreview({
         isOpen: true,
-        url: dataUri,
+        url: url,
         title: `Invoice ${invoice.invoice_number}`,
         fileName: `Invoice_${invoice.invoice_number}.pdf`
       });

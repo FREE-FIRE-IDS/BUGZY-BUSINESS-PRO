@@ -94,10 +94,11 @@ export default function Expenses() {
         footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
       });
 
-      const dataUri = doc.output('datauristring');
+      const pdfBlob = doc.output('blob');
+      const url = URL.createObjectURL(pdfBlob);
       setPdfPreview({
         isOpen: true,
-        url: dataUri,
+        url: url,
         title: 'Expense Report',
         fileName: `Expenses_Report_${new Date().getTime()}.pdf`
       });
