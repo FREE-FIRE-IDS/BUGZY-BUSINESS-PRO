@@ -29,7 +29,8 @@ import {
   ArrowLeft,
   ShieldCheck,
   Upload,
-  Crown
+  Crown,
+  BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -45,6 +46,7 @@ import Inventory from './pages/Inventory';
 import Expenses from './pages/Expenses';
 import Invoices from './pages/Invoices';
 import Reports from './pages/Reports';
+import BusinessStatus from './pages/BusinessStatus';
 import Settings from './pages/Settings';
 import Admin from './pages/Admin';
 import Activation from './pages/Activation';
@@ -692,6 +694,7 @@ export default function App() {
   const moreItems = [
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
+    { id: 'business-status', label: 'Business Status', icon: BarChart3, premium: true },
     { id: 'reports', label: 'Reports', icon: History, premium: true },
     { id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true },
     ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Premium Status', icon: Sparkles, premium: true }] : []),
@@ -742,6 +745,7 @@ export default function App() {
       case 'expenses': return <Expenses />;
       case 'invoices': return <Invoices />;
       case 'reports': return <Reports />;
+      case 'business-status': return <BusinessStatus />;
       case 'settings': return <Settings />;
       case 'admin': return <Admin />;
       default: return <Dashboard />;

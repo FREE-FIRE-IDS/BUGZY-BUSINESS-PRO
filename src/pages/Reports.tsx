@@ -15,7 +15,9 @@ import {
   ArrowDownLeft,
   ArrowLeftRight,
   X,
-  RefreshCw
+  RefreshCw,
+  Clock,
+  BarChart3
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, formatBalance, cn } from '../lib/utils';
@@ -55,7 +57,10 @@ type ReportType =
   | 'Purchase' 
   | 'Sale'
   | 'Expense' 
-  | 'Invoice';
+  | 'Invoice'
+  | 'Day Book'
+  | 'Balance Sheet'
+  | 'Cash Flow';
 
 export default function Reports() {
   const { transactions, parties, banks, items, invoices, settings, updateSettings, currentCompany, refreshData, pullCompanies } = useApp();
@@ -104,7 +109,10 @@ export default function Reports() {
     'Purchase': ['Date', 'Party', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total'],
     'Sale': ['Date', 'Party', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total'],
     'Expense': ['Date', 'Description', 'Category', 'Paid From', 'Amount'],
-    'Invoice': ['Invoice #', 'Date', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total']
+    'Invoice': ['Invoice #', 'Date', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total'],
+    'Day Book': ['Time', 'Description', 'Type', 'Account/Party', 'In (+)', 'Out (-)'],
+    'Balance Sheet': ['Category', 'Item', 'Amount', 'Total'],
+    'Cash Flow': ['Date', 'Category', 'Description', 'Cash In', 'Cash Out', 'Net Flow']
   }), [viewMode]);
 
   useEffect(() => {
@@ -123,6 +131,9 @@ export default function Reports() {
     { id: 'Sale', label: 'Sale Report', icon: ArrowUpRight },
     { id: 'Expense', label: 'Expense Report', icon: Receipt },
     { id: 'Invoice', label: 'Invoice Report', icon: FileText },
+    { id: 'Day Book', label: 'Day Book', icon: Clock },
+    { id: 'Balance Sheet', label: 'Balance Sheet', icon: FileSpreadsheet },
+    { id: 'Cash Flow', label: 'Cash Flow', icon: ArrowLeftRight },
   ];
 
   const filteredData = useMemo(() => {
@@ -479,6 +490,69 @@ export default function Reports() {
           }))
         );
         break;
+      case 'Day Book':
+        const dbTxs = companyTransactions.map(t => ({
+          ...t,
+          isInvoice: false,
+          'Time': new Date(t.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          'Description': t.description || t.type,
+          'Type': t.type,
+          'Account/Party': t.party_id ? parties.find(p => p.id === t.party_id)?.name : (t.bank_id ? banks.find(b => b.id === t.bank_id)?.name : 'Cash'),
+          'In (+)': ['Sale', 'Payment In', 'Stock In', 'Deposit', 'Income', 'Cash Adjustment In'].includes(t.type) ? t.amount : 0,
+          'Out (-)': ['Purchase', 'Payment Out', 'Stock Out', 'Withdraw', 'Expense', 'Cash Adjustment Out'].includes(t.type) ? t.amount : 0
+        }));
+        const dbInvs = companyInvoices.map(i => ({
+          ...i,
+          isInvoice: true,
+          'Time': new Date(i.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          'Description': `Invoice ${i.invoice_number}`,
+          'Type': i.type,
+          'Account/Party': parties.find(p => p.id === i.party_id)?.name || 'Direct',
+          'In (+)': i.type === 'Sale' ? i.total : 0,
+          'Out (-)': i.type === 'Purchase' ? i.total : 0
+        }));
+        result = filterByDate([...dbTxs, ...dbInvs]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        break;
+      case 'Balance Sheet':
+        const cashBalance = companyTransactions.reduce((sum, t) => {
+          if (t.type === 'Withdraw') return sum + t.amount;
+          if (t.type === 'Deposit') return sum - t.amount;
+          if (!t.bank_id && !t.to_bank_id) {
+            if (['Sale', 'Payment In', 'Stock In', 'Bank To Party', 'Cash Adjustment In'].includes(t.type)) return sum + t.amount;
+            if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank', 'Cash Adjustment Out'].includes(t.type)) return sum - t.amount;
+          }
+          return sum;
+        }, 0);
+        
+        const bankBalances = companyBanks.reduce((sum, b) => sum + b.balance, 0);
+        const stockValue = companyItems.reduce((sum, i) => sum + (i.stock * i.price), 0);
+        const receivables = parties.filter(p => p.company_id === currentCompany?.id && p.balance > 0).reduce((sum, p) => sum + p.balance, 0);
+        const payables = parties.filter(p => p.company_id === currentCompany?.id && p.balance < 0).reduce((sum, p) => sum + Math.abs(p.balance), 0);
+
+        result = [
+          { 'Category': 'Assets', 'Item': 'Cash in Hand', 'Amount': cashBalance, 'Total': 0 },
+          { 'Category': 'Assets', 'Item': 'Bank Balances', 'Amount': bankBalances, 'Total': 0 },
+          { 'Category': 'Assets', 'Item': 'Stock Value', 'Amount': stockValue, 'Total': 0 },
+          { 'Category': 'Assets', 'Item': 'Parties Receivable', 'Amount': receivables, 'Total': cashBalance + bankBalances + stockValue + receivables },
+          { 'Category': 'Liabilities', 'Item': 'Parties Payable', 'Amount': payables, 'Total': payables },
+          { 'Category': 'Equity', 'Item': 'Net Worth', 'Amount': (cashBalance + bankBalances + stockValue + receivables) - payables, 'Total': (cashBalance + bankBalances + stockValue + receivables) - payables }
+        ];
+        break;
+      case 'Cash Flow':
+        const cfTxs = companyTransactions.filter(t => !t.bank_id && !t.to_bank_id || t.type === 'Withdraw' || t.type === 'Deposit');
+        result = filterByDate(cfTxs).map(t => {
+          const is_in = ['Sale', 'Payment In', 'Withdraw', 'Income', 'Cash Adjustment In'].includes(t.type);
+          return {
+            ...t,
+            'Date': t.date,
+            'Category': t.category || t.type,
+            'Description': t.description || '-',
+            'Cash In': is_in ? t.amount : 0,
+            'Cash Out': !is_in ? t.amount : 0,
+            'Net Flow': is_in ? t.amount : -t.amount
+          };
+        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        break;
     }
 
     if (searchQuery) {
@@ -522,6 +596,21 @@ export default function Reports() {
         'Total': filteredData.reduce((s, d) => s + (d.total || d.amount || d.item_total || 0), 0)
       };
     }
+
+    if (activeReport === 'Day Book') {
+      return {
+        'In (+)': filteredData.reduce((s, d) => s + (d['In (+)'] || 0), 0),
+        'Out (-)': filteredData.reduce((s, d) => s + (d['Out (-)'] || 0), 0)
+      };
+    }
+
+    if (activeReport === 'Cash Flow') {
+      return {
+        'Cash In': filteredData.reduce((s, d) => s + (d['Cash In'] || 0), 0),
+        'Cash Out': filteredData.reduce((s, d) => s + (d['Cash Out'] || 0), 0),
+        'Net Flow': filteredData.reduce((s, d) => s + (d['Net Flow'] || 0), 0)
+      };
+    }
     
     return null;
   }, [filteredData, activeReport]);
@@ -537,7 +626,7 @@ export default function Reports() {
       const showDrCr = (col.includes('Balance') && isTotal) ? true : settings.show_dr_cr;
       return formatBalance(val, settings.currency, showDrCr);
     }
-    if (col.includes('Debit') || col.includes('Credit') || col.includes('Price') || col.includes('Value') || col === 'Qty' || col.includes('In (+)') || col.includes('Out (-)')) {
+    if (col.includes('Debit') || col.includes('Credit') || col.includes('Price') || col.includes('Value') || col === 'Qty' || col.includes('In (+)') || col.includes('Out (-)') || col === 'Cash In' || col === 'Cash Out' || col === 'Net Flow') {
       return formatCurrency(val, settings.currency);
     }
     return String(val);
