@@ -500,7 +500,15 @@ export default function Reports() {
     if (activeReport === 'Stock') return { 'Value': filteredData.reduce((s, d) => s + d.value, 0) };
     if (activeReport === 'Purchase' || activeReport === 'Sale') return { 'Total': filteredData.reduce((s, d) => s + (d.total || d.amount), 0) };
     if (activeReport === 'Expense') return { 'Amount': filteredData.reduce((s, d) => s + d.amount, 0) };
-    if (activeReport === 'Invoice') return { 'Total': filteredData.reduce((s, d) => s + (d.item_total || 0), 0) };
+    if (activeReport === 'Invoice') {
+      return { 
+        'Qty': filteredData.reduce((s, d) => s + (d.qty || 0), 0),
+        'Total Wt': filteredData.reduce((s, d) => s + (d.total_weight || 0), 0),
+        'Shortage': filteredData.reduce((s, d) => s + (d.shortage || 0), 0),
+        'Net Wt': filteredData.reduce((s, d) => s + (d.net_weight || 0), 0),
+        'Total': filteredData.reduce((s, d) => s + (d.item_total || 0), 0)
+      };
+    }
     
     return null;
   }, [filteredData, activeReport]);
