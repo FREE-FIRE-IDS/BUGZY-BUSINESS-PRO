@@ -98,6 +98,8 @@ export interface Transaction {
   to_bank_id?: string;
   item_id?: string;
   quantity?: number;
+  unit?: string;
+  price?: number;
   shipping_mark?: string;
   total_weight?: number;
   shortage?: number;

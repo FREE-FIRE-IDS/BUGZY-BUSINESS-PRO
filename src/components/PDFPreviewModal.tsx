@@ -1,0 +1,134 @@
+import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { X, Download, Share2, ExternalLink, Save } from 'lucide-react';
+import { cn } from '../lib/utils';
+
+interface PDFPreviewModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  pdfUrl: string;
+  title: string;
+  fileName: string;
+}
+
+export default function PDFPreviewModal({ isOpen, onClose, pdfUrl, title, fileName }: PDFPreviewModalProps) {
+  const handleDownload = () => {
+    const link = document.createElement('a');
+    link.href = pdfUrl;
+    link.download = fileName;
+    link.click();
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        const response = await fetch(pdfUrl);
+        const blob = await response.blob();
+        const file = new File([blob], fileName, { type: 'application/pdf' });
+        await navigator.share({
+          files: [file],
+          title: title,
+          text: 'Check out this document',
+        });
+      } catch (error) {
+        console.error('Error sharing:', error);
+      }
+    } else {
+      handleDownload();
+    }
+  };
+
+  const handleOpenNewTab = () => {
+    window.open(pdfUrl, '_blank');
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            onClick={onClose} 
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur-md" 
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }} 
+            animate={{ opacity: 1, scale: 1, y: 0 }} 
+            exit={{ opacity: 0, scale: 0.9, y: 20 }} 
+            className="relative w-full h-full max-w-5xl bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden"
+          >
+            {/* Header */}
+            <div className="p-6 md:p-8 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{title}</h2>
+                <p className="text-xs text-slate-500 font-bold tracking-widest uppercase mt-1">{fileName}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleOpenNewTab}
+                  className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  title="Open in new tab"
+                >
+                  <ExternalLink size={20} />
+                </button>
+                <button 
+                  onClick={onClose} 
+                  className="p-3 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-2xl hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Viewer */}
+            <div className="flex-1 bg-slate-100 dark:bg-slate-800 p-4 md:p-8 overflow-hidden flex flex-col items-center justify-center relative">
+               <iframe 
+                src={pdfUrl} 
+                className="w-full h-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white"
+                title="PDF Preview"
+               />
+               <div className="absolute inset-0 pointer-events-none flex items-center justify-center -z-10">
+                 <div className="flex flex-col items-center gap-4 text-slate-400">
+                    <div className="w-12 h-12 border-4 border-slate-300 border-t-indigo-600 rounded-full animate-spin" />
+                    <p className="font-bold text-sm uppercase tracking-widest">Loading Preview...</p>
+                 </div>
+               </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="p-6 md:p-8 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                <div className="flex gap-3 w-full sm:w-auto">
+                    <button 
+                      onClick={handleDownload}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-8 py-3.5 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+                    >
+                      <Download size={20} />
+                      Download PDF
+                    </button>
+                    <button 
+                      onClick={handleDownload}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-all"
+                    >
+                      <Save size={20} />
+                      Save PDF
+                    </button>
+                </div>
+                
+                <button 
+                  onClick={handleShare}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                >
+                  <Share2 size={20} />
+                  Share Report
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}

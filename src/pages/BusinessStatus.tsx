@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   Users, 
   Building2, 
@@ -10,13 +10,15 @@ import {
   ArrowDownLeft,
   Package,
   FileText,
-  BarChart3
+  BarChart3,
+  Download
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, cn } from '../lib/utils';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+import PDFPreviewModal from '../components/PDFPreviewModal';
 
 // Extend jsPDF with autotable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -33,6 +35,14 @@ export default function BusinessStatus() {
     currentCompany, 
     settings 
   } = useApp();
+
+  // PDF Preview State
+  const [pdfPreview, setPdfPreview] = useState<{ isOpen: boolean, url: string, title: string, fileName: string }>({
+    isOpen: false,
+    url: '',
+    title: '',
+    fileName: ''
+  });
 
   const companyId = currentCompany?.id;
 
@@ -115,7 +125,13 @@ export default function BusinessStatus() {
       headStyles: { fillColor: [99, 102, 241] }
     });
 
-    doc.save(`Business_Status_${new Date().toISOString().split('T')[0]}.pdf`);
+    const pdfBlob = doc.output('bloburl');
+    setPdfPreview({
+      isOpen: true,
+      url: (pdfBlob as unknown) as string,
+      title: 'Business Status Report',
+      fileName: `Business_Status_${new Date().toISOString().split('T')[0]}.pdf`
+    });
   };
   const cards = [
     { title: 'Parties Receivable', value: stats.receivables, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
@@ -339,6 +355,14 @@ export default function BusinessStatus() {
           </div>
         </div>
       </div>
+
+      <PDFPreviewModal 
+        isOpen={pdfPreview.isOpen}
+        onClose={() => setPdfPreview({ ...pdfPreview, isOpen: false })}
+        pdfUrl={pdfPreview.url}
+        title={pdfPreview.title}
+        fileName={pdfPreview.fileName}
+      />
     </div>
   );
 }

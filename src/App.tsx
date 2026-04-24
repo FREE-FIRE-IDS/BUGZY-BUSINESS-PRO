@@ -898,7 +898,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Viewport */}
-      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+      <div className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
         {/* Topbar */}
         <header className={cn(
           "h-16 border-b flex items-center justify-between px-4 md:px-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shrink-0 z-20",
@@ -960,9 +960,9 @@ export default function App() {
         </header>
 
         {/* Scrollable Area */}
-        <main className="flex-1 overflow-y-auto no-scrollbar scroll-smooth">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar scroll-smooth">
           {currentCompany && (
-            <div className="sticky top-0 z-10">
+            <div className="sticky top-0 z-10 w-full">
               <TrialBanner 
                 company={currentCompany} 
                 isLicensed={isLicensed()} 
@@ -974,50 +974,52 @@ export default function App() {
             </div>
           )}
 
-          <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                {activeTab === 'more' ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 pb-24 lg:pb-0">
-                    {moreItems.map(item => (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          if (item.premium && !isLicensedUser && isTrialExpired) {
-                            setForceUpgrade(true);
-                            setDismissedPayment(false);
-                          } else {
-                            setActiveTab(item.id);
-                          }
-                        }}
-                        className={cn(
-                          "flex flex-col items-center justify-center p-4 sm:p-6 rounded-2xl border transition-all gap-2 sm:gap-3",
-                          theme === 'dark' 
-                            ? "bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-50" 
-                            : "bg-white border-slate-200 hover:bg-slate-50 text-slate-900"
-                        )}
-                      >
-                        <div className="p-2 sm:p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl relative">
-                          <item.icon size={22} className="sm:w-6 sm:h-6" />
-                          {item.premium && isTrialExpired && !isLicensedUser && (
-                            <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white shadow-lg">
-                              <Crown size={8} className="sm:w-2.5 sm:h-2.5 fill-white" />
-                            </div>
+          <div className="p-4 md:p-8 w-full">
+            <div className="max-w-7xl mx-auto">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {activeTab === 'more' ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 pb-24 lg:pb-0">
+                      {moreItems.map(item => (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            if (item.premium && !isLicensedUser && isTrialExpired) {
+                              setForceUpgrade(true);
+                              setDismissedPayment(false);
+                            } else {
+                              setActiveTab(item.id);
+                            }
+                          }}
+                          className={cn(
+                            "flex flex-col items-center justify-center p-4 sm:p-6 rounded-2xl border transition-all gap-2 sm:gap-3",
+                            theme === 'dark' 
+                              ? "bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-50" 
+                              : "bg-white border-slate-200 hover:bg-slate-50 text-slate-900"
                           )}
-                        </div>
-                        <span className="font-bold text-[10px] sm:text-sm uppercase tracking-wider">{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : renderPage()}
-              </motion.div>
-            </AnimatePresence>
+                        >
+                          <div className="p-2 sm:p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl relative">
+                            <item.icon size={22} className="sm:w-6 sm:h-6" />
+                            {item.premium && isTrialExpired && !isLicensedUser && (
+                              <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white shadow-lg">
+                                <Crown size={8} className="sm:w-2.5 sm:h-2.5 fill-white" />
+                              </div>
+                            )}
+                          </div>
+                          <span className="font-bold text-[10px] sm:text-sm uppercase tracking-wider">{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : renderPage()}
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
         </main>
 

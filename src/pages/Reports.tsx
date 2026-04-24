@@ -24,6 +24,7 @@ import { formatCurrency, formatDate, formatBalance, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+import PDFPreviewModal from '../components/PDFPreviewModal';
 
 // Extend jsPDF with autotable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -70,6 +71,14 @@ type ReportType =
 export default function Reports() {
   const { transactions, parties, banks, items, invoices, settings, updateSettings, currentCompany, refreshData, pullCompanies } = useApp();
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // PDF Preview State
+  const [pdfPreview, setPdfPreview] = useState<{ isOpen: boolean, url: string, title: string, fileName: string }>({
+    isOpen: false,
+    url: '',
+    title: '',
+    fileName: ''
+  });
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -747,7 +756,13 @@ export default function Reports() {
       );
     }
 
-    doc.save(`${activeReport.replace(/\s+/g, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+    const pdfBlob = doc.output('bloburl');
+    setPdfPreview({
+      isOpen: true,
+      url: (pdfBlob as unknown) as string,
+      title: `${activeReport} Report`,
+      fileName: `${activeReport.replace(/\s+/g, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`
+    });
     console.log(`PDF Generated: ${activeReport}`);
   };
 
@@ -1083,6 +1098,14 @@ export default function Reports() {
           </div>
         )}
       </AnimatePresence>
+
+      <PDFPreviewModal 
+        isOpen={pdfPreview.isOpen}
+        onClose={() => setPdfPreview({ ...pdfPreview, isOpen: false })}
+        pdfUrl={pdfPreview.url}
+        title={pdfPreview.title}
+        fileName={pdfPreview.fileName}
+      />
     </div>
     </div>
   );
