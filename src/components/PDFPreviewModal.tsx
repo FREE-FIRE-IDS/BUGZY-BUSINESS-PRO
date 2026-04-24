@@ -19,6 +19,34 @@ export default function PDFPreviewModal({ isOpen, onClose, pdfUrl, title, fileNa
     link.click();
   };
 
+  const handleExport = async () => {
+    try {
+      if ('showSaveFilePicker' in window) {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: fileName,
+          types: [{
+            description: 'PDF Document',
+            accept: { 'application/pdf': ['.pdf'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        const response = await fetch(pdfUrl);
+        const blob = await response.blob();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        handleDownload();
+      }
+    } catch (err) {
+      // If user cancels or something goes wrong, we don't necessarily want to force a download
+      // but AbortError is expected if user closes the dialog.
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error('Export failed:', err);
+        handleDownload();
+      }
+    }
+  };
+
   const handleShare = async () => {
     if (navigator.share) {
       try {
@@ -117,7 +145,7 @@ export default function PDFPreviewModal({ isOpen, onClose, pdfUrl, title, fileNa
                       Download PDF
                     </button>
                     <button 
-                      onClick={handleDownload}
+                      onClick={handleExport}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
                     >
                       <Save size={18} />
