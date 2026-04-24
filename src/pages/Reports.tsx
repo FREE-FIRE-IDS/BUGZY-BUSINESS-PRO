@@ -549,6 +549,9 @@ export default function Reports() {
     const visibleCols = getVisibleColumns(activeReport);
     head = [visibleCols];
 
+    // Build body generically using formatValue
+    body = filteredData.map(d => visibleCols.map(col => formatValue(col, d[col])));
+
     if (activeReport === 'All Banks') {
       doc.setFontSize(10);
       doc.text(`Cash in Hand: ${formatCurrency(transactions.filter(t => !t.bank_id && t.company_id === currentCompany?.id).reduce((sum, t) => {
@@ -559,179 +562,44 @@ export default function Reports() {
       doc.text(`Total Bank Balances: ${formatCurrency(banks.filter(b => b.company_id === currentCompany?.id).reduce((sum, b) => sum + b.balance, 0), settings.currency)}`, 14, 61);
     }
 
-    if (activeReport === 'All Parties') {
-      body = filteredData.map(d => {
-        const row: any[] = [];
-        if (selectedColumns.includes('Party Name')) row.push(d.name);
-        if (selectedColumns.includes('Type')) row.push(d.type);
-        if (selectedColumns.includes('Debit (DR)')) row.push(d.balance >= 0 ? formatCurrency(d.balance, settings.currency) : '-');
-        if (selectedColumns.includes('Credit (CR)')) row.push(d.balance < 0 ? formatCurrency(Math.abs(d.balance), settings.currency) : '-');
-        if (selectedColumns.includes('Balance')) row.push(formatBalance(d.balance, settings.currency, settings.show_dr_cr));
-        return row;
-      });
-      const totalDebit = filteredData.filter(d => d.balance >= 0).reduce((sum, d) => sum + d.balance, 0);
-      const totalCredit = filteredData.filter(d => d.balance < 0).reduce((sum, d) => sum + Math.abs(d.balance), 0);
-      const finalBalance = totalDebit - totalCredit;
-      
-      autoTable(doc, {
-        head,
-        body,
-        startY: 50,
-        theme: 'grid',
-        foot: [visibleCols.map(col => {
-          if (col === 'Party Name') return '';
-          if (col === 'Type') return 'Total';
-          if (col === 'Debit (DR)') return formatCurrency(totalDebit, settings.currency);
-          if (col === 'Credit (CR)') return formatCurrency(totalCredit, settings.currency);
-          if (col === 'Balance') return formatBalance(finalBalance, settings.currency, true);
-          return '';
-        })],
-        footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
-      });
-    } else if (activeReport === 'Single Party' || activeReport === 'Single Bank') {
-      let runningBalance = 0;
-      body = filteredData.map(d => {
-        let isDebit = false;
-        let amountValue = d.amount || 0;
+    const startY = activeReport === 'All Banks' ? 68 : (selectedEntity ? 55 : 50);
 
-        if (d.isOpening) {
-          runningBalance = amountValue;
-        } else {
-          isDebit = d.type === 'Sale' || d.type === 'Payment In' || d.type === 'Deposit' || d.type === 'Party To Bank' || d.type === 'Bank To Party' || d.type === 'Stock Out';
-          if (isDebit) runningBalance += amountValue;
-          else runningBalance -= amountValue;
+    autoTable(doc, {
+      head,
+      body,
+      startY,
+      theme: 'grid',
+      headStyles: { 
+        fillColor: [99, 102, 241],
+        textColor: [255, 255, 255],
+        fontSize: 10,
+        fontStyle: 'bold'
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 3,
+        valign: 'middle'
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      },
+      foot: [visibleCols.map(col => {
+        const totalVal = tableTotals ? (tableTotals as any)[col] : undefined;
+        if (totalVal !== undefined) {
+          return formatValue(col, totalVal, true);
         }
-        
-        const row: any[] = [];
-        if (selectedColumns.includes('Date')) row.push(d.isOpening ? '-' : formatDate(d.date));
-        if (selectedColumns.includes('Description')) row.push(d.description || d.type);
-        if (selectedColumns.includes('Debit') || selectedColumns.includes('Deposit')) row.push((!d.isOpening && isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
-        if (selectedColumns.includes('Credit') || selectedColumns.includes('Withdrawal')) row.push((!d.isOpening && !isDebit) ? formatCurrency(amountValue, settings.currency) : '-');
-        if (selectedColumns.includes('Balance')) row.push(formatBalance(runningBalance, settings.currency, settings.show_dr_cr));
-        return row;
-      });
-      total = runningBalance;
-    } else if (activeReport === 'All Banks') {
-      body = filteredData.map(d => {
-        const row: any[] = [];
-        if (selectedColumns.includes('Bank Name')) row.push(d.name);
-        if (selectedColumns.includes('Account #')) row.push(d.account || '-');
-        if (selectedColumns.includes('Debit (DR)')) row.push(d.balance >= 0 ? formatCurrency(d.balance, settings.currency) : '-');
-        if (selectedColumns.includes('Credit (CR)')) row.push(d.balance < 0 ? formatCurrency(Math.abs(d.balance), settings.currency) : '-');
-        if (selectedColumns.includes('Balance')) row.push(formatBalance(d.balance, settings.currency, settings.show_dr_cr));
-        return row;
-      });
-      const totalDebit = filteredData.filter(d => d.balance >= 0).reduce((sum, d) => sum + d.balance, 0);
-      const totalCredit = filteredData.filter(d => d.balance < 0).reduce((sum, d) => sum + Math.abs(d.balance), 0);
-      const finalBalance = totalDebit - totalCredit;
-
-        autoTable(doc, {
-          head,
-          body,
-          startY: 68,
-          theme: 'grid',
-          foot: [visibleCols.map(col => {
-            const nameCol = activeReport === 'All Banks' ? 'Bank Name' : 'Account #';
-            if (col === nameCol) return 'Total';
-            if (col === 'Debit (DR)') return formatCurrency(totalDebit, settings.currency);
-            if (col === 'Credit (CR)') return formatCurrency(totalCredit, settings.currency);
-            if (col === 'Balance') return formatBalance(finalBalance, settings.currency, true);
-            return '';
-          })],
-          footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
-        });
-    } else if (activeReport === 'Stock') {
-      body = filteredData.map(d => {
-        const row: any[] = [];
-        if (selectedColumns.includes('Item Name')) row.push(d.name);
-        if (selectedColumns.includes('SKU')) row.push(d.sku || '-');
-        if (selectedColumns.includes('Unit')) row.push(d.unit || '-');
-        if (selectedColumns.includes('Price')) row.push(formatCurrency(d.price, settings.currency));
-        if (selectedColumns.includes('Stock')) row.push(d.stock);
-        if (selectedColumns.includes('Value')) row.push(formatCurrency(d.value, settings.currency));
-        return row;
-      });
-      total = filteredData.reduce((sum, d) => sum + d.value, 0);
-    } else if (activeReport === 'Purchase' || activeReport === 'Sale') {
-      body = filteredData.map(d => {
-        const row: any[] = [];
-        if (selectedColumns.includes('Date')) row.push(formatDate(d.date));
-        if (selectedColumns.includes('Party')) row.push(d.party_name || '-');
-        if (selectedColumns.includes('Item')) row.push(d.item_name || '-');
-        if (selectedColumns.includes('Qty')) row.push(d.qty || d.quantity || '1');
-        if (selectedColumns.includes('Unit')) row.push(d.unit || '-');
-        if (selectedColumns.includes('Price')) row.push(formatCurrency(d.unit_price || d.price, settings.currency));
-        if (selectedColumns.includes('Total')) row.push(formatCurrency(d.total || d.amount, settings.currency));
-        return row;
-      });
-      total = filteredData.reduce((sum, d) => sum + (d.total || d.amount), 0);
-    } else if (activeReport === 'Expense') {
-      body = filteredData.map(d => {
-        const row: any[] = [];
-        if (selectedColumns.includes('Date')) row.push(formatDate(d.date));
-        if (selectedColumns.includes('Description')) row.push(d.description || '-');
-        if (selectedColumns.includes('Category')) row.push(d.category || '-');
-        if (selectedColumns.includes('Paid From')) row.push(d.paid_from || 'Cash');
-        if (selectedColumns.includes('Amount')) row.push(formatCurrency(d.amount, settings.currency));
-        return row;
-      });
-      total = filteredData.reduce((sum, d) => sum + d.amount, 0);
-    } else if (activeReport === 'Invoice') {
-      body = filteredData.map(d => {
-        const row: any[] = [];
-        if (selectedColumns.includes('Invoice #')) row.push(d.invoice_number);
-        if (selectedColumns.includes('Date')) row.push(formatDate(d.date));
-        if (selectedColumns.includes('Item')) row.push(d.item_name);
-        if (selectedColumns.includes('Qty')) row.push(d.qty);
-        if (selectedColumns.includes('Unit')) row.push(d.unit);
-        if (selectedColumns.includes('Price')) row.push(formatCurrency(d.unit_price, settings.currency));
-        if (selectedColumns.includes('Total')) row.push(formatCurrency(d.item_total, settings.currency));
-        return row;
-      });
-      total = filteredData.reduce((sum, d) => sum + d.item_total, 0);
-    }
-
-    if (activeReport !== 'All Parties' && activeReport !== 'All Banks') {
-      autoTable(doc, {
-        head,
-        body,
-        startY: selectedEntity ? 55 : 50,
-        theme: 'grid',
-        headStyles: { 
-          fillColor: [99, 102, 241],
-          textColor: [255, 255, 255],
-          fontSize: 10,
-          fontStyle: 'bold'
-        },
-        styles: {
-          fontSize: 9,
-          cellPadding: 3
-        },
-        alternateRowStyles: {
-          fillColor: [248, 250, 252]
-        },
-        foot: (() => {
-          if (activeReport === 'Single Party' || activeReport === 'Single Bank') {
-            return [visibleCols.map(col => {
-              if (col === 'Balance') return formatBalance(total, settings.currency, true);
-              if (col === 'Credit' || col === 'Withdrawal') return 'Total Balance';
-              return '';
-            })];
-          }
-          return [visibleCols.map(col => {
-            if (col === 'Balance') return formatBalance(total, settings.currency, true);
-            if (col === 'Amount' || col === 'Value' || col === 'Total' || col.includes('In (+)') || col.includes('Out (-)')) return formatCurrency(total, settings.currency);
-            if (col === 'Description' || col === 'SKU' || col === 'Price' || col.includes('DR') || col.includes('CR')) return 'Total';
-            return '';
-          })];
-        })(),
-        footStyles: {
-          fillColor: [241, 245, 249],
-          textColor: [30, 41, 59],
-          fontStyle: 'bold'
+        // Labels for totals
+        if (col === 'Date' || col === 'Party Name' || col === 'Bank Name' || col === 'Item Name' || col === 'Invoice #') {
+          return 'Grand Total';
         }
-      });
-    }
+        return '';
+      })],
+      footStyles: {
+        fillColor: [241, 245, 249],
+        textColor: [30, 41, 59],
+        fontStyle: 'bold'
+      }
+    });
 
     // Footer
     const pageCount = (doc as any).internal.getNumberOfPages();
