@@ -122,53 +122,53 @@ export default function Invoices() {
       if (n < 100) return formatShort(n);
       if (n < 1000) return a[Math.floor(n / 100)] + ' Hundred' + (n % 100 === 0 ? '' : ' and ' + convert(n % 100));
       if (n < 100000) return convert(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 === 0 ? '' : ' ' + convert(n % 1000));
-      if (n < 10000000) return convert(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 === 0 ? '' : ' ' + convert(n % 100000));
-      return convert(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 === 0 ? '' : ' ' + convert(n % 10000000));
+      if (n < 10000000) return convert(Math.floor(n / 100000)) + ' lakh' + (n % 100000 === 0 ? '' : ' ' + convert(n % 100000));
+      return convert(Math.floor(n / 10000000)) + ' crore' + (n % 10000000 === 0 ? '' : ' ' + convert(n % 10000000));
     };
 
     return num === 0 ? 'Zero' : convert(Math.floor(num));
   };
 
-  const exportInvoicePDF = (invoice: any) => {
+    const exportInvoicePDF = (invoice: any) => {
     const doc = new jsPDF();
     const party = parties.find(p => p.id === invoice.party_id);
     
-    // Header - Centered Box
+    // Header - Blue Border Box
     doc.setDrawColor(59, 130, 246); // Blue-500
     doc.setLineWidth(0.8);
-    doc.rect(14, 10, 182, 12);
+    doc.rect(14, 10, 182, 10);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text('SALE INVOICE', 105, 18, { align: 'center' });
+    doc.text('SALE INVOICE', 105, 17, { align: 'center' });
 
     // Info Section
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
     
-    // Bill To
+    // Bill To Row
     doc.setFont('helvetica', 'bold');
-    doc.text('Bill To.', 14, 32);
+    doc.text('Bill To.', 14, 30);
     doc.setFont('helvetica', 'normal');
-    doc.text(party?.name || 'Cash Customer', 40, 32);
+    doc.text(party?.name || 'Cash Customer', 40, 30);
     
-    // Invoice No
+    // Invoice No Row
     doc.setFont('helvetica', 'bold');
-    doc.text('Invoice No.', 145, 32);
+    doc.text('Invoice No.', 150, 30);
     doc.setFont('helvetica', 'normal');
-    doc.text(invoice.invoice_number, 196, 32, { align: 'right' });
+    doc.text(invoice.invoice_number || '-', 196, 30, { align: 'right' });
 
-    // Contact
+    // Contact Row
     doc.setFont('helvetica', 'bold');
-    doc.text('Contact.', 14, 42);
+    doc.text('Contact.', 14, 40);
     doc.setFont('helvetica', 'normal');
-    doc.text(party?.phone || '-', 40, 42);
+    doc.text(party?.phone || '-', 40, 40);
 
-    // Date
+    // Date Row
     doc.setFont('helvetica', 'bold');
-    doc.text('Date', 145, 42);
+    doc.text('Date', 150, 40);
     doc.setFont('helvetica', 'normal');
-    doc.text(formatDate(invoice.date), 196, 42, { align: 'right' });
+    doc.text(formatDate(invoice.date), 196, 40, { align: 'right' });
 
     // Table
     const tableData = invoice.items.map((item: any, idx: number) => [
@@ -176,20 +176,20 @@ export default function Invoices() {
       item.shipping_mark || '-',
       item.name,
       item.quantity,
-      item.total_weight ? Number(item.total_weight).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00',
-      item.shortage ? Number(item.shortage).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00',
-      item.net_weight ? Number(item.net_weight).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00',
-      Number(item.price).toLocaleString(undefined, { minimumFractionDigits: 2 }),
-      Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2 })
+      item.total_weight ? Number(item.total_weight).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00',
+      item.shortage ? Number(item.shortage).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00',
+      item.net_weight ? Number(item.net_weight).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00',
+      Number(item.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     ]);
 
     autoTable(doc, {
       head: [['No.', 'Shipping Mark', 'Item Name', 'Qty', 'Total Wt', 'Shortage', 'NetWt', 'Price / Kg', 'Total']],
       body: tableData,
-      startY: 50,
+      startY: 48,
       theme: 'grid',
       headStyles: { 
-        fillColor: [59, 130, 246], // Blue-500
+        fillColor: [59, 130, 246],
         textColor: [255, 255, 255],
         fontSize: 8.5,
         fontStyle: 'bold',
@@ -207,45 +207,47 @@ export default function Invoices() {
         1: { cellWidth: 40 },
         2: { cellWidth: 35 },
         3: { halign: 'center', cellWidth: 10 },
-        4: { halign: 'right', cellWidth: 18 },
+        4: { halign: 'right', cellWidth: 20 },
         5: { halign: 'right', cellWidth: 15 },
-        6: { halign: 'right', cellWidth: 18 },
-        7: { halign: 'right', cellWidth: 18 },
-        8: { halign: 'right', cellWidth: 28 }
+        6: { halign: 'right', cellWidth: 20 },
+        7: { halign: 'right', cellWidth: 20 },
+        8: { halign: 'right', cellWidth: 25 }
       }
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    const finalY = (doc as any).lastAutoTable.finalY + 5;
 
-    // Amount in Words Section
+    // Amount in Words Header
     doc.setFillColor(59, 130, 246);
-    doc.rect(14, finalY, 120, 10, 'F');
+    doc.rect(14, finalY + 5, 120, 8, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('Amount in Words', 16, finalY + 7);
+    doc.text('Amount in Words', 16, finalY + 11);
 
+    // Amount text
     doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Rupees ${numberToWords(invoice.total)} Only`, 14, finalY + 18);
+    doc.setFontSize(10);
+    doc.text(`Rupees ${numberToWords(invoice.total)} Only`, 14, finalY + 22);
 
     // Totals Section
-    const totalsX = 138;
+    const totalsX = 135;
     doc.setFillColor(59, 130, 246);
-    doc.rect(totalsX, finalY, 58, 10, 'F');
+    doc.rect(totalsX, finalY + 5, 61, 8, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.text('Amount', totalsX + 2, finalY + 7);
+    doc.text('Amount', totalsX + 2, finalY + 11);
 
     doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     
-    let currentY = finalY + 18;
+    let currentY = finalY + 22;
     const drawTotalLine = (label: string, value: number, isBold: boolean = false) => {
       if (isBold) doc.setFont('helvetica', 'bold');
+      else doc.setFont('helvetica', 'normal');
+      
       doc.text(label, totalsX, currentY);
-      doc.text(value.toLocaleString(undefined, { minimumFractionDigits: 2 }), 196, currentY, { align: 'right' });
-      if (isBold) doc.setFont('helvetica', 'normal');
+      doc.text(value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 196, currentY, { align: 'right' });
+      
       doc.setDrawColor(200, 200, 200);
       doc.line(totalsX, currentY + 2, 196, currentY + 2);
       currentY += 8;
