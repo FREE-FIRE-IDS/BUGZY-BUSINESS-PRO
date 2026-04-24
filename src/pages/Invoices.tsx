@@ -15,7 +15,7 @@ import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn, numberToWords } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 
 // Extend jsPDF with autotable
@@ -205,7 +205,7 @@ export default function Invoices() {
         Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       ]);
 
-      doc.autoTable({
+      autoTable(doc, {
         head: [['No.', 'Shipping Mark', 'Item Name', 'Qty', 'Total Wt', 'Shortage', 'NetWt', 'Price / Kg', 'Total']],
         body: tableData,
         startY: 48,
@@ -231,8 +231,8 @@ export default function Invoices() {
           3: { halign: 'center', cellWidth: 10 },
           4: { halign: 'right', cellWidth: 20 },
           5: { halign: 'right', cellWidth: 15 },
-          6: { halign: 'right', cellWidth: 20 },
-          7: { halign: 'right', cellWidth: 20 },
+          6: { halign: 'right', cellWidth: 15 },
+          7: { halign: 'right', cellWidth: 25 },
           8: { halign: 'right', cellWidth: 25 }
         }
       });
@@ -284,11 +284,10 @@ export default function Invoices() {
       drawTotalLine('Previous Balance', prevBalance);
       drawTotalLine('Current Balance', party?.balance || 0, true);
 
-      const blob = doc.output('blob');
-      const url = URL.createObjectURL(blob);
+      const dataUri = doc.output('datauristring');
       setPdfPreview({
         isOpen: true,
-        url: url,
+        url: dataUri,
         title: `Invoice ${invoice.invoice_number}`,
         fileName: `Invoice_${invoice.invoice_number}.pdf`
       });

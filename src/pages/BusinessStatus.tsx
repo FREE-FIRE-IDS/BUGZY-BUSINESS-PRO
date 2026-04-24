@@ -17,7 +17,7 @@ import { useApp } from '../contexts/AppContext';
 import { formatCurrency, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 
 // Extend jsPDF with autotable
@@ -93,46 +93,49 @@ export default function BusinessStatus() {
   }, [companyId, transactions, parties, banks, items, invoices]);
 
   const exportPDF = () => {
-    const doc = new jsPDF() as jsPDFWithAutoTable;
-    const dateStr = new Date().toLocaleDateString();
+    try {
+      const doc = new jsPDF() as jsPDFWithAutoTable;
+      
+      doc.setFontSize(22);
+      doc.setTextColor(30, 41, 59);
+      doc.text(currentCompany?.name || 'Business Status', 14, 20);
+      
+      doc.setFontSize(14);
+      doc.setTextColor(99, 102, 241);
+      doc.text('Business Status Report', 14, 30);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 38);
 
-    doc.setFontSize(22);
-    doc.setTextColor(30, 41, 59);
-    doc.text(currentCompany?.name || 'Business Status', 14, 20);
-    
-    doc.setFontSize(14);
-    doc.setTextColor(99, 102, 241);
-    doc.text('Business Status Report', 14, 30);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(148, 163, 184);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 38);
+      autoTable(doc, {
+        startY: 45,
+        head: [['Metric', 'Value']],
+        body: [
+          ['Total Receivables', formatCurrency(stats.receivables, settings.currency)],
+          ['Total Payables', formatCurrency(stats.payables, settings.currency)],
+          ['Bank Balances', formatCurrency(stats.totalBankBalance, settings.currency)],
+          ['Cash in Hand', formatCurrency(stats.cashInHand, settings.currency)],
+          ['Stock Value', formatCurrency(stats.totalStockValue, settings.currency)],
+          ['Total Sales', formatCurrency(stats.totalSale, settings.currency)],
+          ['Total Purchases', formatCurrency(stats.totalPurchase, settings.currency)],
+          ['Total Expenses', formatCurrency(stats.totalExpenses, settings.currency)],
+          ['Net Worth', formatCurrency(stats.netWorth, settings.currency)],
+        ],
+        headStyles: { fillColor: [99, 102, 241] }
+      });
 
-    doc.autoTable({
-      startY: 45,
-      head: [['Metric', 'Value']],
-      body: [
-        ['Total Receivables', formatCurrency(stats.receivables, settings.currency)],
-        ['Total Payables', formatCurrency(stats.payables, settings.currency)],
-        ['Bank Balances', formatCurrency(stats.totalBankBalance, settings.currency)],
-        ['Cash in Hand', formatCurrency(stats.cashInHand, settings.currency)],
-        ['Stock Value', formatCurrency(stats.totalStockValue, settings.currency)],
-        ['Total Sales', formatCurrency(stats.totalSale, settings.currency)],
-        ['Total Purchases', formatCurrency(stats.totalPurchase, settings.currency)],
-        ['Total Expenses', formatCurrency(stats.totalExpenses, settings.currency)],
-        ['Net Worth', formatCurrency(stats.netWorth, settings.currency)],
-      ],
-      headStyles: { fillColor: [99, 102, 241] }
-    });
-
-    const blob = doc.output('blob');
-    const url = URL.createObjectURL(blob);
-    setPdfPreview({
-      isOpen: true,
-      url: url,
-      title: 'Business Status Report',
-      fileName: `Business_Status_${new Date().toISOString().split('T')[0]}.pdf`
-    });
+      const dataUri = doc.output('datauristring');
+      setPdfPreview({
+        isOpen: true,
+        url: dataUri,
+        title: 'Business Status Report',
+        fileName: `Business_Status_${new Date().toISOString().split('T')[0]}.pdf`
+      });
+    } catch (error) {
+      console.error('Business Status PDF generation failed:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
   };
   const cards = [
     { title: 'Parties Receivable', value: stats.receivables, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },

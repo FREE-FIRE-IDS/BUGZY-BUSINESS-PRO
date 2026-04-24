@@ -17,7 +17,7 @@ import { formatCurrency, formatDate, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import { Transaction } from '../types';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 
 // Extend jsPDF with autotable
@@ -55,49 +55,56 @@ export default function Expenses() {
     const doc = new jsPDF() as jsPDFWithAutoTable;
     const companyName = currentCompany?.name || settings.companyName || 'My Business';
     
-    doc.setFontSize(22);
-    doc.setTextColor(30, 41, 59);
-    doc.text(companyName, 14, 20);
-    
-    doc.setFontSize(16);
-    doc.setTextColor(225, 29, 72); // Rose-600
-    doc.text('Expense Report', 14, 30);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 38);
-    doc.text(`Total Expenses: ${formatCurrency(totalExpenses, settings.currency)}`, 14, 44);
+    try {
+      const doc = new jsPDF() as jsPDFWithAutoTable;
+      const companyName = currentCompany?.name || settings.companyName || 'My Business';
+      
+      doc.setFontSize(22);
+      doc.setTextColor(30, 41, 59);
+      doc.text(companyName, 14, 20);
+      
+      doc.setFontSize(16);
+      doc.setTextColor(225, 29, 72); // Rose-600
+      doc.text('Expense Report', 14, 30);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 38);
+      doc.text(`Total Expenses: ${formatCurrency(totalExpenses, settings.currency)}`, 14, 44);
 
-    const tableData = filteredExpenses.map(e => [
-      formatDate(e.date),
-      e.description || 'General Expense',
-      e.quantity ? `${e.quantity} ${e.unit || ''}` : '-',
-      e.price ? formatCurrency(e.price, settings.currency) : '-',
-      banks.find(b => b.id === e.bank_id)?.name || 'Cash',
-      formatCurrency(e.amount, settings.currency)
-    ]);
+      const tableData = filteredExpenses.map(e => [
+        formatDate(e.date),
+        e.description || 'General Expense',
+        e.quantity ? `${e.quantity} ${e.unit || ''}` : '-',
+        e.price ? formatCurrency(e.price, settings.currency) : '-',
+        banks.find(b => b.id === e.bank_id)?.name || 'Cash',
+        formatCurrency(e.amount, settings.currency)
+      ]);
 
-    doc.autoTable({
-      head: [['Date', 'Description', 'Qty', 'Price', 'Paid From', 'Amount']],
-      body: tableData,
-      startY: 50,
-      theme: 'grid',
-      headStyles: { fillColor: [225, 29, 72] },
-      styles: { fontSize: 9 },
-      foot: [[
-        'Total', '', '', '', '', formatCurrency(totalExpenses, settings.currency)
-      ]],
-      footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
-    });
+      autoTable(doc, {
+        head: [['Date', 'Description', 'Qty', 'Price', 'Paid From', 'Amount']],
+        body: tableData,
+        startY: 50,
+        theme: 'grid',
+        headStyles: { fillColor: [225, 29, 72] },
+        styles: { fontSize: 9 },
+        foot: [[
+          'Total', '', '', '', '', formatCurrency(totalExpenses, settings.currency)
+        ]],
+        footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
+      });
 
-    const blob = doc.output('blob');
-    const url = URL.createObjectURL(blob);
-    setPdfPreview({
-      isOpen: true,
-      url: url,
-      title: 'Expense Report',
-      fileName: `Expenses_Report_${new Date().getTime()}.pdf`
-    });
+      const dataUri = doc.output('datauristring');
+      setPdfPreview({
+        isOpen: true,
+        url: dataUri,
+        title: 'Expense Report',
+        fileName: `Expenses_Report_${new Date().getTime()}.pdf`
+      });
+    } catch (error) {
+      console.error('Expense PDF failed:', error);
+      alert('Failed to generate Expense PDF. Please try again or check console for details.');
+    }
   };
 
   const handleEditExpense = (expense: any) => {

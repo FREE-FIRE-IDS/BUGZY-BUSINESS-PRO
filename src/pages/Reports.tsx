@@ -23,7 +23,7 @@ import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, formatBalance, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 
 // Extend jsPDF with autotable
@@ -705,7 +705,7 @@ export default function Reports() {
 
     const startY = activeReport === 'All Banks' ? 68 : (selectedEntity ? 55 : 50);
 
-    doc.autoTable({
+    autoTable(doc, {
       head,
       body,
       startY,
@@ -756,11 +756,10 @@ export default function Reports() {
       );
     }
 
-    const blob = doc.output('blob');
-    const url = URL.createObjectURL(blob);
+    const dataUri = doc.output('datauristring');
     setPdfPreview({
       isOpen: true,
-      url: url,
+      url: dataUri,
       title: `${activeReport} Report`,
       fileName: `${activeReport.replace(/\s+/g, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`
     });
