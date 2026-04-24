@@ -524,6 +524,13 @@ export default function Reports() {
           return sum;
         }, 0);
         
+        const bankItems = companyBanks.map(b => ({
+          'Category': 'Assets',
+          'Item': `Bank: ${b.name} (${b.account_number})`,
+          'Amount': b.balance,
+          'Total': 0
+        }));
+
         const bankBalances = companyBanks.reduce((sum, b) => sum + b.balance, 0);
         const stockValue = companyItems.reduce((sum, i) => sum + (i.stock * i.price), 0);
         const receivables = parties.filter(p => p.company_id === currentCompany?.id && p.balance > 0).reduce((sum, p) => sum + p.balance, 0);
@@ -531,7 +538,7 @@ export default function Reports() {
 
         result = [
           { 'Category': 'Assets', 'Item': 'Cash in Hand', 'Amount': cashBalance, 'Total': 0 },
-          { 'Category': 'Assets', 'Item': 'Bank Balances', 'Amount': bankBalances, 'Total': 0 },
+          ...bankItems,
           { 'Category': 'Assets', 'Item': 'Stock Value', 'Amount': stockValue, 'Total': 0 },
           { 'Category': 'Assets', 'Item': 'Parties Receivable', 'Amount': receivables, 'Total': cashBalance + bankBalances + stockValue + receivables },
           { 'Category': 'Liabilities', 'Item': 'Parties Payable', 'Amount': payables, 'Total': payables },
