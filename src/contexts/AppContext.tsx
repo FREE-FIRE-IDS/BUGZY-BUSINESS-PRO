@@ -64,6 +64,7 @@ interface AppContextType {
   session: any;
   signOut: () => Promise<void>;
   restoreCompany: (code: string) => Promise<boolean>;
+  isOnline: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -323,6 +324,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const hasInitialSynced = React.useRef<Record<string, boolean>>({});
   const isInternalUpdate = React.useRef(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      refreshData(undefined, true); // Pull fresh data when coming back online
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (currentUser) {
@@ -1932,7 +1950,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       restoreCompany,
       isAdmin,
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
-      session, signOut
+      session, signOut, isOnline
     }}>
       {children}
     </AppContext.Provider>

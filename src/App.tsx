@@ -30,7 +30,9 @@ import {
   ShieldCheck,
   Upload,
   Crown,
-  BarChart3
+  BarChart3,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -646,7 +648,8 @@ export default function App() {
     isAdmin, 
     isDeviceLicensed,
     isLicensed,
-    paymentStatus
+    paymentStatus,
+    isOnline
   } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
@@ -952,6 +955,17 @@ export default function App() {
               <Building2 size={16} className="shrink-0" />
               <span className="text-xs md:text-sm font-medium truncate">{currentCompany?.name}</span>
             </div>
+
+            <div className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border",
+              isOnline 
+                ? "bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/50" 
+                : "bg-amber-50 dark:bg-amber-900/10 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-800/50 animate-pulse"
+            )}>
+              {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
+              <span className="hidden sm:inline">{isOnline ? 'Online' : 'Offline Mode'}</span>
+            </div>
+
             <button 
               onClick={toggleTheme}
               className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
