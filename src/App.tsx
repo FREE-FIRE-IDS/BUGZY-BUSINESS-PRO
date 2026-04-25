@@ -157,7 +157,8 @@ function SplashScreen() {
 }
 
 function PaymentScreen({ company, onClose }: { company: Company, onClose?: () => void }) {
-  const { submitPaymentRequest, activateLicense } = useApp();
+  const { submitPaymentRequest, activateLicense, isLicensed } = useApp();
+  const isLicensedUser = isLicensed();
   const [step, setStep] = useState<'plan' | 'payment' | 'form' | 'success'>('plan');
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
@@ -168,6 +169,7 @@ function PaymentScreen({ company, onClose }: { company: Company, onClose?: () =>
     screenshot: ''
   });
   const [licenseKey, setLicenseKey] = useState('');
+  const isExpired = !isLicensed;
 
   const plans = {
     monthly: { name: 'Monthly Plan', price: 599, duration: '30 Days' },
@@ -305,7 +307,9 @@ function PaymentScreen({ company, onClose }: { company: Company, onClose?: () =>
                   <Package size={32} />
                 </div>
                 <h2 className="text-3xl font-black mb-2">Choose Your Plan</h2>
-                <p className="text-slate-500 mb-8">Select a subscription plan that fits your business needs.</p>
+                <p className="text-slate-500 mb-8">
+                  {!isLicensedUser ? 'Your trial has expired. Please upgrade to continue using all features. ❌' : 'Select a subscription plan that fits your business needs.'}
+                </p>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
                   {(['monthly', 'yearly'] as const).map((p) => (
@@ -589,6 +593,7 @@ function ShortcutHelper({ show }: { show: boolean }) {
 
 function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onUpgrade: () => void, isLicensed?: boolean }) {
   const expiryStr = localStorage.getItem('license_expiry');
+  const buildTag = "v2.4.2";
   
   if (isLicensed) {
     if (!expiryStr) return null;
@@ -600,6 +605,7 @@ function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onU
         <div className="flex items-center gap-2">
           <ShieldCheck size={16} />
           <span>Pro License: {daysLeft} days remaining ({format(expiryDate, 'dd MMM yyyy')})</span>
+          <span className="ml-2 opacity-50 px-1 border border-white/30 rounded text-[8px]">{buildTag}</span>
         </div>
         <div className="text-[10px] uppercase font-black opacity-80">Device Authorized</div>
       </div>
@@ -624,6 +630,7 @@ function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onU
           {isExpired ? "Package Expired - Upgrade to Pro" : `Trial Mode: ${daysLeft} days remaining`}
         </span>
         <span className="sm:hidden">{isExpired ? "Expired" : `${daysLeft}d left`}</span>
+        <span className="opacity-50 text-[8px] bg-black/10 px-1 rounded ml-1">{buildTag}</span>
       </div>
       <button 
         onClick={onUpgrade}

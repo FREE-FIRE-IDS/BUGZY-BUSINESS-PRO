@@ -10,11 +10,9 @@ import { registerSW } from 'virtual:pwa-register';
 registerSW({ immediate: true });
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ThemeProvider>
-      <AppProvider>
-        <App />
-      </AppProvider>
-    </ThemeProvider>
-  </StrictMode>,
+  <ThemeProvider>
+    <AppProvider>
+      <App />
+    </AppProvider>
+  </ThemeProvider>,
 );
