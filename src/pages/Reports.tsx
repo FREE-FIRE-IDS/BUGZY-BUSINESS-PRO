@@ -115,7 +115,7 @@ export default function Reports() {
   const allColumns: Record<ReportType, string[]> = useMemo(() => ({
     'Cash in Hand': ['Date', 'Description', 'In (+)', 'Out (-)', 'Balance'],
     'Single Party': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
-    'All Parties': ['Party Name', 'Type', 'Debit (DR)', 'Credit (CR)', 'Balance'],
+    'All Parties': ['#', 'Name', 'Receivable Balance', 'Payable Balance'],
     'Single Bank': ['Date', 'Description', viewMode === 'app' ? 'Withdrawal' : 'Credit', viewMode === 'app' ? 'Deposit' : 'Debit', 'Balance'],
     'All Banks': ['Bank Name', 'Account #', 'Debit (DR)', 'Credit (CR)', 'Balance'],
     'Combined Statement': ['Date', 'Account/Party', 'In (+)', 'Out (-)', 'Balance'],
@@ -209,14 +209,12 @@ export default function Reports() {
       case 'All Parties':
         result = companyParties
           .filter(p => selectedCategory === 'All' || p.type === selectedCategory)
-          .map(p => ({ 
-            name: p.name, 
-            balance: p.balance, 
-            type: p.type,
-            'Party Name': p.name,
-            'Type': p.type,
-            'Debit (DR)': p.balance >= 0 ? p.balance : 0,
-            'Credit (CR)': p.balance < 0 ? Math.abs(p.balance) : 0,
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((p, index) => ({ 
+            '#': index + 1,
+            'Name': p.name, 
+            'Receivable Balance': p.balance > 0 ? p.balance : 0,
+            'Payable Balance': p.balance < 0 ? Math.abs(p.balance) : 0,
             'Balance': p.balance
           }));
         break;
@@ -595,7 +593,13 @@ export default function Reports() {
   const tableTotals = useMemo(() => {
     if (!filteredData.length) return null;
     
-    if (activeReport === 'All Parties' || activeReport === 'All Banks') {
+    if (activeReport === 'All Parties') {
+      const recLimit = filteredData.reduce((s, d) => s + (d['Receivable Balance'] || 0), 0);
+      const payLimit = filteredData.reduce((s, d) => s + (d['Payable Balance'] || 0), 0);
+      return { 'Receivable Balance': recLimit, 'Payable Balance': payLimit };
+    }
+    
+    if (activeReport === 'All Banks') {
       const dr = filteredData.filter(d => d.balance >= 0).reduce((s, d) => s + d.balance, 0);
       const cr = filteredData.filter(d => d.balance < 0).reduce((s, d) => s + Math.abs(d.balance), 0);
       return { 'Debit (DR)': dr, 'Credit (CR)': cr, 'Balance': dr - cr };
@@ -603,7 +607,7 @@ export default function Reports() {
     
     if (activeReport === 'Single Party' || activeReport === 'Single Bank' || activeReport === 'Cash in Hand') {
       const last = filteredData[filteredData.length - 1];
-      return { 'Balance': last.Balance || last.balance || 0 };
+      return { 'Balance': (last as any).Balance || (last as any).balance || 0 };
     }
 
     if (activeReport === 'Stock') return { 'Value': filteredData.reduce((s, d) => s + d.value, 0) };
@@ -647,7 +651,7 @@ export default function Reports() {
       const showDrCr = (col.includes('Balance') && isTotal) ? true : settings.show_dr_cr;
       return formatBalance(val, settings.currency, showDrCr);
     }
-    if (col.includes('Debit') || col.includes('Credit') || col.includes('Price') || col.includes('Value') || col === 'Qty' || col.includes('In (+)') || col.includes('Out (-)') || col === 'Cash In' || col === 'Cash Out' || col === 'Net Flow') {
+    if (col === 'Receivable Balance' || col === 'Payable Balance' || col.includes('Debit') || col.includes('Credit') || col.includes('Price') || col.includes('Value') || col === 'Qty' || col.includes('In (+)') || col.includes('Out (-)') || col === 'Cash In' || col === 'Cash Out' || col === 'Net Flow') {
       return formatCurrency(val, settings.currency);
     }
     return String(val);
@@ -657,90 +661,149 @@ export default function Reports() {
     const doc = new jsPDF() as jsPDFWithAutoTable;
     const companyName = currentCompany?.name || settings.companyName || 'My Business';
     
-    // Header
-    doc.setFontSize(22);
-    doc.setTextColor(30, 41, 59);
-    doc.text(companyName, 14, 20);
-    
-    doc.setFontSize(16);
-    doc.setTextColor(99, 102, 241);
-    const titleText = activeReport === 'All Parties' && selectedCategory !== 'All' 
-      ? `${selectedCategory} Parties Report` 
-      : `${activeReport} Report`;
-    doc.text(titleText, 14, 30);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 38);
-    doc.text(`Period: ${dateRange}`, 14, 44);
-    if (selectedEntity) {
-      const entityName = (activeReport === 'Single Party' ? parties : banks).find(e => e.id === selectedEntity)?.name;
-      doc.text(`For: ${entityName}`, 14, 50);
-    }
+    if (activeReport === 'All Parties') {
+      // Party Report Specific Layout
+      doc.setFontSize(22);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      const title = 'Party Report';
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const titleWidth = doc.getTextWidth(title);
+      doc.text(title, (pageWidth - titleWidth) / 2, 20);
+      doc.setLineWidth(0.5);
+      doc.line((pageWidth - titleWidth) / 2, 21.5, (pageWidth + titleWidth) / 2, 21.5);
 
-    let head: string[][] = [];
-    let body: any[][] = [];
-    let total = 0;
+      const visibleCols = ['#', 'Name', 'Receivable Balance', 'Payable Balance'];
+      const body = filteredData.map((d, index) => [
+        index + 1,
+        d.Name,
+        formatCurrency(d['Receivable Balance'], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
+        formatCurrency(d['Payable Balance'], settings.currency).replace('Rs. ', '').replace('Rs.', '')
+      ]);
 
-    const getVisibleColumns = (reportType: ReportType) => {
-      const all = allColumns[reportType];
-      return all.filter(col => selectedColumns.includes(col));
-    };
+      const totals = tableTotals as any;
 
-    const visibleCols = getVisibleColumns(activeReport);
-    head = [visibleCols];
-
-    // Build body generically using formatValue
-    body = filteredData.map(d => visibleCols.map(col => formatValue(col, d[col])));
-
-    if (activeReport === 'All Banks') {
+      autoTable(doc, {
+        head: [['#', 'Name', 'Receivable Balance', 'Payable Balance']],
+        body,
+        startY: 30,
+        theme: 'grid',
+        headStyles: { 
+          fillColor: [220, 220, 220],
+          textColor: [0, 0, 0],
+          fontSize: 9,
+          fontStyle: 'bold',
+          halign: 'left'
+        },
+        columnStyles: {
+          0: { halign: 'left', cellWidth: 10 },
+          1: { halign: 'left' },
+          2: { halign: 'right', cellWidth: 50 },
+          3: { halign: 'right', cellWidth: 50 }
+        },
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          valign: 'middle',
+          textColor: [0, 0, 0],
+          lineColor: [200, 200, 200],
+          lineWidth: 0.1
+        },
+        foot: [[
+          '',
+          'Total',
+          formatCurrency(totals['Receivable Balance'], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
+          formatCurrency(totals['Payable Balance'], settings.currency).replace('Rs. ', '').replace('Rs.', '')
+        ]],
+        footStyles: {
+          fillColor: [220, 220, 220],
+          textColor: [0, 0, 0],
+          fontStyle: 'bold',
+          fontSize: 9,
+          halign: 'right'
+        }
+      });
+    } else {
+      // General Header for other reports
+      doc.setFontSize(22);
+      doc.setTextColor(30, 41, 59);
+      doc.text(companyName, 14, 20);
+      
+      doc.setFontSize(16);
+      doc.setTextColor(99, 102, 241);
+      const titleText = `${activeReport} Report`;
+      doc.text(titleText, 14, 30);
+      
       doc.setFontSize(10);
-      doc.text(`Cash in Hand: ${formatCurrency(transactions.filter(t => !t.bank_id && t.company_id === currentCompany?.id).reduce((sum, t) => {
-        if (['Sale', 'Income', 'Cash Adjustment In'].includes(t.type)) return sum + t.amount;
-        if (['Expense', 'Payment Out', 'Cash Adjustment Out'].includes(t.type)) return sum - t.amount;
-        return sum;
-      }, 0), settings.currency)}`, 14, 55);
-      doc.text(`Total Bank Balances: ${formatCurrency(banks.filter(b => b.company_id === currentCompany?.id).reduce((sum, b) => sum + b.balance, 0), settings.currency)}`, 14, 61);
-    }
-
-    const startY = activeReport === 'All Banks' ? 68 : (selectedEntity ? 55 : 50);
-
-    autoTable(doc, {
-      head,
-      body,
-      startY,
-      theme: 'grid',
-      headStyles: { 
-        fillColor: [99, 102, 241],
-        textColor: [255, 255, 255],
-        fontSize: 10,
-        fontStyle: 'bold'
-      },
-      styles: {
-        fontSize: 9,
-        cellPadding: 3,
-        valign: 'middle'
-      },
-      alternateRowStyles: {
-        fillColor: [248, 250, 252]
-      },
-      foot: [visibleCols.map(col => {
-        const totalVal = tableTotals ? (tableTotals as any)[col] : undefined;
-        if (totalVal !== undefined) {
-          return formatValue(col, totalVal, true);
-        }
-        // Labels for totals
-        if (col === 'Date' || col === 'Party Name' || col === 'Bank Name' || col === 'Item Name' || col === 'Invoice #') {
-          return 'Grand Total';
-        }
-        return '';
-      })],
-      footStyles: {
-        fillColor: [241, 245, 249],
-        textColor: [30, 41, 59],
-        fontStyle: 'bold'
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 38);
+      doc.text(`Period: ${dateRange}`, 14, 44);
+      if (selectedEntity) {
+        const entityName = (activeReport === 'Single Party' ? parties : banks).find(e => e.id === selectedEntity)?.name;
+        doc.text(`For: ${entityName}`, 14, 50);
       }
-    });
+
+      let head: string[][] = [];
+      let body: any[][] = [];
+
+      const getVisibleColumns = (reportType: ReportType) => {
+        const all = allColumns[reportType];
+        return all.filter(col => selectedColumns.includes(col));
+      };
+
+      const visibleCols = getVisibleColumns(activeReport);
+      head = [visibleCols];
+
+      body = filteredData.map(d => visibleCols.map(col => formatValue(col, d[col])));
+
+      if (activeReport === 'All Banks') {
+        doc.setFontSize(10);
+        doc.text(`Cash in Hand: ${formatCurrency(transactions.filter(t => !t.bank_id && t.company_id === currentCompany?.id).reduce((sum, t) => {
+          if (['Sale', 'Income', 'Cash Adjustment In'].includes(t.type)) return sum + t.amount;
+          if (['Expense', 'Payment Out', 'Cash Adjustment Out'].includes(t.type)) return sum - t.amount;
+          return sum;
+        }, 0), settings.currency)}`, 14, 55);
+        doc.text(`Total Bank Balances: ${formatCurrency(banks.filter(b => b.company_id === currentCompany?.id).reduce((sum, b) => sum + b.balance, 0), settings.currency)}`, 14, 61);
+      }
+
+      const startY = activeReport === 'All Banks' ? 68 : (selectedEntity ? 55 : 50);
+
+      autoTable(doc, {
+        head,
+        body,
+        startY,
+        theme: 'grid',
+        headStyles: { 
+          fillColor: [99, 102, 241],
+          textColor: [255, 255, 255],
+          fontSize: 10,
+          fontStyle: 'bold'
+        },
+        styles: {
+          fontSize: 9,
+          cellPadding: 3,
+          valign: 'middle'
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        },
+        foot: [visibleCols.map(col => {
+          const totalVal = tableTotals ? (tableTotals as any)[col] : undefined;
+          if (totalVal !== undefined) {
+            return formatValue(col, totalVal, true);
+          }
+          if (col === 'Date' || col === 'Party Name' || col === 'Bank Name' || col === 'Item Name' || col === 'Invoice #') {
+            return 'Grand Total';
+          }
+          return '';
+        })],
+        footStyles: {
+          fillColor: [241, 245, 249],
+          textColor: [30, 41, 59],
+          fontStyle: 'bold'
+        }
+      });
+    }
 
     // Footer
     const pageCount = (doc as any).internal.getNumberOfPages();
