@@ -36,26 +36,35 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
       });
       
       const text = response.text || '[]';
-      // Clean up any potential markdown or extra characters just in case
-      const jsonStr = text.substring(text.indexOf('['), text.lastIndexOf(']') + 1) || text;
-      return JSON.parse(jsonStr);
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        // Fallback for cases where JSON might have extra formatting
+        const jsonStr = text.substring(text.indexOf('['), text.lastIndexOf(']') + 1) || text;
+        return JSON.parse(jsonStr);
+      }
     } catch (error: any) {
-      const errorMessage = error?.message || '';
-      const isRateLimit = 
+      const errorMessage = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+      
+      // Retry for rate limits OR RPC/Connection issues
+      const shouldRetry = 
         errorMessage.includes('429') || 
         errorMessage.includes('RESOURCE_EXHAUSTED') || 
         errorMessage.toLowerCase().includes('quota') ||
-        errorMessage.toLowerCase().includes('rate limit');
+        errorMessage.toLowerCase().includes('rate limit') ||
+        errorMessage.toLowerCase().includes('rpc failed') ||
+        errorMessage.toLowerCase().includes('xhr error') ||
+        errorMessage.includes('ProxyUnaryCall');
       
-      if (isRateLimit && retryCount < maxRetries) {
+      if (shouldRetry && retryCount < maxRetries) {
         retryCount++;
         const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 2s, 4s, 8s
-        console.warn(`Gemini API rate limited. Retrying in ${delay}ms (Attempt ${retryCount}/${maxRetries})...`);
+        console.warn(`Gemini API error or rate limit. Retrying in ${delay}ms (Attempt ${retryCount}/${maxRetries})...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return executeWithRetry();
       }
       
-      if (isRateLimit) {
+      if (shouldRetry && (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED'))) {
         throw new Error('RATE_LIMIT_EXCEEDED');
       }
       
