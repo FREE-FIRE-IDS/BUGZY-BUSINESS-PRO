@@ -121,8 +121,8 @@ export default function Reports() {
     'Cash in Hand': ['Date', 'Description', 'In (+)', 'Out (-)', 'Balance'],
     'Single Party': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
     'All Parties': viewMode === 'app' 
-      ? ['#', 'Name', 'Receivable Balance', 'Payable Balance'] 
-      : ['#', 'Name', 'Debit', 'Credit'],
+      ? ['#', 'Name', 'Receivable Balance', 'Payable Balance', 'Net Balance'] 
+      : ['#', 'Name', 'Debit', 'Credit', 'Balance'],
     'Single Bank': ['Date', 'Description', viewMode === 'app' ? 'Deposit' : 'Debit', viewMode === 'app' ? 'Withdrawal' : 'Credit', 'Balance'],
     'All Banks': ['Bank Name', 'Account #', 'Debit (DR)', 'Credit (CR)', 'Balance'],
     'Combined Statement': ['Date', 'Account/Party', 'In (+)', 'Out (-)', 'Balance'],
@@ -240,6 +240,7 @@ export default function Reports() {
             'Payable Balance': p.balance < 0 ? Math.abs(p.balance) : 0,
             'Debit': p.balance > 0 ? p.balance : 0,
             'Credit': p.balance < 0 ? Math.abs(p.balance) : 0,
+            'Net Balance': p.balance,
             'Balance': p.balance
           }));
         break;
@@ -688,9 +689,11 @@ export default function Reports() {
     if (activeReport === 'All Parties') {
       const recLimit = filteredData.reduce((s, d) => s + (d['Receivable Balance'] || d['Debit'] || 0), 0);
       const payLimit = filteredData.reduce((s, d) => s + (d['Payable Balance'] || d['Credit'] || 0), 0);
+      const netLimit = filteredData.reduce((s, d) => s + (d['Net Balance'] || d['Balance'] || 0), 0);
       return { 
         [viewMode === 'app' ? 'Receivable Balance' : 'Debit']: recLimit, 
-        [viewMode === 'app' ? 'Payable Balance' : 'Credit']: payLimit 
+        [viewMode === 'app' ? 'Payable Balance' : 'Credit']: payLimit,
+        [viewMode === 'app' ? 'Net Balance' : 'Balance']: netLimit
       };
     }
     
@@ -771,18 +774,20 @@ export default function Reports() {
 
       const col1 = viewMode === 'app' ? 'Receivable Balance' : 'Debit';
       const col2 = viewMode === 'app' ? 'Payable Balance' : 'Credit';
+      const col3 = viewMode === 'app' ? 'Net Balance' : 'Balance';
 
       const body = filteredData.map((d, index) => [
         index + 1,
         d.Name,
         formatCurrency(d[col1], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
-        formatCurrency(d[col2], settings.currency).replace('Rs. ', '').replace('Rs.', '')
+        formatCurrency(d[col2], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
+        formatCurrency(d[col3], settings.currency).replace('Rs. ', '').replace('Rs.', '')
       ]);
 
       const totals = tableTotals as any;
 
       autoTable(doc, {
-        head: [['#', 'Name', col1, col2]],
+        head: [['#', 'Name', col1, col2, col3]],
         body,
         startY: 30,
         theme: 'grid',
@@ -796,8 +801,9 @@ export default function Reports() {
         columnStyles: {
           0: { halign: 'left', cellWidth: 12 },
           1: { halign: 'left' },
-          2: { halign: 'right', cellWidth: 45 },
-          3: { halign: 'right', cellWidth: 45 }
+          2: { halign: 'right', cellWidth: 35 },
+          3: { halign: 'right', cellWidth: 35 },
+          4: { halign: 'right', cellWidth: 35 }
         },
         styles: {
           fontSize: pdfSettings.smallFont ? 7 : 8,
@@ -812,7 +818,8 @@ export default function Reports() {
           '',
           'Total Balance Summary',
           formatCurrency(totals[col1], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
-          formatCurrency(totals[col2], settings.currency).replace('Rs. ', '').replace('Rs.', '')
+          formatCurrency(totals[col2], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
+          formatCurrency(totals[col3], settings.currency).replace('Rs. ', '').replace('Rs.', '')
         ]],
         footStyles: {
           fillColor: [248, 250, 252],
