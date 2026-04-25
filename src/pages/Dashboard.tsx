@@ -38,7 +38,7 @@ import { getBusinessInsights } from '../services/geminiService';
 import { differenceInDays, addDays } from 'date-fns';
 
 export default function Dashboard() {
-  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData, isDeviceLicensed, isLicensed } = useApp();
+  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData, isDeviceLicensed, isLicensed, isTrialExpired } = useApp();
   const [aiInsights, setAiInsights] = useState<string[]>([]);
   const [aiError, setAiError] = useState<string | null>(null);
 
@@ -46,10 +46,11 @@ export default function Dashboard() {
     const isPaid = currentCompany?.is_paid || isLicensed();
     if (!currentCompany || isPaid) return null;
     const start = new Date(currentCompany.trial_start || currentCompany.created_at);
+    // Even if isTrialExpired is true, we still want to show the days for UI
     const end = addDays(start, 7);
     const daysLeft = differenceInDays(end, new Date());
-    return { daysLeft: Math.max(0, daysLeft), end };
-  }, [currentCompany, isLicensed]);
+    return { daysLeft: Math.max(0, daysLeft), end, expired: isTrialExpired };
+  }, [currentCompany, isLicensed, isTrialExpired]);
 
   const handleRestore = () => {
     const input = document.createElement('input');

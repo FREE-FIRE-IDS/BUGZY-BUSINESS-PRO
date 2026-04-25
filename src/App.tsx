@@ -649,6 +649,8 @@ export default function App() {
     isAdmin, 
     isDeviceLicensed,
     isLicensed,
+    licenseExpiry,
+    isTrialExpired,
     paymentStatus,
     isOnline
   } = useApp();
@@ -680,15 +682,7 @@ export default function App() {
 
   const isLicensedUser = isLicensed();
   
-  // Robust trial calculation: fallback to a safe past date if data is missing, 
-  // ensuring we don't accidentally "reset" to a fresh trial.
-  const trialStartRaw = currentCompany?.trial_start || currentCompany?.created_at;
-  const trialStart = trialStartRaw ? new Date(trialStartRaw) : null;
-  const trialEnd = trialStart ? addDays(trialStart, 7) : null;
-  const isTrialExpired = trialEnd ? isAfter(new Date(), trialEnd) : false;
-
   // License expiry for header
-  const licenseExpiry = localStorage.getItem('license_expiry');
   const daysLeftLicense = licenseExpiry ? Math.max(0, differenceInDays(new Date(licenseExpiry), new Date())) : null;
 
   const menuItems = [
@@ -718,14 +712,19 @@ export default function App() {
 
     // IF TRIAL OR LICENSE EXPIRED: Redirect logic
     if (isTrialExpired && !isLicensedUser) {
-      // If they try to access a premium tab, force them to the Dashboard with the Payment overlay
-      // OR better yet, if the user explicitly wants "Automatic direct into payment page"
-      // we should show the Payment screen as the page content if they are on any restricted page.
       if (isPremiumTab || (tab !== 'dashboard' && tab !== 'settings')) {
-          setForceUpgrade(true);
-          setDismissedPayment(false);
-          // We still return Dashboard but with the overlay active
-          return <Dashboard />;
+          // DIRECT TO PAYMENT PAGE as requested:
+          // We set forceUpgrade to true and return specialized view
+          return (
+            <div className="min-h-[60vh] flex items-center justify-center p-4">
+              <div className="w-full max-w-xl">
+                <PaymentScreen 
+                  company={currentCompany!} 
+                  onClose={() => setActiveTab('dashboard')} 
+                />
+              </div>
+            </div>
+          );
       }
     }
 
@@ -956,8 +955,8 @@ export default function App() {
               <Building2 size={16} className="shrink-0" />
               <span className="text-xs md:text-sm font-medium truncate">{currentCompany?.name}</span>
               {(isTrialExpired && !isLicensedUser) && (
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white shadow-lg animate-bounce">
-                  <Crown size={8} className="fill-white" />
+                <div className="absolute -top-1 -right-1 flex items-center justify-center p-0.5 bg-amber-500 rounded-full border border-white shadow-sm">
+                  <Crown size={8} className="text-white fill-white" />
                 </div>
               )}
             </div>

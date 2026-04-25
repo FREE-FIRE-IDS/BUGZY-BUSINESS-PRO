@@ -55,6 +55,8 @@ interface AppContextType {
   fetchLicenses: () => Promise<License[]>;
   resetLicenseDevice: (id: string) => Promise<void>;
   isDeviceLicensed: boolean;
+  licenseExpiry: string | null;
+  isTrialExpired: boolean;
   isLicensed: () => boolean;
   loginWithUsername: (username: string, isLogin?: boolean) => Promise<boolean>;
   isAdmin: boolean;
@@ -238,12 +240,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                .select('*')
                .eq('license_key', currentKey)
                .maybeSingle();
-             if (fallbackData) { setIsDeviceLicensed(true); return; }
+             if (fallbackData) { 
+               setIsDeviceLicensed(true); 
+               if (fallbackData.expiry_at) {
+                 setLicenseExpiry(fallbackData.expiry_at);
+                 localStorage.setItem('license_expiry', fallbackData.expiry_at);
+               }
+               return; 
+             }
           }
           return;
         }
 
         if (data) {
+          // Always set license expiry info if license exists in cloud, regardless of device authorization
+          if (data.expiry_at) {
+              setLicenseExpiry(data.expiry_at);
+              localStorage.setItem('license_expiry', data.expiry_at);
+          }
+
           // Check if expired
           if (data.expiry_at && new Date(data.expiry_at) < new Date()) {
             console.log('License expired in cloud');
@@ -251,6 +266,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             localStorage.removeItem('active_license_key');
             localStorage.removeItem('license_expiry');
             setIsDeviceLicensed(false);
+            setLicenseExpiry(null);
             return;
           }
 
@@ -262,8 +278,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (deviceId && devices.includes(deviceId)) {
             localStorage.setItem('device_license', 'true');
             localStorage.setItem('active_license_key', data.license_key);
-            if (data.expiry_at) localStorage.setItem('license_expiry', data.expiry_at);
-            else localStorage.removeItem('license_expiry');
             setIsDeviceLicensed(true);
           } else {
             // New device or device limit reached - USER MUST ACTIVATE MANUALLY
@@ -271,6 +285,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             console.log('Manual activation required for this device');
             setIsDeviceLicensed(false);
             localStorage.removeItem('device_license');
+            // Do NOT clear expiry here, as the user wants to see it even on unauthorized devices
           }
         } else {
           // Only deactivate if explicitly NOT FOUND in cloud and we are ONLINE
@@ -281,6 +296,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             console.log('No active license found in cloud for this user');
             setIsDeviceLicensed(false);
             localStorage.removeItem('device_license');
+            setLicenseExpiry(null);
           }
         }
       } catch (err) {
@@ -341,15 +357,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       refreshData(undefined, true); // Pull fresh data when coming back online
     };
     const handleOffline = () => setIsOnline(false);
+    const handleFocus = () => {
+      if (navigator.onLine) {
+        refreshData(undefined, true); // Refresh when user returns to tab
+      }
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('focus', handleFocus);
     };
-  }, []);
+  }, [currentCompany?.id]);
 
   useEffect(() => {
     if (currentUser) {
@@ -1981,6 +2004,16 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const [isDeviceLicensed, setIsDeviceLicensed] = useState(() => localStorage.getItem('device_license') === 'true');
+  const [licenseExpiry, setLicenseExpiry] = useState<string | null>(() => localStorage.getItem('license_expiry'));
+
+  const isTrialExpired = React.useMemo(() => {
+    if (isDeviceLicensed) return false;
+    if (!currentCompany) return false;
+    const start = new Date(currentCompany.trial_start || currentCompany.created_at);
+    if (isNaN(start.getTime())) return true; // Fail safe: block if date is invalid
+    const end = addDays(start, 7);
+    return isAfter(new Date(), end);
+  }, [currentCompany, isDeviceLicensed]);
 
   useEffect(() => {
     const licensed = localStorage.getItem('device_license') === 'true';
@@ -2035,6 +2068,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       paymentStatus,
       activateLicense, fetchLicenses, resetLicenseDevice,
       isDeviceLicensed,
+      licenseExpiry,
+      isTrialExpired,
       isLicensed: () => isDeviceLicensed,
       loginWithUsername,
       restoreCompany,
