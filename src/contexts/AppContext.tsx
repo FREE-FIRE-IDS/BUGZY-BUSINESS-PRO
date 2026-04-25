@@ -205,6 +205,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!userId) return;
 
     const checkLicense = async () => {
+      // Do not perform license check if offline to prevent incorrect deactivation
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        console.log('Skipping license check: Device is offline');
+        return;
+      }
+
       try {
         const currentKey = localStorage.getItem('active_license_key');
         
@@ -266,10 +272,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             localStorage.removeItem('device_license');
           }
         } else {
-          // If no cloud license for this user, check local storage for master key again
+          // Only deactivate if explicitly NOT FOUND in cloud and we are ONLINE
+          // If data is null, it means there's no active license for this user in cloud
           if (currentKey === 'MASTER-KEY') {
             setIsDeviceLicensed(true);
           } else {
+            console.log('No active license found in cloud for this user');
             setIsDeviceLicensed(false);
             localStorage.removeItem('device_license');
           }
