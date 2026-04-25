@@ -173,4 +173,5 @@ export interface AppSettings {
   verification_code?: string;
   onboarding_completed?: boolean;
   show_dr_cr?: boolean;
+  report_customization?: Record<string, string[]>;
 }

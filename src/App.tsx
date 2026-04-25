@@ -50,6 +50,7 @@ import BusinessStatus from './pages/BusinessStatus';
 import Settings from './pages/Settings';
 import Admin from './pages/Admin';
 import Activation from './pages/Activation';
+import Customization from './pages/Customization';
 
 import GlobalTransactionModal from './components/GlobalTransactionModal';
 
@@ -748,6 +749,7 @@ export default function App() {
       case 'business-status': return <BusinessStatus />;
       case 'settings': return <Settings />;
       case 'admin': return <Admin />;
+      case 'customization': return <Customization />;
       default: return <Dashboard />;
     }
   };

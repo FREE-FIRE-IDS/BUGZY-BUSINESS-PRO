@@ -15,6 +15,7 @@ import {
   ArrowDownLeft,
   ArrowLeftRight,
   X,
+  Settings as SettingsIcon,
   RefreshCw,
   Clock,
   BarChart3
@@ -130,8 +131,12 @@ export default function Reports() {
   }), [viewMode]);
 
   useEffect(() => {
-    setSelectedColumns(allColumns[activeReport]);
-  }, [activeReport, allColumns]);
+    if (settings.report_customization?.[activeReport]) {
+      setSelectedColumns(settings.report_customization[activeReport]);
+    } else {
+      setSelectedColumns(allColumns[activeReport]);
+    }
+  }, [activeReport, allColumns, settings.report_customization]);
 
   const reportOptions = [
     { id: 'Cash in Hand', label: 'Cash in Hand Report', icon: Building2 },
@@ -541,9 +546,11 @@ export default function Reports() {
             return sum;
           }, 0);
         
+        const bankBalances = companyBanks.reduce((sum, b) => sum + b.balance, 0);
         const assets = [
           { name: 'Cash in Hand', balance: cashBalance },
-          ...companyBanks.map(b => ({ name: `Bank: ${b.name}`, balance: b.balance })),
+          { name: 'Bank Accounts', balance: bankBalances, isHeader: true },
+          ...companyBanks.map(b => ({ name: `  ${b.name}`, balance: b.balance })),
           { name: 'Stock Value', balance: companyItems.reduce((sum, i) => sum + (i.stock * i.price), 0) },
           ...companyParties.filter(p => p.balance > 0).map(p => ({ name: `Receivable: ${p.name}`, balance: p.balance }))
         ];
@@ -554,12 +561,17 @@ export default function Reports() {
 
         result = [
           { '#': 'ASSETS', 'Account Name': '--- ASSETS ---', 'Amount': 0, isHeader: true },
-          ...assets.map((a, i) => ({ '#': i + 1, 'Account Name': a.name, 'Amount': a.balance })),
-          { '#': '', 'Account Name': 'Total Assets', 'Amount': assets.reduce((s, a) => s + a.balance, 0), isSubTotal: true },
+          ...assets.map((a, i) => ({ 
+            '#': a.isHeader ? '' : i + 1, 
+            'Account Name': a.name, 
+            'Amount': a.balance,
+            isHeader: a.isHeader 
+          })),
+          { '#': '', 'Account Name': 'Total Assets', 'Amount': assets.reduce((s, a) => s + (a.isHeader ? 0 : a.balance), 0), isSubTotal: true },
           { '#': 'LIABILITIES', 'Account Name': '--- LIABILITIES & EQUITY ---', 'Amount': 0, isHeader: true },
           ...liabilities.map((l, i) => ({ '#': i + 1, 'Account Name': l.name, 'Amount': l.balance })),
           { '#': '', 'Account Name': 'Total Liabilities', 'Amount': liabilities.reduce((s, l) => s + l.balance, 0), isSubTotal: true },
-          { '#': '', 'Account Name': 'Net Equity', 'Amount': assets.reduce((s, a) => s + a.balance, 0) - liabilities.reduce((s, l) => s + l.balance, 0), isSubTotal: true }
+          { '#': '', 'Account Name': 'Net Equity', 'Amount': assets.reduce((s, a) => s + (a.isHeader ? 0 : a.balance), 0) - liabilities.reduce((s, l) => s + l.balance, 0), isSubTotal: true }
         ];
         break;
       case 'Cash Flow':
@@ -769,13 +781,20 @@ export default function Reports() {
       const maxRows = Math.max(assetData.length, liabilityData.length);
       const body = [];
       for (let i = 0; i < maxRows; i++) {
-        const a = assetData[i] || { 'Account Name': '', 'Amount': 0 };
-        const l = liabilityData[i] || { 'Account Name': '', 'Amount': 0 };
+        const a = assetData[i];
+        const l = liabilityData[i];
+        
+        const formatAmt = (row: any) => {
+          if (!row || !row['Account Name']) return '';
+          if (row.isHeader && row['Account Name'].includes('---')) return ''; // Section dividers
+          return formatCurrency(row['Amount'], settings.currency).replace('Rs. ', '').replace('Rs.', '');
+        };
+
         body.push([
-          a['Account Name'] || '',
-          a['Account Name'] && !((a as any).isHeader) ? formatCurrency(a['Amount'], settings.currency).replace('Rs. ', '').replace('Rs.', '') : '',
-          l['Account Name'] || '',
-          l['Account Name'] && !((l as any).isHeader) ? formatCurrency(l['Amount'], settings.currency).replace('Rs. ', '').replace('Rs.', '') : ''
+          a?.['Account Name'] || '',
+          formatAmt(a),
+          l?.['Account Name'] || '',
+          formatAmt(l)
         ]);
       }
 
@@ -970,6 +989,13 @@ export default function Reports() {
                   <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">Export professional business statements</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'customization' }))}
+                    className="p-2.5 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl border border-slate-200 dark:border-slate-700 hover:text-indigo-600 transition-all shadow-sm"
+                    title="Customize Report Columns"
+                  >
+                    <SettingsIcon size={18} />
+                  </button>
                   {(activeReport === 'Single Bank' || activeReport === 'Single Party') && (
                     <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 pointer-events-auto shrink-0 mr-2">
                       <button 
