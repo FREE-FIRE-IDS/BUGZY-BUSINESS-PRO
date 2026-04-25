@@ -546,33 +546,59 @@ export default function Reports() {
             return sum;
           }, 0);
         
-        const bankBalances = companyBanks.reduce((sum, b) => sum + b.balance, 0);
-        const assets = [
-          { name: 'Cash in Hand', balance: cashBalance },
-          { name: 'Bank Accounts', balance: bankBalances, isHeader: true },
-          ...companyBanks.map(b => ({ name: `  ${b.name}`, balance: b.balance })),
-          { name: 'Stock Value', balance: companyItems.reduce((sum, i) => sum + (i.stock * i.price), 0) },
-          ...companyParties.filter(p => p.balance > 0).map(p => ({ name: `Receivable: ${p.name}`, balance: p.balance }))
-        ];
+        const bankBalancesTotal = companyBanks.reduce((sum, b) => sum + b.balance, 0);
+        const receivables = companyParties.filter(p => p.balance > 0).reduce((sum, p) => sum + p.balance, 0);
+        const payables = companyParties.filter(p => p.balance < 0).reduce((sum, p) => sum + Math.abs(p.balance), 0);
+        const stockValue = companyItems.reduce((sum, i) => sum + (i.stock * i.price), 0);
 
-        const liabilities = [
-          ...companyParties.filter(p => p.balance < 0).map(p => ({ name: `Payable: ${p.name}`, balance: Math.abs(p.balance) }))
-        ];
+        // Owner's equity calculations
+        const addCash = transactions.filter(t => 
+          !t.bank_id && !t.to_bank_id && 
+          ['Sale', 'Payment In', 'Stock In', 'Cash Adjustment In'].includes(t.type)
+        ).reduce((sum, t) => sum + t.amount, 0);
 
+        const reduceCash = transactions.filter(t => 
+          !t.bank_id && !t.to_bank_id && 
+          ['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Cash Adjustment Out'].includes(t.type)
+        ).reduce((sum, t) => sum + t.amount, 0);
+
+        // This is a complex structure, we'll flatten it for the table view but keep metadata for PDF
         result = [
-          { '#': 'ASSETS', 'Account Name': '--- ASSETS ---', 'Amount': 0, isHeader: true },
-          ...assets.map((a, i) => ({ 
-            '#': a.isHeader ? '' : i + 1, 
-            'Account Name': a.name, 
-            'Amount': a.balance,
-            isHeader: a.isHeader 
-          })),
-          { '#': '', 'Account Name': 'Total Assets', 'Amount': assets.reduce((s, a) => s + (a.isHeader ? 0 : a.balance), 0), isSubTotal: true },
-          { '#': 'LIABILITIES', 'Account Name': '--- LIABILITIES & EQUITY ---', 'Amount': 0, isHeader: true },
-          ...liabilities.map((l, i) => ({ '#': i + 1, 'Account Name': l.name, 'Amount': l.balance })),
-          { '#': '', 'Account Name': 'Total Liabilities', 'Amount': liabilities.reduce((s, l) => s + l.balance, 0), isSubTotal: true },
-          { '#': '', 'Account Name': 'Net Equity', 'Amount': assets.reduce((s, a) => s + (a.isHeader ? 0 : a.balance), 0) - liabilities.reduce((s, l) => s + l.balance, 0), isSubTotal: true }
-        ];
+          // Assets Side
+          { type: 'asset', label: 'Current Assets', amount: null, isHeader: true },
+          { type: 'asset', label: 'Cash in hand', amount: cashBalance },
+          { type: 'asset', label: 'Bank Accounts', amount: bankBalancesTotal, isSubHeader: true },
+          ...companyBanks.map(b => ({ type: 'asset', label: b.name, amount: b.balance, isSubItem: true })),
+          { type: 'asset', label: 'Accounts receivable / Sundry Debtors', amount: receivables },
+          { type: 'asset', label: 'Inventory on hand/ Closing stock', amount: stockValue },
+          { type: 'asset', label: 'Tax Receivable', amount: 0, isSubHeader: true },
+          { type: 'asset', label: 'GST Receivable', amount: 0, isSubItem: true },
+          { type: 'asset', label: 'TCS Receivable', amount: 0, isSubItem: true },
+
+          // Liabilities Side
+          { type: 'liability', label: 'Current Liabilities', amount: null, isHeader: true },
+          { type: 'liability', label: 'Accounts Payable / Sundry Creditors', amount: payables },
+          { type: 'liability', label: 'Loan Accounts', amount: 0, isHeader: true },
+          { type: 'liability', label: 'Tax payable', amount: 0, isHeader: true },
+          { type: 'liability', label: 'GST payable', amount: 0, isSubItem: true },
+          { type: 'liability', label: 'TCS payable', amount: 0, isSubItem: true },
+          
+          // Equity Side
+          { type: 'liability', label: 'Equity/Capital', amount: null, isHeader: true },
+          { type: 'liability', label: 'Opening balance equity', amount: (currentCompany?.opening_balance || 0), isSubHeader: true },
+          { type: 'liability', label: 'Opening bank balance', amount: 0, isSubItem: true },
+          { type: 'liability', label: 'Opening party balance', amount: 0, isSubItem: true },
+          { type: 'liability', label: 'Owner\'s equity', amount: addCash - reduceCash, isSubHeader: true },
+          { type: 'liability', label: 'Add cash', amount: addCash, isSubItem: true },
+          { type: 'liability', label: 'Reduce cash', amount: -reduceCash, isSubItem: true },
+          { type: 'liability', label: 'Retained Earnings', amount: 0 },
+          { type: 'liability', label: 'Net Income (profit)', amount: 0 }
+        ].map((item, idx) => ({
+          '#': idx + 1,
+          'Account Name': item.label,
+          'Amount': item.amount,
+          ...item
+        }));
         break;
       case 'Cash Flow':
         const cfTxs = companyTransactions.filter(t => !t.bank_id && !t.to_bank_id || t.type === 'Withdraw' || t.type === 'Deposit');
@@ -702,6 +728,7 @@ export default function Reports() {
   const exportPDF = () => {
     const doc = new jsPDF() as jsPDFWithAutoTable;
     const companyName = currentCompany?.name || settings.companyName || 'My Business';
+    const pdfSettings = (settings as any).pdf_settings || {};
     
     if (activeReport === 'All Parties') {
       // Party Report Specific Layout
@@ -732,18 +759,18 @@ export default function Reports() {
         headStyles: { 
           fillColor: [220, 220, 220],
           textColor: [0, 0, 0],
-          fontSize: 9,
+          fontSize: pdfSettings.smallFont ? 8 : 9,
           fontStyle: 'bold',
           halign: 'left'
         },
         columnStyles: {
           0: { halign: 'left', cellWidth: 10 },
           1: { halign: 'left' },
-          2: { halign: 'right', cellWidth: 50 },
-          3: { halign: 'right', cellWidth: 50 }
+          2: { halign: 'right', cellWidth: 40 },
+          3: { halign: 'right', cellWidth: 40 }
         },
         styles: {
-          fontSize: 8,
+          fontSize: pdfSettings.smallFont ? 7 : 8,
           cellPadding: 2,
           valign: 'middle',
           textColor: [0, 0, 0],
@@ -760,166 +787,192 @@ export default function Reports() {
           fillColor: [220, 220, 220],
           textColor: [0, 0, 0],
           fontStyle: 'bold',
-          fontSize: 9,
+          fontSize: pdfSettings.smallFont ? 8 : 9,
           halign: 'right'
         }
       });
     } else if (activeReport === 'Balance Sheet') {
       // Balance Sheet Specific Layout (4-Column Side-by-Side Theme)
       const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // Top Header
       doc.setFontSize(22);
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'bold');
-      const title = `Balance Sheet as on ${formatDate(new Date().toISOString())}`;
+      const dateStr = pdfSettings.hideDate ? '' : ` as on ${formatDate(new Date().toISOString())}`;
+      const title = `Balance Sheet${dateStr}`;
       const titleWidth = doc.getTextWidth(title);
       doc.text(title, (pageWidth - titleWidth) / 2, 20);
 
-      // Prepare Assets and Liabilities Data
-      const assetData = filteredData.filter(d => ['ASSETS', 'Total Assets'].includes(d['#']) || (typeof d['#'] === 'number' && filteredData.indexOf(d) < filteredData.findIndex(x => x['#'] === 'LIABILITIES')));
-      const liabilityData = filteredData.filter(d => filteredData.indexOf(d) >= filteredData.findIndex(x => x['#'] === 'LIABILITIES'));
+      // Sub Header info
+      if (!pdfSettings.hideContact) {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Phone no.: ${currentCompany?.phone || '091267091'}`, pageWidth - 14, 15, { align: 'right' });
+      }
 
-      const maxRows = Math.max(assetData.length, liabilityData.length);
-      const body = [];
+      const assetRows = filteredData.filter(d => d.type === 'asset');
+      const liabilityRows = filteredData.filter(d => d.type === 'liability');
+
+      const maxRows = Math.max(assetRows.length, liabilityRows.length);
+      const tableBody = [];
+
       for (let i = 0; i < maxRows; i++) {
-        const a = assetData[i];
-        const l = liabilityData[i];
+        const a = assetRows[i];
+        const l = liabilityRows[i];
         
         const formatAmt = (row: any) => {
-          if (!row || !row['Account Name']) return '';
-          if (row.isHeader && row['Account Name'].includes('---')) return ''; // Section dividers
-          return formatCurrency(row['Amount'], settings.currency).replace('Rs. ', '').replace('Rs.', '');
+          if (!row || row.amount === null) return '';
+          return Number(row.amount).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
         };
 
-        body.push([
-          a?.['Account Name'] || '',
-          formatAmt(a),
-          l?.['Account Name'] || '',
-          formatAmt(l)
+        tableBody.push([
+          a ? a.label : '',
+          a ? formatAmt(a) : '',
+          l ? l.label : '',
+          l ? formatAmt(l) : ''
         ]);
       }
 
+      // Calculate totals
+      const totalAssets = assetRows.reduce((s, r) => s + (r.amount || 0), 0);
+      const totalLiabilitiesEquity = liabilityRows.reduce((s, r) => s + (r.amount || 0), 0);
+
       autoTable(doc, {
         head: [['Assets', 'Amount', 'Liabilities', 'Amount']],
-        body,
+        body: tableBody,
         startY: 30,
         theme: 'grid',
         headStyles: { 
-          fillColor: [220, 220, 240], 
+          fillColor: [220, 235, 245], 
           textColor: [0, 0, 0], 
-          fontSize: 9, 
+          fontSize: pdfSettings.smallFont ? 7 : 8, 
           fontStyle: 'bold',
-          halign: 'center'
+          halign: 'left'
         },
         columnStyles: {
-          0: { halign: 'left' },
-          1: { halign: 'right', cellWidth: 35 },
-          2: { halign: 'left' },
-          3: { halign: 'right', cellWidth: 35 }
+          0: { halign: 'left', fontStyle: 'bold' },
+          1: { halign: 'right', fontStyle: 'bold', cellWidth: 30 },
+          2: { halign: 'left', fontStyle: 'bold' },
+          3: { halign: 'right', fontStyle: 'bold', cellWidth: 30 }
         },
         styles: {
-          fontSize: 7.5,
-          cellPadding: 1.5,
+          fontSize: pdfSettings.smallFont ? 6 : 7,
+          cellPadding: 1,
           valign: 'middle',
-          textColor: [0, 0, 0]
+          textColor: [0, 0, 0],
+          lineColor: [200, 200, 200],
+          lineWidth: 0.1
         },
         didParseCell: (data) => {
           const rowIndex = data.row.index;
-          const a = assetData[rowIndex];
-          const l = liabilityData[rowIndex];
-          
+          const a = assetRows[rowIndex];
+          const l = liabilityRows[rowIndex];
+
+          // Assets column handling
           if (data.column.index < 2 && a) {
             if (a.isHeader) {
+               data.cell.styles.fillColor = [240, 245, 250];
                data.cell.styles.fontStyle = 'bold';
-               data.cell.styles.fillColor = [240, 240, 240];
+            } else if (a.isSubHeader) {
+               data.cell.styles.fontStyle = 'bold';
+            } else if (a.isSubItem) {
+               data.cell.styles.fontStyle = 'normal';
+               if (data.column.index === 0) data.cell.text = [`    ${a.label}`];
+            } else {
+               data.cell.styles.fontStyle = 'bold';
             }
-            if (a.isSubTotal) data.cell.styles.fontStyle = 'bold';
           }
+          // Liabilities column handling
           if (data.column.index >= 2 && l) {
             if (l.isHeader) {
+               data.cell.styles.fillColor = [240, 245, 250];
                data.cell.styles.fontStyle = 'bold';
-               data.cell.styles.fillColor = [240, 240, 240];
+            } else if (l.isSubHeader) {
+               data.cell.styles.fontStyle = 'bold';
+            } else if (l.isSubItem) {
+               data.cell.styles.fontStyle = 'normal';
+               if (data.column.index === 2) data.cell.text = [`    ${l.label}`];
+            } else {
+               data.cell.styles.fontStyle = 'bold';
             }
-            if (l.isSubTotal) data.cell.styles.fontStyle = 'bold';
           }
+        }
+      });
+
+      // Grand total footer row
+      const finalY = (doc as any).lastAutoTable.finalY;
+      autoTable(doc, {
+        body: [[
+          '', 
+          totalAssets.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
+          '', 
+          totalLiabilitiesEquity.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+        ]],
+        startY: finalY,
+        theme: 'grid',
+        styles: { fontSize: pdfSettings.smallFont ? 7 : 8, fontStyle: 'bold', cellPadding: 1, textColor: [0, 0, 0] },
+        columnStyles: {
+          1: { halign: 'right', cellWidth: 30, fillColor: [230, 240, 255] },
+          3: { halign: 'right', cellWidth: 30, fillColor: [230, 240, 255] }
         }
       });
     } else {
       // General Header for other reports
       doc.setFontSize(22);
-      doc.setTextColor(30, 41, 59);
-      doc.text(companyName, 14, 20);
-      
-      doc.setFontSize(16);
-      doc.setTextColor(99, 102, 241);
-      const titleText = `${activeReport} Report`;
-      doc.text(titleText, 14, 30);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      const title = `${activeReport} Report`;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const titleWidth = doc.getTextWidth(title);
+      doc.text(title, (pageWidth - titleWidth) / 2, 20);
+      doc.setLineWidth(0.5);
+      doc.line((pageWidth - titleWidth) / 2, 21.5, (pageWidth + titleWidth) / 2, 21.5);
       
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139);
-      doc.text(`Period: ${dateRange}`, 14, 38);
-      if (selectedEntity) {
+      if (!pdfSettings.hideDate) doc.text(`Period: ${dateRange}`, 14, 38);
+      if (selectedEntity && !pdfSettings.hideContact) {
         const entityName = (activeReport === 'Single Party' ? parties : banks).find(e => e.id === selectedEntity)?.name;
-        doc.text(`For: ${entityName}`, 14, 44);
+        doc.text(`For: ${entityName}`, 14, pdfSettings.hideDate ? 38 : 44);
       }
 
-      let head: string[][] = [];
-      let body: any[][] = [];
-
-      const getVisibleColumns = (reportType: ReportType) => {
-        const all = allColumns[reportType];
-        return all.filter(col => selectedColumns.includes(col));
-      };
-
-      const visibleCols = getVisibleColumns(activeReport);
-      head = [visibleCols];
-
-      body = filteredData.map(d => visibleCols.map(col => formatValue(col, d[col])));
-
-      if (activeReport === 'All Banks') {
-        doc.setFontSize(10);
-        doc.text(`Cash in Hand: ${formatCurrency(transactions.filter(t => !t.bank_id && t.company_id === currentCompany?.id).reduce((sum, t) => {
-          if (['Sale', 'Income', 'Cash Adjustment In'].includes(t.type)) return sum + t.amount;
-          if (['Expense', 'Payment Out', 'Cash Adjustment Out'].includes(t.type)) return sum - t.amount;
-          return sum;
-        }, 0), settings.currency)}`, 14, 55);
-        doc.text(`Total Bank Balances: ${formatCurrency(banks.filter(b => b.company_id === currentCompany?.id).reduce((sum, b) => sum + b.balance, 0), settings.currency)}`, 14, 61);
-      }
-
-      const startY = activeReport === 'All Banks' ? 68 : (selectedEntity ? 55 : 50);
+      let head = [selectedColumns];
+      const body = filteredData.map((d, index) => 
+        selectedColumns.map(col => {
+          if (col === '#') return index + 1;
+          const val = d[col];
+          return formatValue(col, val, false);
+        })
+      );
 
       autoTable(doc, {
         head,
         body,
-        startY,
+        startY: 55,
         theme: 'grid',
         headStyles: { 
-          fillColor: [99, 102, 241],
-          textColor: [255, 255, 255],
-          fontSize: 10,
+          fillColor: [220, 220, 220],
+          textColor: [0, 0, 0],
+          fontSize: pdfSettings.smallFont ? 8 : 9,
           fontStyle: 'bold'
         },
         styles: {
-          fontSize: 9,
-          cellPadding: 3,
-          valign: 'middle'
+          fontSize: pdfSettings.smallFont ? 7 : 8,
+          cellPadding: 2,
+          valign: 'middle',
+          textColor: [0, 0, 0]
         },
-        alternateRowStyles: {
-          fillColor: [248, 250, 252]
-        },
-        foot: [visibleCols.map(col => {
-          const totalVal = tableTotals ? (tableTotals as any)[col] : undefined;
-          if (totalVal !== undefined) {
-            return formatValue(col, totalVal, true);
+        columnStyles: selectedColumns.reduce((acc: any, col, idx) => {
+          if (col === 'Debit' || col === 'Credit' || col === 'Balance' || col === 'Amount' || col === 'Total' || col === 'Value' || col === 'In (+)' || col === 'Out (-)' || col === 'Deposit' || col === 'Withdrawal') {
+            acc[idx] = { halign: 'right' };
           }
-          if (col === 'Date' || col === 'Party Name' || col === 'Bank Name' || col === 'Item Name' || col === 'Invoice #') {
-            return 'Grand Total';
-          }
-          return '';
-        })],
-        footStyles: {
-          fillColor: [241, 245, 249],
-          textColor: [30, 41, 59],
-          fontStyle: 'bold'
+          return acc;
+        }, {}),
+        didDrawPage: (data) => {
+          const str = "Page " + (doc as any).internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.text(str, data.settings.margin.left, doc.internal.pageSize.getHeight() - 10);
         }
       });
     }

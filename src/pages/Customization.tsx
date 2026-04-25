@@ -32,6 +32,12 @@ export default function Customization() {
   const [localCustomization, setLocalCustomization] = useState<Record<string, string[]>>(
     settings.report_customization || {}
   );
+  const [pdfSettings, setPdfSettings] = useState({
+    hideContact: false,
+    hideDate: false,
+    smallFont: false,
+    ...((settings as any).pdf_settings || {})
+  });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const allColumns: Record<ReportType, string[]> = {
@@ -69,7 +75,10 @@ export default function Customization() {
 
   const handleSave = () => {
     setSaveStatus('saving');
-    updateSettings({ report_customization: localCustomization });
+    updateSettings({ 
+      report_customization: localCustomization,
+      pdf_settings: pdfSettings 
+    } as any);
     setTimeout(() => {
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);
@@ -79,7 +88,11 @@ export default function Customization() {
   const handleReset = () => {
     if (confirm('Are you sure you want to reset all report settings to default?')) {
       setLocalCustomization({});
-      updateSettings({ report_customization: undefined });
+      setPdfSettings({ hideContact: false, hideDate: false, smallFont: false });
+      updateSettings({ 
+        report_customization: undefined,
+        pdf_settings: undefined
+      } as any);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);
     }
@@ -102,7 +115,7 @@ export default function Customization() {
             <Layout className="text-indigo-600" size={32} />
             Report Customization
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">Select columns you want to show in each report</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">Customize your PDFs and reports</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -139,6 +152,42 @@ export default function Customization() {
                 Save Changes
               </span>
             )}
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl p-6 space-y-6">
+        <h3 className="font-black text-slate-900 dark:text-white tracking-tight text-lg">General PDF Preferences</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <button 
+            onClick={() => { setPdfSettings({...pdfSettings, hideContact: !pdfSettings.hideContact}); setSaveStatus('idle'); }}
+            className={cn(
+              "p-4 rounded-xl border-2 font-bold text-sm transition-all flex items-center justify-between",
+              pdfSettings.hideContact ? "bg-slate-900 border-slate-900 text-white" : "border-slate-100 dark:border-slate-800 text-slate-600"
+            )}
+          >
+            Hide Phone Number
+            {pdfSettings.hideContact ? <Check size={16} /> : <div className="w-4 h-4 rounded border border-slate-300" />}
+          </button>
+          <button 
+            onClick={() => { setPdfSettings({...pdfSettings, hideDate: !pdfSettings.hideDate}); setSaveStatus('idle'); }}
+            className={cn(
+              "p-4 rounded-xl border-2 font-bold text-sm transition-all flex items-center justify-between",
+              pdfSettings.hideDate ? "bg-slate-900 border-slate-900 text-white" : "border-slate-100 dark:border-slate-800 text-slate-600"
+            )}
+          >
+            Hide Header Date
+            {pdfSettings.hideDate ? <Check size={16} /> : <div className="w-4 h-4 rounded border border-slate-300" />}
+          </button>
+          <button 
+            onClick={() => { setPdfSettings({...pdfSettings, smallFont: !pdfSettings.smallFont}); setSaveStatus('idle'); }}
+            className={cn(
+              "p-4 rounded-xl border-2 font-bold text-sm transition-all flex items-center justify-between",
+              pdfSettings.smallFont ? "bg-slate-900 border-slate-900 text-white" : "border-slate-100 dark:border-slate-800 text-slate-600"
+            )}
+          >
+            Use Smaller Font
+            {pdfSettings.smallFont ? <Check size={16} /> : <div className="w-4 h-4 rounded border border-slate-300" />}
           </button>
         </div>
       </div>
