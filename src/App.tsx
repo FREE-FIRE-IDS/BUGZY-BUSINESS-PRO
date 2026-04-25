@@ -713,31 +713,20 @@ export default function App() {
   const renderPage = () => {
     const tab = activeTab === 'more' ? 'settings' : activeTab;
     
-    // Automatic redirection for premium pages if trial and license expired
-    const isPremiumPage = [...menuItems, ...moreItems].find(i => i.id === tab)?.premium;
-    
-    // If trial expired and no approved license
+    // Check if user is on a premium tab
+    const isPremiumTab = [...menuItems, ...moreItems].find(i => i.id === tab)?.premium;
+
+    // IF TRIAL OR LICENSE EXPIRED: Redirect logic
     if (isTrialExpired && !isLicensedUser) {
-        // If they have a pending request, they MUST stay on Dashboard
-        if (paymentStatus === 'pending') {
-            if (isPremiumPage && tab !== 'dashboard') {
-                // Special case: if they click upgrade, show the pending status but don't force overlay if we are already in dashboard?
-                // Actually the prompt says "direct link in to payment don't leave payment page if user close again open"
-                // But for "submit request then go to dashboard but don't open parties... just stay on dashboard"
-                setActiveTab('dashboard');
-                return <Dashboard />;
-            }
-        } else {
-            // No pending request and expired: force upgrade overlay if they try to access premium
-            if (isPremiumPage) {
-                setForceUpgrade(true);
-                setDismissedPayment(false);
-                if (tab !== 'dashboard') {
-                    setActiveTab('dashboard');
-                }
-                return <Dashboard />;
-            }
-        }
+      // If they try to access a premium tab, force them to the Dashboard with the Payment overlay
+      // OR better yet, if the user explicitly wants "Automatic direct into payment page"
+      // we should show the Payment screen as the page content if they are on any restricted page.
+      if (isPremiumTab || (tab !== 'dashboard' && tab !== 'settings')) {
+          setForceUpgrade(true);
+          setDismissedPayment(false);
+          // We still return Dashboard but with the overlay active
+          return <Dashboard />;
+      }
     }
 
     if (tab === 'upgrade') {
@@ -956,9 +945,14 @@ export default function App() {
                 <span>{daysLeftLicense}D</span>
               </div>
             )}
-            <div className="flex items-center gap-2 px-2 md:px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 max-w-[120px] md:max-w-none">
+            <div className="flex items-center gap-2 px-2 md:px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 max-w-[120px] md:max-w-none relative group">
               <Building2 size={16} className="shrink-0" />
               <span className="text-xs md:text-sm font-medium truncate">{currentCompany?.name}</span>
+              {(isTrialExpired && !isLicensedUser) && (
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white shadow-lg animate-bounce">
+                  <Crown size={8} className="fill-white" />
+                </div>
+              )}
             </div>
 
             <div className={cn(
@@ -1045,8 +1039,12 @@ export default function App() {
         </main>
 
         {/* Floating Action Button for Mobile */}
-        <div className="fixed bottom-28 right-6 z-40 md:hidden">
+        <div className={cn(
+          "fixed bottom-28 right-6 z-40 md:hidden transition-all",
+          (isTrialExpired && !isLicensedUser) && "opacity-50 grayscale pointer-events-none"
+        )}>
           <button 
+            disabled={isTrialExpired && !isLicensedUser}
             onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
             className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-all shadow-indigo-500/40"
           >

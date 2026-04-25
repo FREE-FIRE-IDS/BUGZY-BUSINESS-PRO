@@ -3,9 +3,17 @@ import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../contexts/AppContext';
 import { TransactionType } from '../types';
+import { addDays, isAfter } from 'date-fns';
 
 export default function GlobalTransactionModal() {
-  const { parties, banks, addTransaction, updateTransaction, currentCompany, selectedPartyId, selectedBankId } = useApp();
+  const { parties, banks, addTransaction, updateTransaction, currentCompany, selectedPartyId, selectedBankId, isLicensed } = useApp();
+  
+  // Trial logic for UI feedback
+  const isLicensedUser = isLicensed();
+  const trialStartRaw = currentCompany?.trial_start || currentCompany?.created_at;
+  const trialStart = trialStartRaw ? new Date(trialStartRaw) : null;
+  const trialEnd = trialStart ? addDays(trialStart, 7) : null;
+  const isTrialExpired = trialEnd ? isAfter(new Date(), trialEnd) : false;
   const [isOpen, setIsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -121,6 +129,14 @@ export default function GlobalTransactionModal() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isTrialExpired && !isLicensedUser) {
+        alert('Trial/License Expired! Please upgrade to continue adding entries ❌');
+        setIsOpen(false);
+        window.dispatchEvent(new CustomEvent('navigate', { detail: 'upgrade' }));
+        return;
+    }
+
     if (!amount || isNaN(Number(amount))) return;
 
     const txData = {
