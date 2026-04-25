@@ -88,6 +88,10 @@ export default function GlobalTransactionModal() {
 
   useEffect(() => {
     const handleOpen = (e: any) => {
+      if (isTrialExpired && !isLicensedUser) {
+        window.dispatchEvent(new CustomEvent('forceUpgrade'));
+        return;
+      }
       const data = e.detail;
       if (data && typeof data === 'object' && data.id) {
         // We are editing

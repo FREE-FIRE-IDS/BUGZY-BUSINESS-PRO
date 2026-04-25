@@ -593,7 +593,7 @@ function ShortcutHelper({ show }: { show: boolean }) {
 
 function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onUpgrade: () => void, isLicensed?: boolean }) {
   const expiryStr = localStorage.getItem('license_expiry');
-  const buildTag = "v2.4.2";
+  const buildTag = "v2.5.0-PRO";
   
   if (isLicensed) {
     if (!expiryStr) return null;
@@ -765,6 +765,10 @@ export default function App() {
         setIsShortcutPopupOpen(true);
       }
       if (e.altKey) {
+        if (isTrialExpired && !isLicensedUser) {
+          setForceUpgrade(true);
+          return;
+        }
         e.preventDefault();
         switch (e.key.toLowerCase()) {
           case 'i': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' })); break;
@@ -945,6 +949,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4 shrink-0">
+            {(isTrialExpired && !isLicensedUser) && (
+              <button 
+                onClick={() => setForceUpgrade(true)}
+                className="group relative flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500 text-white shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all active:scale-95 border border-white/20"
+              >
+                <Crown size={14} className="fill-white animate-pulse" />
+                <span className="text-[10px] font-black uppercase tracking-wider">Premium Lock</span>
+                <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white shadow-sm" />
+              </button>
+            )}
             {isLicensedUser && daysLeftLicense !== null && (
               <div className="flex flex-col items-end gap-0.5">
                 <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 text-[8px] sm:text-[10px] font-black uppercase tracking-wider truncate">
@@ -1054,14 +1068,27 @@ export default function App() {
         {/* Floating Action Button for Mobile */}
         <div className={cn(
           "fixed bottom-28 right-6 z-40 md:hidden transition-all",
-          (isTrialExpired && !isLicensedUser) && "opacity-50 grayscale pointer-events-none"
+          (isTrialExpired && !isLicensedUser) && "animate-bounce"
         )}>
           <button 
-            disabled={isTrialExpired && !isLicensedUser}
-            onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
-            className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-all shadow-indigo-500/40"
+            onClick={() => {
+              if (isTrialExpired && !isLicensedUser) {
+                setForceUpgrade(true);
+              } else {
+                window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }));
+              }
+            }}
+            className={cn(
+              "w-14 h-14 rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-all shadow-indigo-500/40 relative",
+              (isTrialExpired && !isLicensedUser) ? "bg-amber-500 text-white" : "bg-indigo-600 text-white"
+            )}
           >
-            <Plus size={32} />
+            {isTrialExpired && !isLicensedUser ? <Crown size={28} className="fill-white" /> : <Plus size={32} />}
+            {isTrialExpired && !isLicensedUser && (
+              <div className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center border-2 border-white">
+                <span className="text-[10px] font-black">!</span>
+              </div>
+            )}
           </button>
         </div>
 

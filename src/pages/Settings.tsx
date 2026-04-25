@@ -672,44 +672,81 @@ NOTIFY pgrst, 'reload schema';
       <section>
         <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
           <Shield size={24} className="text-indigo-600" />
-          Licensing
+          Licensing & Subscription
         </h3>
         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <p className="font-bold text-slate-900 dark:text-white">Device License</p>
-                {isLicensed() ? (
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px] font-black uppercase rounded-md">Pro Active</span>
-                ) : (
-                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] font-black uppercase rounded-md">Trial Mode</span>
-                )}
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-slate-500">
-                  {isLicensed() 
-                    ? (localStorage.getItem('active_license_key') 
-                        ? `Your device is licensed with key: ${localStorage.getItem('active_license_key')}`
-                        : 'Your device is licensed with a Master Key.')
-                    : 'Your device is currently in trial mode.'}
-                </p>
-                {isLicensed() && localStorage.getItem('license_expiry') && (
-                  <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 size={12} />
-                    Expires in {Math.max(0, Math.ceil((new Date(localStorage.getItem('license_expiry')!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))} days
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-4">
+                <div className={cn(
+                  "p-3 rounded-2xl",
+                  isLicensed() ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600" : "bg-amber-50 dark:bg-amber-900/20 text-amber-600"
+                )}>
+                  {isLicensed() ? <Shield size={24} /> : <ShieldAlert size={24} />}
+                </div>
+                <div>
+                  <h4 className="font-black text-lg text-slate-900 dark:text-white">
+                    {isLicensed() ? 'Premium Pro' : 'Trial Version'}
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Status: <span className={cn("font-bold", isLicensed() ? "text-emerald-600" : "text-amber-600")}>
+                      {isLicensed() ? 'Active' : 'Basic/Trial'}
+                    </span>
                   </p>
-                )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active License Key</span>
+                    {isLicensed() && <span className="text-[10px] font-bold text-emerald-600">AUTHORIZED</span>}
+                  </div>
+                  <p className="font-mono text-sm font-bold text-slate-700 dark:text-slate-300">
+                    {localStorage.getItem('active_license_key') || 'NO-ACTIVE-KEY'}
+                  </p>
+                </div>
+
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">License Expiry Date</span>
+                  </div>
+                  <p className="font-bold text-slate-700 dark:text-slate-300">
+                    {licenseExpiry ? format(new Date(licenseExpiry), 'dd MMMM yyyy (hh:mm a)') : (isLicensed() ? 'Lifetime/Infinite' : 'N/A')}
+                  </p>
+                  {isLicensed() && licenseExpiry && (
+                    <p className="text-[10px] font-bold text-emerald-600 mt-1 uppercase tracking-tighter">
+                      Expires in {Math.max(0, Math.ceil((new Date(licenseExpiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))} days
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-            {isLicensed() && (
-              <div className="flex gap-3">
+            {!isDeviceLicensed && (
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'activation' }))}
+                  className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 text-sm uppercase tracking-widest"
+                >
+                  Activate License
+                </button>
+                <button 
+                   onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'dashboard' }))}
+                   className="px-8 py-4 bg-slate-100 dark:bg-white text-slate-600 rounded-2xl font-black hover:bg-slate-200 transition-all text-sm uppercase tracking-widest"
+                >
+                  Get Support
+                </button>
+              </div>
+            )}
+             {isLicensed() && (
+              <div className="flex flex-col gap-2">
                 <button 
                   onClick={() => {
                     const key = localStorage.getItem('active_license_key') || 'MASTER';
                     const text = `My Bugzy App License Key: ${key}`;
                     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                   }}
-                  className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+                  className="w-full px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
                 >
                   <Plus size={18} />
                   Share WhatsApp
@@ -721,20 +758,12 @@ NOTIFY pgrst, 'reload schema';
                     const body = `My Bugzy App License Key is: ${key}`;
                     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
                   }}
-                  className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2"
+                  className="w-full px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
                 >
                   <FileText size={18} />
                   Send Email
                 </button>
               </div>
-            )}
-            {!isDeviceLicensed && (
-              <button 
-                onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'activation' }))}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
-              >
-                Activate License
-              </button>
             )}
           </div>
         </div>
