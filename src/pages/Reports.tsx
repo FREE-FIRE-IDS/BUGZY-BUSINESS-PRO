@@ -116,13 +116,13 @@ export default function Reports() {
     'Cash in Hand': ['Date', 'Description', 'In (+)', 'Out (-)', 'Balance'],
     'Single Party': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
     'All Parties': ['#', 'Name', 'Receivable Balance', 'Payable Balance'],
-    'Single Bank': ['Date', 'Description', viewMode === 'app' ? 'Withdrawal' : 'Credit', viewMode === 'app' ? 'Deposit' : 'Debit', 'Balance'],
+    'Single Bank': ['Date', 'Description', viewMode === 'app' ? 'Deposit' : 'Debit', viewMode === 'app' ? 'Withdrawal' : 'Credit', 'Balance'],
     'All Banks': ['Bank Name', 'Account #', 'Debit (DR)', 'Credit (CR)', 'Balance'],
     'Combined Statement': ['Date', 'Account/Party', 'In (+)', 'Out (-)', 'Balance'],
     'Stock': ['Item Name', 'SKU', 'Unit', 'Price', 'Stock', 'Value'],
     'Purchase': ['Date', 'Party', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total'],
     'Sale': ['Date', 'Party', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total'],
-    'Expense': ['Date', 'Description', 'Category', 'Paid From', 'Amount'],
+    'Expense': ['Date', 'Category', 'Description', 'Qty', 'Price', 'Paid From', 'Amount'],
     'Invoice': ['Invoice #', 'Date', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total'],
     'Day Book': ['Time', 'Description', 'Type', 'Account/Party', 'In (+)', 'Out (-)'],
     'Balance Sheet': ['#', 'Account Name', 'Amount'],
@@ -472,7 +472,10 @@ export default function Reports() {
           'Date': t.date,
           'Description': t.description || '-',
           'Category': t.category || '-',
-          'Paid From': t.bank_id ? companyBanks.find(b => b.id === t.bank_id)?.name : 'Cash',
+          'Qty': (t as any).quantity || 1,
+          'Price': (t as any).price || t.amount,
+          'Paid From': t.bank_id ? banks.find(b => b.id === t.bank_id)?.name || 'Bank' : 
+                      t.party_id ? parties.find(p => p.id === t.party_id)?.name || 'Credit Account' : 'Cash',
           'Amount': t.amount
         })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
@@ -595,6 +598,31 @@ export default function Reports() {
   const tableTotals = useMemo(() => {
     if (!filteredData.length) return null;
     
+    if (activeReport === 'Single Bank') {
+      const dep = filteredData.reduce((s, d) => s + (d[viewMode === 'app' ? 'Deposit' : 'Debit'] || 0), 0);
+      const wit = filteredData.reduce((s, d) => s + (d[viewMode === 'app' ? 'Withdrawal' : 'Credit'] || 0), 0);
+      const last = filteredData[filteredData.length - 1];
+      return { 
+        [viewMode === 'app' ? 'Deposit' : 'Debit']: dep, 
+        [viewMode === 'app' ? 'Withdrawal' : 'Credit']: wit,
+        'Balance': (last as any).Balance || (last as any).balance || 0 
+      };
+    }
+
+    if (activeReport === 'Cash in Hand') {
+      const inVal = filteredData.reduce((s, d) => s + (d['In (+)'] || 0), 0);
+      const outVal = filteredData.reduce((s, d) => s + (d['Out (-)'] || 0), 0);
+      const last = filteredData[filteredData.length - 1];
+      return { 'In (+)': inVal, 'Out (-)': outVal, 'Balance': (last as any).Balance || (last as any).balance || 0 };
+    }
+
+    if (activeReport === 'Single Party') {
+      const debVal = filteredData.reduce((s, d) => s + (d['Debit'] || 0), 0);
+      const creVal = filteredData.reduce((s, d) => s + (d['Credit'] || 0), 0);
+      const last = filteredData[filteredData.length - 1];
+      return { 'Debit': debVal, 'Credit': creVal, 'Balance': (last as any).Balance || (last as any).balance || 0 };
+    }
+
     if (activeReport === 'All Parties') {
       const recLimit = filteredData.reduce((s, d) => s + (d['Receivable Balance'] || 0), 0);
       const payLimit = filteredData.reduce((s, d) => s + (d['Payable Balance'] || 0), 0);
@@ -653,7 +681,7 @@ export default function Reports() {
       const showDrCr = (col.includes('Balance') && isTotal) ? true : settings.show_dr_cr;
       return formatBalance(val, settings.currency, showDrCr);
     }
-    if (col === 'Receivable Balance' || col === 'Payable Balance' || col.includes('Debit') || col.includes('Credit') || col.includes('Price') || col.includes('Value') || col === 'Qty' || col.includes('In (+)') || col.includes('Out (-)') || col === 'Cash In' || col === 'Cash Out' || col === 'Net Flow') {
+    if (col === 'Receivable Balance' || col === 'Payable Balance' || col.includes('Debit') || col.includes('Credit') || col.includes('Price') || col.includes('Value') || col === 'Qty' || col.includes('In (+)') || col.includes('Out (-)') || col === 'Cash In' || col === 'Cash Out' || col === 'Net Flow' || col === 'Deposit' || col === 'Withdrawal') {
       return formatCurrency(val, settings.currency);
     }
     return String(val);
@@ -725,51 +753,74 @@ export default function Reports() {
         }
       });
     } else if (activeReport === 'Balance Sheet') {
-      // Balance Sheet Specific Layout
+      // Balance Sheet Specific Layout (4-Column Side-by-Side Theme)
+      const pageWidth = doc.internal.pageSize.getWidth();
       doc.setFontSize(22);
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'bold');
       const title = `Balance Sheet as on ${formatDate(new Date().toISOString())}`;
-      const pageWidth = doc.internal.pageSize.getWidth();
       const titleWidth = doc.getTextWidth(title);
       doc.text(title, (pageWidth - titleWidth) / 2, 20);
 
-      const body = filteredData.map(d => [
-        d['#'],
-        d['Account Name'],
-        d['Amount'] === 0 && d.isHeader ? '' : formatCurrency(d['Amount'], settings.currency).replace('Rs. ', '').replace('Rs.', '')
-      ]);
+      // Prepare Assets and Liabilities Data
+      const assetData = filteredData.filter(d => ['ASSETS', 'Total Assets'].includes(d['#']) || (typeof d['#'] === 'number' && filteredData.indexOf(d) < filteredData.findIndex(x => x['#'] === 'LIABILITIES')));
+      const liabilityData = filteredData.filter(d => filteredData.indexOf(d) >= filteredData.findIndex(x => x['#'] === 'LIABILITIES'));
+
+      const maxRows = Math.max(assetData.length, liabilityData.length);
+      const body = [];
+      for (let i = 0; i < maxRows; i++) {
+        const a = assetData[i] || { 'Account Name': '', 'Amount': 0 };
+        const l = liabilityData[i] || { 'Account Name': '', 'Amount': 0 };
+        body.push([
+          a['Account Name'] || '',
+          a['Account Name'] && !((a as any).isHeader) ? formatCurrency(a['Amount'], settings.currency).replace('Rs. ', '').replace('Rs.', '') : '',
+          l['Account Name'] || '',
+          l['Account Name'] && !((l as any).isHeader) ? formatCurrency(l['Amount'], settings.currency).replace('Rs. ', '').replace('Rs.', '') : ''
+        ]);
+      }
 
       autoTable(doc, {
-        head: [['#', 'Account Name', 'Amount']],
+        head: [['Assets', 'Amount', 'Liabilities', 'Amount']],
         body,
         startY: 30,
         theme: 'grid',
         headStyles: { 
-          fillColor: [220, 220, 220],
-          textColor: [0, 0, 0],
-          fontSize: 9,
-          fontStyle: 'bold'
+          fillColor: [220, 220, 240], 
+          textColor: [0, 0, 0], 
+          fontSize: 9, 
+          fontStyle: 'bold',
+          halign: 'center'
         },
         columnStyles: {
-          0: { halign: 'left', cellWidth: 15 },
-          1: { halign: 'left' },
-          2: { halign: 'right', cellWidth: 50 }
+          0: { halign: 'left' },
+          1: { halign: 'right', cellWidth: 35 },
+          2: { halign: 'left' },
+          3: { halign: 'right', cellWidth: 35 }
         },
         styles: {
-          fontSize: 8,
-          cellPadding: 2,
+          fontSize: 7.5,
+          cellPadding: 1.5,
           valign: 'middle',
           textColor: [0, 0, 0]
         },
         didParseCell: (data) => {
-          const rowData = filteredData[data.row.index];
-          if (rowData?.isHeader) {
-            data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.fillColor = [245, 245, 245];
+          const rowIndex = data.row.index;
+          const a = assetData[rowIndex];
+          const l = liabilityData[rowIndex];
+          
+          if (data.column.index < 2 && a) {
+            if (a.isHeader) {
+               data.cell.styles.fontStyle = 'bold';
+               data.cell.styles.fillColor = [240, 240, 240];
+            }
+            if (a.isSubTotal) data.cell.styles.fontStyle = 'bold';
           }
-          if (rowData?.isSubTotal) {
-            data.cell.styles.fontStyle = 'bold';
+          if (data.column.index >= 2 && l) {
+            if (l.isHeader) {
+               data.cell.styles.fontStyle = 'bold';
+               data.cell.styles.fillColor = [240, 240, 240];
+            }
+            if (l.isSubTotal) data.cell.styles.fontStyle = 'bold';
           }
         }
       });
@@ -786,11 +837,10 @@ export default function Reports() {
       
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139);
-      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 38);
-      doc.text(`Period: ${dateRange}`, 14, 44);
+      doc.text(`Period: ${dateRange}`, 14, 38);
       if (selectedEntity) {
         const entityName = (activeReport === 'Single Party' ? parties : banks).find(e => e.id === selectedEntity)?.name;
-        doc.text(`For: ${entityName}`, 14, 50);
+        doc.text(`For: ${entityName}`, 14, 44);
       }
 
       let head: string[][] = [];
@@ -920,6 +970,28 @@ export default function Reports() {
                   <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">Export professional business statements</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {(activeReport === 'Single Bank' || activeReport === 'Single Party') && (
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 pointer-events-auto shrink-0 mr-2">
+                      <button 
+                        onClick={() => setViewMode('app')}
+                        className={cn(
+                          "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
+                          viewMode === 'app' ? "bg-white dark:bg-slate-600 text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                        )}
+                      >
+                        App
+                      </button>
+                      <button 
+                        onClick={() => setViewMode('accounting')}
+                        className={cn(
+                          "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
+                          viewMode === 'accounting' ? "bg-white dark:bg-slate-600 text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                        )}
+                      >
+                        Acc
+                      </button>
+                    </div>
+                  )}
                   <button 
                     onClick={handleSync}
                     disabled={isSyncing}
