@@ -120,7 +120,9 @@ export default function Reports() {
   const allColumns: Record<ReportType, string[]> = useMemo(() => ({
     'Cash in Hand': ['Date', 'Description', 'In (+)', 'Out (-)', 'Balance'],
     'Single Party': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
-    'All Parties': ['#', 'Name', 'Receivable Balance', 'Payable Balance'],
+    'All Parties': viewMode === 'app' 
+      ? ['#', 'Name', 'Receivable Balance', 'Payable Balance'] 
+      : ['#', 'Name', 'Debit', 'Credit'],
     'Single Bank': ['Date', 'Description', viewMode === 'app' ? 'Deposit' : 'Debit', viewMode === 'app' ? 'Withdrawal' : 'Credit', 'Balance'],
     'All Banks': ['Bank Name', 'Account #', 'Debit (DR)', 'Credit (CR)', 'Balance'],
     'Combined Statement': ['Date', 'Account/Party', 'In (+)', 'Out (-)', 'Balance'],
@@ -236,6 +238,8 @@ export default function Reports() {
             'Name': p.name, 
             'Receivable Balance': p.balance > 0 ? p.balance : 0,
             'Payable Balance': p.balance < 0 ? Math.abs(p.balance) : 0,
+            'Debit': p.balance > 0 ? p.balance : 0,
+            'Credit': p.balance < 0 ? Math.abs(p.balance) : 0,
             'Balance': p.balance
           }));
         break;
@@ -682,9 +686,12 @@ export default function Reports() {
     }
 
     if (activeReport === 'All Parties') {
-      const recLimit = filteredData.reduce((s, d) => s + (d['Receivable Balance'] || 0), 0);
-      const payLimit = filteredData.reduce((s, d) => s + (d['Payable Balance'] || 0), 0);
-      return { 'Receivable Balance': recLimit, 'Payable Balance': payLimit };
+      const recLimit = filteredData.reduce((s, d) => s + (d['Receivable Balance'] || d['Debit'] || 0), 0);
+      const payLimit = filteredData.reduce((s, d) => s + (d['Payable Balance'] || d['Credit'] || 0), 0);
+      return { 
+        [viewMode === 'app' ? 'Receivable Balance' : 'Debit']: recLimit, 
+        [viewMode === 'app' ? 'Payable Balance' : 'Credit']: payLimit 
+      };
     }
     
     if (activeReport === 'All Banks') {
@@ -755,60 +762,66 @@ export default function Reports() {
       doc.setFontSize(22);
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'bold');
-      const title = 'Party Report';
+      const title = 'All Parties Balance Report';
       const pageWidth = doc.internal.pageSize.getWidth();
       const titleWidth = doc.getTextWidth(title);
       doc.text(title, (pageWidth - titleWidth) / 2, 20);
       doc.setLineWidth(0.5);
       doc.line((pageWidth - titleWidth) / 2, 21.5, (pageWidth + titleWidth) / 2, 21.5);
 
+      const col1 = viewMode === 'app' ? 'Receivable Balance' : 'Debit';
+      const col2 = viewMode === 'app' ? 'Payable Balance' : 'Credit';
+
       const body = filteredData.map((d, index) => [
         index + 1,
         d.Name,
-        formatCurrency(d['Receivable Balance'], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
-        formatCurrency(d['Payable Balance'], settings.currency).replace('Rs. ', '').replace('Rs.', '')
+        formatCurrency(d[col1], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
+        formatCurrency(d[col2], settings.currency).replace('Rs. ', '').replace('Rs.', '')
       ]);
 
       const totals = tableTotals as any;
 
       autoTable(doc, {
-        head: [['#', 'Name', 'Receivable Balance', 'Payable Balance']],
+        head: [['#', 'Name', col1, col2]],
         body,
         startY: 30,
         theme: 'grid',
         headStyles: { 
-          fillColor: [220, 220, 220],
-          textColor: [0, 0, 0],
+          fillColor: [79, 70, 229],
+          textColor: [255, 255, 255],
           fontSize: pdfSettings.smallFont ? 8 : 9,
           fontStyle: 'bold',
           halign: 'left'
         },
         columnStyles: {
-          0: { halign: 'left', cellWidth: 10 },
+          0: { halign: 'left', cellWidth: 12 },
           1: { halign: 'left' },
-          2: { halign: 'right', cellWidth: 40 },
-          3: { halign: 'right', cellWidth: 40 }
+          2: { halign: 'right', cellWidth: 45 },
+          3: { halign: 'right', cellWidth: 45 }
         },
         styles: {
           fontSize: pdfSettings.smallFont ? 7 : 8,
-          cellPadding: 2,
+          cellPadding: 3,
           valign: 'middle',
           textColor: [0, 0, 0],
-          lineColor: [200, 200, 200],
-          lineWidth: 0.1
+          lineColor: [220, 220, 220],
+          lineWidth: 0.1,
+          overflow: 'linebreak'
         },
         foot: [[
           '',
-          'Total',
-          formatCurrency(totals['Receivable Balance'], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
-          formatCurrency(totals['Payable Balance'], settings.currency).replace('Rs. ', '').replace('Rs.', '')
+          'Total Balance Summary',
+          formatCurrency(totals[col1], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
+          formatCurrency(totals[col2], settings.currency).replace('Rs. ', '').replace('Rs.', '')
         ]],
         footStyles: {
-          fillColor: [220, 220, 220],
-          textColor: [0, 0, 0],
+          fillColor: [248, 250, 252],
+          textColor: [79, 70, 229],
           fontStyle: 'bold',
           fontSize: pdfSettings.smallFont ? 8 : 9,
-          halign: 'right'
+          halign: 'right',
+          lineColor: [79, 70, 229],
+          lineWidth: 0.2
         }
       });
     } else if (activeReport === 'Balance Sheet') {
@@ -1069,7 +1082,7 @@ export default function Reports() {
                   >
                     <SettingsIcon size={18} />
                   </button>
-                  {(activeReport === 'Single Bank' || activeReport === 'Single Party') && (
+                  {(activeReport === 'Single Bank' || activeReport === 'Single Party' || activeReport === 'All Parties') && (
                     <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 pointer-events-auto shrink-0 mr-2">
                       <button 
                         onClick={() => setViewMode('app')}
@@ -1296,7 +1309,7 @@ export default function Reports() {
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">{key}</span>
                       <span className={cn(
                         "text-sm font-black",
-                        key.includes('Debit') || key.includes('In (+)') ? "text-emerald-600 dark:text-emerald-400" : (key.includes('Credit') || key.includes('Out (-)') ? "text-rose-600 dark:text-rose-400" : "text-indigo-600 dark:text-indigo-400")
+                        key.includes('Debit') || key.includes('In (+)') || key.includes('Receivable') ? "text-emerald-600 dark:text-emerald-400" : (key.includes('Credit') || key.includes('Out (-)') || key.includes('Payable') ? "text-rose-600 dark:text-rose-400" : "text-indigo-600 dark:text-indigo-400")
                       )}>
                         {formatValue(key, val, true)}
                       </span>
@@ -1312,7 +1325,10 @@ export default function Reports() {
             <div className="inline-block min-w-full align-middle">
               <div className="p-0">
                 <table className="min-w-full divide-y divide-slate-50 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                  <thead className="bg-slate-50/50 dark:bg-slate-800/50 text-left">
+                  <thead className={cn(
+                    "text-left",
+                    activeReport === 'All Parties' ? "bg-indigo-50/50 dark:bg-indigo-900/20" : "bg-slate-50/50 dark:bg-slate-800/50"
+                  )}>
                     <tr>
                       {activeColumns.map(colId => (
                         <th key={colId} className="px-6 py-4 text-[10px] uppercase tracking-wider font-black text-slate-400 whitespace-nowrap">
@@ -1357,7 +1373,7 @@ export default function Reports() {
                                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{colId}</span>
                                   <span className={cn(
                                     "text-[13px] font-black",
-                                    colId.includes('Debit') || colId.includes('In (+)') ? "text-emerald-700 dark:text-emerald-400" : (colId.includes('Credit') || colId.includes('Out (-)') ? "text-rose-700 dark:text-rose-400" : "text-indigo-700 dark:text-indigo-400")
+                                    colId.includes('Debit') || colId.includes('In (+)') || colId.includes('Receivable') ? "text-emerald-700 dark:text-emerald-400" : (colId.includes('Credit') || colId.includes('Out (-)') || colId.includes('Payable') ? "text-rose-700 dark:text-rose-400" : "text-indigo-700 dark:text-indigo-400")
                                   )}>
                                     {formatValue(colId, totalVal, true)}
                                   </span>
