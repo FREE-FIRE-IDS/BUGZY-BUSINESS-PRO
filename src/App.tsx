@@ -38,7 +38,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
 import { useTheme } from './contexts/ThemeContext';
 import { cn } from './lib/utils';
-import { differenceInDays, addDays, isAfter } from 'date-fns';
+import { differenceInDays, addDays, isAfter, format } from 'date-fns';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -599,7 +599,7 @@ function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onU
       <div className="bg-emerald-600 text-white px-4 py-2 flex items-center justify-between text-sm font-bold sticky top-0 z-[45] shadow-md">
         <div className="flex items-center gap-2">
           <ShieldCheck size={16} />
-          <span>Pro License: {daysLeft} days remaining</span>
+          <span>Pro License: {daysLeft} days remaining ({format(expiryDate, 'dd MMM yyyy')})</span>
         </div>
         <div className="text-[10px] uppercase font-black opacity-80">Device Authorized</div>
       </div>
@@ -940,9 +940,16 @@ export default function App() {
 
           <div className="flex items-center gap-2 md:gap-4 shrink-0">
             {isLicensedUser && daysLeftLicense !== null && (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 text-[8px] sm:text-[10px] font-black uppercase tracking-wider truncate">
-                <Clock size={10} className="shrink-0" />
-                <span>{daysLeftLicense}D</span>
+              <div className="flex flex-col items-end gap-0.5">
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 text-[8px] sm:text-[10px] font-black uppercase tracking-wider truncate">
+                  <Clock size={10} className="shrink-0" />
+                  <span>{daysLeftLicense}D Left</span>
+                </div>
+                {licenseExpiry && (
+                  <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
+                    Expires: {format(new Date(licenseExpiry), 'dd MMM yyyy')}
+                  </span>
+                )}
               </div>
             )}
             <div className="flex items-center gap-2 px-2 md:px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 max-w-[120px] md:max-w-none relative group">
