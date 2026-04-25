@@ -1044,15 +1044,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const addTransaction = async (tx: Omit<Transaction, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
 
-    // Expiry check
-    const trialStartRaw = currentCompany.trial_start || currentCompany.created_at;
-    const trialStart = trialStartRaw ? new Date(trialStartRaw) : null;
-    const trialEnd = trialStart ? addDays(trialStart, 7) : null;
-    const isE = trialEnd ? isAfter(new Date(), trialEnd) : false;
-
-    if (isE && !isDeviceLicensed) {
+    if (isTrialExpired) {
       alert('Package Expired! Please upgrade to Pro ❌');
-      window.dispatchEvent(new CustomEvent('navigate', { detail: 'upgrade' }));
       return;
     }
 
@@ -1081,6 +1074,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const updateTransaction = async (id: string, tx: Partial<Transaction>) => {
     if (!currentCompany) return;
+
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const now = new Date().toISOString();
     const updated = transactions.map(t => t.id === id ? { ...t, ...tx, updated_at: now } : t);
     setTransactions(updated);
@@ -1096,15 +1094,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const addParty = async (party: Omit<Party, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
 
-    // Expiry check
-    const trialStartRaw = currentCompany.trial_start || currentCompany.created_at;
-    const trialStart = trialStartRaw ? new Date(trialStartRaw) : null;
-    const trialEnd = trialStart ? addDays(trialStart, 7) : null;
-    const isE = trialEnd ? isAfter(new Date(), trialEnd) : false;
-
-    if (isE && !isDeviceLicensed) {
+    if (isTrialExpired) {
       alert('Package Expired! Please upgrade to Pro ❌');
-      window.dispatchEvent(new CustomEvent('navigate', { detail: 'upgrade' }));
       return;
     }
 
@@ -1132,6 +1123,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const updateParty = async (id: string, party: Partial<Party>) => {
     if (!currentCompany) return;
+
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const now = new Date().toISOString();
     const updated = parties.map(p => p.id === id ? { ...p, ...party, updated_at: now } : p);
     setParties(updated);
@@ -1146,18 +1142,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const deleteParty = async (id: string, hard = true) => {
     if (!currentCompany) return;
 
-    // Expiry check
-    const checkExpiry = () => {
-      const trialStartRaw = currentCompany.trial_start || currentCompany.created_at;
-      const trialStart = trialStartRaw ? new Date(trialStartRaw) : null;
-      const trialEnd = trialStart ? addDays(trialStart, 7) : null;
-      const isE = trialEnd ? isAfter(new Date(), trialEnd) : false;
-      return isE && !isDeviceLicensed;
-    };
-
-    if (checkExpiry()) {
+    if (isTrialExpired) {
       alert('Package Expired! Please upgrade to Pro ❌');
-      window.dispatchEvent(new CustomEvent('navigate', { detail: 'upgrade' }));
       return;
     }
 
@@ -1189,15 +1175,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const addBank = async (bank: Omit<BankAccount, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
 
-    // Expiry check
-    const trialStartRaw = currentCompany.trial_start || currentCompany.created_at;
-    const trialStart = trialStartRaw ? new Date(trialStartRaw) : null;
-    const trialEnd = trialStart ? addDays(trialStart, 7) : null;
-    const isE = trialEnd ? isAfter(new Date(), trialEnd) : false;
-
-    if (isE && !isDeviceLicensed) {
+    if (isTrialExpired) {
       alert('Package Expired! Please upgrade to Pro ❌');
-      window.dispatchEvent(new CustomEvent('navigate', { detail: 'upgrade' }));
       return;
     }
 
@@ -1225,6 +1204,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const updateBank = async (id: string, bank: Partial<BankAccount>) => {
     if (!currentCompany) return;
+
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const now = new Date().toISOString();
     const updated = banks.map(b => b.id === id ? { ...b, ...bank, updated_at: now } : b);
     setBanks(updated);
@@ -1266,15 +1250,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const addItem = async (item: Omit<Item, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
 
-    // Expiry check
-    const trialStartRaw = currentCompany.trial_start || currentCompany.created_at;
-    const trialStart = trialStartRaw ? new Date(trialStartRaw) : null;
-    const trialEnd = trialStart ? addDays(trialStart, 7) : null;
-    const isE = trialEnd ? isAfter(new Date(), trialEnd) : false;
-
-    if (isE && !isDeviceLicensed) {
+    if (isTrialExpired) {
       alert('Package Expired! Please upgrade to Pro ❌');
-      window.dispatchEvent(new CustomEvent('navigate', { detail: 'upgrade' }));
       return;
     }
 
@@ -1301,6 +1278,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const updateItem = async (id: string, item: Partial<Item>) => {
     if (!currentCompany) return;
+
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const now = new Date().toISOString();
     
     // If stock is being updated directly, it might be an opening stock edit
@@ -1323,6 +1305,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const deleteItem = async (id: string, hard = true) => {
     if (!currentCompany) return;
+
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const item = items.find(i => i.id === id);
     if (!item) return;
 
@@ -1349,7 +1336,12 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const deleteTransaction = async (id: string, hard = true) => {
-      if (!currentCompany) return;
+    if (!currentCompany) return;
+
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
       const tx = transactions.find(t => t.id === id);
       if (!tx) return;
 
@@ -1728,15 +1720,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const addInvoice = async (invoice: Omit<Invoice, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
 
-    // Expiry check
-    const trialStartRaw = currentCompany.trial_start || currentCompany.created_at;
-    const trialStart = trialStartRaw ? new Date(trialStartRaw) : null;
-    const trialEnd = trialStart ? addDays(trialStart, 7) : null;
-    const isE = trialEnd ? isAfter(new Date(), trialEnd) : false;
-
-    if (isE && !isDeviceLicensed) {
+    if (isTrialExpired) {
       alert('Package Expired! Please upgrade to Pro ❌');
-      window.dispatchEvent(new CustomEvent('navigate', { detail: 'upgrade' }));
       return;
     }
 
@@ -1762,6 +1747,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const updateInvoice = async (id: string, invoice: Partial<Invoice>) => {
     if (!currentCompany) return;
+
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const now = new Date().toISOString();
     const updated = invoices.map(i => i.id === id ? { ...i, ...invoice, updated_at: now } : i);
     setInvoices(updated);

@@ -169,7 +169,8 @@ function PaymentScreen({ company, onClose }: { company: Company, onClose?: () =>
     screenshot: ''
   });
   const [licenseKey, setLicenseKey] = useState('');
-  const isExpired = !isLicensed;
+  const isExpired = !isLicensedUser;
+  const version = "v2.5.0-PRO";
 
   const plans = {
     monthly: { name: 'Monthly Plan', price: 599, duration: '30 Days' },
@@ -293,7 +294,8 @@ function PaymentScreen({ company, onClose }: { company: Company, onClose?: () =>
             <X size={24} />
           </button>
         ) : null}
-        <div className="p-10">
+        <div className="p-10 relative">
+          <div className="absolute top-4 right-10 opacity-20 text-[8px] font-black pointer-events-none">{version}</div>
           <AnimatePresence mode="wait">
             {step === 'plan' && (
               <motion.div
@@ -634,9 +636,9 @@ function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onU
       </div>
       <button 
         onClick={onUpgrade}
-        className="bg-white text-rose-600 px-4 py-1 rounded-full text-xs font-black hover:bg-white/90 transition-all shadow-lg active:scale-95"
+        className="bg-white text-rose-600 px-4 py-1 rounded-full text-[10px] font-black hover:bg-white/90 transition-all shadow-lg active:scale-95 uppercase tracking-wider"
       >
-        {isExpired ? "Payment Now" : "Unlock Pro"}
+        {isExpired ? "Upgrade Now" : "Get Pro"}
       </button>
     </div>
   );
@@ -719,11 +721,10 @@ export default function App() {
 
     // IF TRIAL OR LICENSE EXPIRED: Redirect logic
     if (isTrialExpired && !isLicensedUser) {
-      if (isPremiumTab || (tab !== 'dashboard' && tab !== 'settings')) {
+      if (isPremiumTab || (tab !== 'dashboard' && tab !== 'settings' && tab !== 'more')) {
           // DIRECT TO PAYMENT PAGE as requested:
-          // We set forceUpgrade to true and return specialized view
           return (
-            <div className="min-h-[60vh] flex items-center justify-center p-4">
+            <div className="flex items-center justify-center p-4">
               <div className="w-full max-w-xl">
                 <PaymentScreen 
                   company={currentCompany!} 
@@ -813,6 +814,15 @@ export default function App() {
   if (currentCompany && isTrialExpired && !isLicensedUser && !dismissedPayment && !forceUpgrade) {
     // We want to show it by default if expired, but allow dismissing it to see Dashboard
     // But we don't want to block the entire component here because we want to use the OVERLAY pattern
+  }
+
+  if (!currentCompany) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mb-4" />
+        <p className="text-slate-500 font-bold animate-pulse uppercase tracking-[0.2em] text-[10px]">Initializing workspace</p>
+      </div>
+    );
   }
 
   return (
