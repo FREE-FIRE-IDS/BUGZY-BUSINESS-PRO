@@ -155,42 +155,43 @@ export default function Invoices() {
       const doc = new jsPDF() as jsPDFWithAutoTable;
       const party = parties.find(p => p.id === invoice.party_id);
       
-      // Header - Blue Border Box
-      doc.setDrawColor(59, 130, 246); // Blue-500
-      doc.setLineWidth(0.8);
-      doc.rect(14, 10, 182, 10);
-      doc.setFontSize(14);
+      // Header - Main Title
+      doc.setFontSize(22);
+      doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(30, 41, 59);
-      doc.text('SALE INVOICE', 105, 17, { align: 'center' });
+      const title = `${invoice.type.toUpperCase()} INVOICE`;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const titleWidth = doc.getTextWidth(title);
+      doc.text(title, (pageWidth - titleWidth) / 2, 20);
+      doc.setLineWidth(0.5);
+      doc.line((pageWidth - titleWidth) / 2, 21.5, (pageWidth + titleWidth) / 2, 21.5);
 
-      // Info Section
+      // Info Section - Two Columns
       doc.setFontSize(10);
       doc.setTextColor(0, 0, 0);
       
-      // Bill To Row
+      const infoY = 32;
+      // Left Column
       doc.setFont('helvetica', 'bold');
-      doc.text('Bill To.', 14, 30);
+      doc.text('Bill To:', 14, infoY);
       doc.setFont('helvetica', 'normal');
-      doc.text(party?.name || 'Cash Customer', 40, 30);
+      doc.text(party?.name || 'Walk-in Customer', 40, infoY);
       
-      // Invoice No Row
       doc.setFont('helvetica', 'bold');
-      doc.text('Invoice No.', 150, 30);
+      doc.text('Contact:', 14, infoY + 8);
       doc.setFont('helvetica', 'normal');
-      doc.text(invoice.invoice_number || '-', 196, 30, { align: 'right' });
+      doc.text(party?.phone || '-', 40, infoY + 8);
 
-      // Contact Row
+      // Right Column
       doc.setFont('helvetica', 'bold');
-      doc.text('Contact.', 14, 40);
+      doc.text('Invoice #:', 130, infoY);
       doc.setFont('helvetica', 'normal');
-      doc.text(party?.phone || '-', 40, 40);
-
-      // Date Row
+      doc.text(invoice.invoice_number || '-', 160, infoY);
+      
       doc.setFont('helvetica', 'bold');
-      doc.text('Date', 150, 40);
+      doc.text('Date:', 130, infoY + 8);
       doc.setFont('helvetica', 'normal');
-      doc.text(formatDate(invoice.date), 196, 40, { align: 'right' });
+      doc.text(formatDate(invoice.date), 160, infoY + 8);
 
       // Table
       const tableData = invoice.items.map((item: any, idx: number) => [
@@ -198,38 +199,37 @@ export default function Invoices() {
         item.shipping_mark || '-',
         item.name,
         item.quantity,
-        item.total_weight ? Number(item.total_weight).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00',
-        item.shortage ? Number(item.shortage).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00',
-        item.net_weight ? Number(item.net_weight).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00',
-        Number(item.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        item.total_weight ? Number(item.total_weight).toFixed(2) : '-',
+        item.shortage ? Number(item.shortage).toFixed(2) : '-',
+        item.net_weight ? Number(item.net_weight).toFixed(2) : '-',
+        formatCurrency(item.price, settings.currency).replace('Rs. ', '').replace('Rs.', ''),
+        formatCurrency(item.total, settings.currency).replace('Rs. ', '').replace('Rs.', '')
       ]);
 
       autoTable(doc, {
-        head: [['No.', 'Shipping Mark', 'Item Name', 'Qty', 'Total Wt', 'Shortage', 'NetWt', 'Price / Kg', 'Total']],
+        head: [['#', 'Mark', 'Item Description', 'Qty', 'T.Wt', 'Short', 'N.Wt', 'Price', 'Total']],
         body: tableData,
-        startY: 48,
+        startY: infoY + 18,
         theme: 'grid',
         headStyles: { 
-          fillColor: [59, 130, 246],
-          textColor: [255, 255, 255],
-          fontSize: 8.5,
+          fillColor: [220, 220, 220],
+          textColor: [0, 0, 0],
+          fontSize: 8,
           fontStyle: 'bold',
-          halign: 'center',
-          valign: 'middle'
+          halign: 'center'
         },
         styles: {
-          fontSize: 8.5,
-          cellPadding: 3,
+          fontSize: 8,
+          cellPadding: 2,
           valign: 'middle',
           textColor: [0, 0, 0]
         },
         columnStyles: {
           0: { halign: 'center', cellWidth: 10 },
-          1: { cellWidth: 40 },
-          2: { cellWidth: 35 },
-          3: { halign: 'center', cellWidth: 10 },
-          4: { halign: 'right', cellWidth: 20 },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 45 },
+          3: { halign: 'center', cellWidth: 12 },
+          4: { halign: 'right', cellWidth: 15 },
           5: { halign: 'right', cellWidth: 15 },
           6: { halign: 'right', cellWidth: 15 },
           7: { halign: 'right', cellWidth: 25 },
@@ -237,52 +237,33 @@ export default function Invoices() {
         }
       });
 
-      const finalY = ((doc as any).lastAutoTable?.finalY || 150) + 5;
+      const finalY = ((doc as any).lastAutoTable?.finalY || 150) + 10;
 
-      // Amount in Words Header
-      doc.setFillColor(59, 130, 246);
-      doc.rect(14, finalY + 5, 120, 8, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(10);
+      // Words & Totals
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
-      doc.text('Amount in Words', 16, finalY + 11);
+      doc.text('Amount in Words:', 14, finalY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${numberToWords(invoice.total)} Only`, 14, finalY + 6);
 
-      // Amount text
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(10);
-      doc.text(`Rupees ${numberToWords(invoice.total)} Only`, 14, finalY + 22);
+      const totalsX = 140;
+      let currentY = finalY;
 
-      // Totals Section
-      const totalsX = 135;
-      doc.setFillColor(59, 130, 246);
-      doc.rect(totalsX, finalY + 5, 61, 8, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.text('Amount', totalsX + 2, finalY + 11);
-
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(10);
-      
-      let currentY = finalY + 22;
-      const drawTotalLine = (label: string, value: number, isBold: boolean = false) => {
-        if (isBold) doc.setFont('helvetica', 'bold');
-        else doc.setFont('helvetica', 'normal');
-        
+      const drawLine = (label: string, value: number, isLast: boolean = false) => {
+        doc.setFont('helvetica', isLast ? 'bold' : 'normal');
         doc.text(label, totalsX, currentY);
-        doc.text(value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 196, currentY, { align: 'right' });
-        
-        doc.setDrawColor(200, 200, 200);
+        doc.text(formatCurrency(value, settings.currency).replace('Rs. ', '').replace('Rs.', ''), 196, currentY, { align: 'right' });
         doc.line(totalsX, currentY + 2, 196, currentY + 2);
         currentY += 8;
       };
 
-      drawTotalLine('Sub Total', invoice.subtotal);
-      drawTotalLine('Total', invoice.total, true);
-      drawTotalLine('Received', 0);
-      drawTotalLine('Balance', invoice.total, true);
+      drawLine('Sub Total:', invoice.subtotal);
+      if (invoice.tax) drawLine('Tax/Adjust:', invoice.tax);
+      drawLine('Grand Total:', invoice.total, true);
       
-      const prevBalance = party?.balance ? (party.balance - invoice.total) : 0;
-      drawTotalLine('Previous Balance', prevBalance);
-      drawTotalLine('Current Balance', party?.balance || 0, true);
+      const prevBal = party?.balance ? (party.balance - (invoice.type === 'Sale' ? invoice.total : -invoice.total)) : 0;
+      drawLine('Prev. Balance:', prevBal);
+      drawLine('Net Balance:', party?.balance || 0, true);
 
       const pdfBlob = doc.output('blob');
       const url = URL.createObjectURL(pdfBlob);

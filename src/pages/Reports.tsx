@@ -125,7 +125,7 @@ export default function Reports() {
     'Expense': ['Date', 'Description', 'Category', 'Paid From', 'Amount'],
     'Invoice': ['Invoice #', 'Date', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total'],
     'Day Book': ['Time', 'Description', 'Type', 'Account/Party', 'In (+)', 'Out (-)'],
-    'Balance Sheet': ['Category', 'Item', 'Amount', 'Total'],
+    'Balance Sheet': ['#', 'Account Name', 'Amount'],
     'Cash Flow': ['Date', 'Category', 'Description', 'Cash In', 'Cash Out', 'Net Flow']
   }), [viewMode]);
 
@@ -371,7 +371,7 @@ export default function Reports() {
           'Price': i.price,
           'Stock': i.stock,
           'Value': i.stock * i.price
-        }));
+        })).sort((a, b) => b.Value - a.Value);
         break;
       case 'Purchase':
         const purchaseInvoices = companyInvoices.filter(i => i.type === 'Purchase').flatMap(inv => 
@@ -417,7 +417,7 @@ export default function Reports() {
           'Price': t.quantity ? t.amount / t.quantity : t.amount,
           'Total': t.amount
         }));
-        result = filterByDate([...purchaseInvoices, ...purchaseTransactions]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        result = filterByDate([...purchaseInvoices, ...purchaseTransactions]).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         break;
       case 'Sale':
         const saleInvoices = companyInvoices.filter(i => i.type === 'Sale').flatMap(inv => 
@@ -463,7 +463,7 @@ export default function Reports() {
           'Price': t.quantity ? t.amount / t.quantity : t.amount,
           'Total': t.amount
         }));
-        result = filterByDate([...saleInvoices, ...saleTransactions]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        result = filterByDate([...saleInvoices, ...saleTransactions]).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         break;
       case 'Expense':
         result = filterByDate(companyTransactions.filter(t => t.type === 'Expense')).map(t => ({
@@ -500,7 +500,7 @@ export default function Reports() {
             'Price': item.price,
             'Total': item.total
           }))
-        );
+        ).sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
         break;
       case 'Day Book':
         const dbTxs = companyTransactions.map(t => ({
@@ -526,35 +526,37 @@ export default function Reports() {
         result = filterByDate([...dbTxs, ...dbInvs]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
       case 'Balance Sheet':
-        const cashBalance = companyTransactions.reduce((sum, t) => {
-          if (t.type === 'Withdraw') return sum + t.amount;
-          if (t.type === 'Deposit') return sum - t.amount;
-          if (!t.bank_id && !t.to_bank_id) {
-            if (['Sale', 'Payment In', 'Stock In', 'Bank To Party', 'Cash Adjustment In'].includes(t.type)) return sum + t.amount;
-            if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank', 'Cash Adjustment Out'].includes(t.type)) return sum - t.amount;
-          }
-          return sum;
-        }, 0);
+        const cashBalance = transactions
+          .filter(t => t.company_id === currentCompany?.id)
+          .reduce((sum, t) => {
+            if (t.type === 'Withdraw') return sum + t.amount;
+            if (t.type === 'Deposit') return sum - t.amount;
+            if (!t.bank_id && !t.to_bank_id) {
+              if (['Sale', 'Payment In', 'Stock In', 'Bank To Party', 'Cash Adjustment In'].includes(t.type)) return sum + t.amount;
+              if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank', 'Cash Adjustment Out'].includes(t.type)) return sum - t.amount;
+            }
+            return sum;
+          }, 0);
         
-        const bankItems = companyBanks.map(b => ({
-          'Category': 'Assets',
-          'Item': `Bank: ${b.name} (${b.account_number})`,
-          'Amount': b.balance,
-          'Total': 0
-        }));
+        const assets = [
+          { name: 'Cash in Hand', balance: cashBalance },
+          ...companyBanks.map(b => ({ name: `Bank: ${b.name}`, balance: b.balance })),
+          { name: 'Stock Value', balance: companyItems.reduce((sum, i) => sum + (i.stock * i.price), 0) },
+          ...companyParties.filter(p => p.balance > 0).map(p => ({ name: `Receivable: ${p.name}`, balance: p.balance }))
+        ];
 
-        const bankBalances = companyBanks.reduce((sum, b) => sum + b.balance, 0);
-        const stockValue = companyItems.reduce((sum, i) => sum + (i.stock * i.price), 0);
-        const receivables = parties.filter(p => p.company_id === currentCompany?.id && p.balance > 0).reduce((sum, p) => sum + p.balance, 0);
-        const payables = parties.filter(p => p.company_id === currentCompany?.id && p.balance < 0).reduce((sum, p) => sum + Math.abs(p.balance), 0);
+        const liabilities = [
+          ...companyParties.filter(p => p.balance < 0).map(p => ({ name: `Payable: ${p.name}`, balance: Math.abs(p.balance) }))
+        ];
 
         result = [
-          { 'Category': 'Assets', 'Item': 'Cash in Hand', 'Amount': cashBalance, 'Total': 0 },
-          ...bankItems,
-          { 'Category': 'Assets', 'Item': 'Stock Value', 'Amount': stockValue, 'Total': 0 },
-          { 'Category': 'Assets', 'Item': 'Parties Receivable', 'Amount': receivables, 'Total': cashBalance + bankBalances + stockValue + receivables },
-          { 'Category': 'Liabilities', 'Item': 'Parties Payable', 'Amount': payables, 'Total': payables },
-          { 'Category': 'Equity', 'Item': 'Net Worth', 'Amount': (cashBalance + bankBalances + stockValue + receivables) - payables, 'Total': (cashBalance + bankBalances + stockValue + receivables) - payables }
+          { '#': 'ASSETS', 'Account Name': '--- ASSETS ---', 'Amount': 0, isHeader: true },
+          ...assets.map((a, i) => ({ '#': i + 1, 'Account Name': a.name, 'Amount': a.balance })),
+          { '#': '', 'Account Name': 'Total Assets', 'Amount': assets.reduce((s, a) => s + a.balance, 0), isSubTotal: true },
+          { '#': 'LIABILITIES', 'Account Name': '--- LIABILITIES & EQUITY ---', 'Amount': 0, isHeader: true },
+          ...liabilities.map((l, i) => ({ '#': i + 1, 'Account Name': l.name, 'Amount': l.balance })),
+          { '#': '', 'Account Name': 'Total Liabilities', 'Amount': liabilities.reduce((s, l) => s + l.balance, 0), isSubTotal: true },
+          { '#': '', 'Account Name': 'Net Equity', 'Amount': assets.reduce((s, a) => s + a.balance, 0) - liabilities.reduce((s, l) => s + l.balance, 0), isSubTotal: true }
         ];
         break;
       case 'Cash Flow':
@@ -673,7 +675,6 @@ export default function Reports() {
       doc.setLineWidth(0.5);
       doc.line((pageWidth - titleWidth) / 2, 21.5, (pageWidth + titleWidth) / 2, 21.5);
 
-      const visibleCols = ['#', 'Name', 'Receivable Balance', 'Payable Balance'];
       const body = filteredData.map((d, index) => [
         index + 1,
         d.Name,
@@ -721,6 +722,55 @@ export default function Reports() {
           fontStyle: 'bold',
           fontSize: 9,
           halign: 'right'
+        }
+      });
+    } else if (activeReport === 'Balance Sheet') {
+      // Balance Sheet Specific Layout
+      doc.setFontSize(22);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      const title = `Balance Sheet as on ${formatDate(new Date().toISOString())}`;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const titleWidth = doc.getTextWidth(title);
+      doc.text(title, (pageWidth - titleWidth) / 2, 20);
+
+      const body = filteredData.map(d => [
+        d['#'],
+        d['Account Name'],
+        d['Amount'] === 0 && d.isHeader ? '' : formatCurrency(d['Amount'], settings.currency).replace('Rs. ', '').replace('Rs.', '')
+      ]);
+
+      autoTable(doc, {
+        head: [['#', 'Account Name', 'Amount']],
+        body,
+        startY: 30,
+        theme: 'grid',
+        headStyles: { 
+          fillColor: [220, 220, 220],
+          textColor: [0, 0, 0],
+          fontSize: 9,
+          fontStyle: 'bold'
+        },
+        columnStyles: {
+          0: { halign: 'left', cellWidth: 15 },
+          1: { halign: 'left' },
+          2: { halign: 'right', cellWidth: 50 }
+        },
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          valign: 'middle',
+          textColor: [0, 0, 0]
+        },
+        didParseCell: (data) => {
+          const rowData = filteredData[data.row.index];
+          if (rowData?.isHeader) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [245, 245, 245];
+          }
+          if (rowData?.isSubTotal) {
+            data.cell.styles.fontStyle = 'bold';
+          }
         }
       });
     } else {
