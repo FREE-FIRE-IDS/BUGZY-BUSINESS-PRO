@@ -27,6 +27,8 @@ export default function Parties() {
   const { parties, transactions, invoices, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany, setSelectedPartyId, isLicensed } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
+  const [amountFilter, setAmountFilter] = useState<'all' | 'positive' | 'negative'>('all');
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
   
   const partyTypes = useMemo(() => {
     const types = new Set(parties.map(p => p.type));
@@ -53,9 +55,18 @@ export default function Parties() {
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            p.phone?.includes(searchTerm);
       const matchesType = filterType === 'All' || p.type === filterType;
-      return matchesSearch && matchesType;
+      
+      let matchesAmount = true;
+      if (amountFilter === 'positive') matchesAmount = p.balance > 0;
+      else if (amountFilter === 'negative') matchesAmount = p.balance < 0;
+
+      return matchesSearch && matchesType && matchesAmount;
     });
-  }, [parties, searchTerm, filterType]);
+  }, [parties, searchTerm, filterType, amountFilter]);
+
+  const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
+  const [isLedgerSearchOpen, setIsLedgerSearchOpen] = useState(false);
+  const [ledgerDateRange, setLedgerDateRange] = useState<'All' | 'This Month' | '7 Days'>('All');
 
   const partyLedger = useMemo(() => {
     if (!currentSelectedParty) return [];
@@ -86,8 +97,29 @@ export default function Parties() {
       }));
 
     return [openingEntry, ...partyTransactions, ...partyInvoices]
+      .filter(entry => {
+        // Date Filter
+        if (ledgerDateRange === 'This Month') {
+          const date = new Date(entry.date);
+          const now = new Date();
+          if (date.getMonth() !== now.getMonth() || date.getFullYear() !== now.getFullYear()) return false;
+        } else if (ledgerDateRange === '7 Days') {
+          const date = new Date(entry.date);
+          const now = new Date();
+          const diff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
+          if (diff > 7) return false;
+        }
+
+        if (!ledgerSearchTerm) return true;
+        const lowSearch = ledgerSearchTerm.toLowerCase();
+        return (
+          entry.description?.toLowerCase().includes(lowSearch) ||
+          entry.type?.toLowerCase().includes(lowSearch) ||
+          entry.amount.toString().includes(lowSearch)
+        );
+      })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [currentSelectedParty, transactions, invoices]);
+  }, [currentSelectedParty, transactions, invoices, ledgerSearchTerm, ledgerDateRange]);
 
   const handleExportPDF = () => {
     if (currentCompany && currentSelectedParty) {
@@ -183,19 +215,40 @@ export default function Parties() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <h3 className="font-bold text-slate-900 dark:text-white">Transaction Ledger</h3>
-              <div className="flex gap-2">
+          <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <h3 className="font-bold text-slate-900 border-none">Transaction Ledger</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative group">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  <input 
+                    type="text" 
+                    placeholder="Search ledger..."
+                    value={ledgerSearchTerm}
+                    onChange={(e) => setLedgerSearchTerm(e.target.value)}
+                    className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 w-40 md:w-56 transition-all"
+                  />
+                </div>
+
+                <select 
+                  value={ledgerDateRange}
+                  onChange={(e) => setLedgerDateRange(e.target.value as any)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
+                >
+                  <option value="All">All Time</option>
+                  <option value="This Month">This Month</option>
+                  <option value="7 Days">Last 7 Days</option>
+                </select>
+
+                <div className="h-6 w-[1px] bg-slate-100 mx-1 secret" />
+
                 <button 
                   onClick={handleExportPDF}
-                  className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                  className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-wider shadow-sm"
                 >
-                  <Download size={18} />
-                  PDF
+                  <Download size={14} />
+                  <span>PDF Statement</span>
                 </button>
-                <button className="p-2 hover:bg-slate-100 rounded-lg"><Filter size={18} /></button>
-                <button className="p-2 hover:bg-slate-100 rounded-lg"><Search size={18} /></button>
               </div>
             </div>
             <div className="overflow-x-auto hidden md:block">
@@ -315,17 +368,65 @@ export default function Parties() {
         </motion.div>
       ) : (
         <div className="space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex-1 flex gap-3 max-w-2xl">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex-1 flex flex-col sm:flex-row gap-3 max-w-2xl">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
                   type="text" 
-                  placeholder="Search parties..."
+                  placeholder="Search parties by name/phone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm font-bold text-sm"
                 />
+              </div>
+
+              <div className="relative shrink-0">
+                <button 
+                  onClick={() => setShowFilterMenu(!showFilterMenu)}
+                  className={cn(
+                    "w-full sm:w-auto px-6 py-3 bg-white dark:bg-white border text-[10px] font-black uppercase tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm",
+                    amountFilter !== 'all' ? "border-indigo-600 text-indigo-600 ring-4 ring-indigo-500/10" : "border-slate-100 text-slate-600"
+                  )}
+                >
+                  <Filter size={14} />
+                  <span>{amountFilter === 'all' ? 'All Balances' : amountFilter === 'positive' ? 'Receivable' : 'Payable'}</span>
+                </button>
+
+                <AnimatePresence>
+                  {showFilterMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowFilterMenu(false)} />
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                        className="absolute top-full right-0 mt-2 w-48 bg-white border border-slate-100 rounded-2xl shadow-2xl z-50 p-2"
+                      >
+                        {[
+                          { id: 'all', label: 'All Balances', icon: Users },
+                          { id: 'positive', label: 'Receivable (>0)', icon: ArrowUpRight, color: 'text-emerald-600' },
+                          { id: 'negative', label: 'Payable (<0)', icon: ArrowDownLeft, color: 'text-rose-600' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              setAmountFilter(opt.id as any);
+                              setShowFilterMenu(false);
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-3 p-3 rounded-xl transition-all",
+                              amountFilter === opt.id ? "bg-indigo-50 text-indigo-600" : "hover:bg-slate-50 text-slate-600"
+                            )}
+                          >
+                            <opt.icon size={16} className={opt.color} />
+                            <span className="text-xs font-bold">{opt.label}</span>
+                          </button>
+                        ))}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
             <div className="flex gap-3">

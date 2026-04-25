@@ -19,7 +19,8 @@ import {
   Search,
   Download,
   Upload,
-  Clock
+  Clock,
+  FileText
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -148,16 +149,22 @@ export default function Dashboard() {
     const query = searchQuery.toLowerCase();
     
     return {
-      parties: parties.filter(p => p.name.toLowerCase().includes(query)),
-      banks: banks.filter(b => b.name.toLowerCase().includes(query) || b.account_number.toLowerCase().includes(query)),
+      parties: parties.filter(p => p.name.toLowerCase().includes(query) || p.phone?.includes(query)),
+      banks: banks.filter(b => b.name.toLowerCase().includes(query) || b.account_number.toLowerCase().includes(query) || b.bank_name?.toLowerCase().includes(query)),
       transactions: transactions.filter(t => 
         (t.description?.toLowerCase().includes(query)) || 
         (t.type.toLowerCase().includes(query)) ||
         (t.amount.toString().includes(query))
       ).slice(0, 5),
+      invoices: invoices.filter(i => 
+        i.invoice_number.toLowerCase().includes(query) || 
+        i.party_name?.toLowerCase().includes(query) ||
+        (parties.find(p => p.id === i.party_id)?.name.toLowerCase().includes(query)) ||
+        i.total.toString().includes(query)
+      ).slice(0, 5),
       items: items.filter(i => i.name.toLowerCase().includes(query) || i.sku?.toLowerCase().includes(query))
     };
-  }, [searchQuery, parties, banks, transactions, items]);
+  }, [searchQuery, parties, banks, transactions, items, invoices]);
 
   const navigateTo = (tab: string) => {
     window.dispatchEvent(new CustomEvent('navigate', { detail: tab }));
@@ -227,6 +234,27 @@ export default function Dashboard() {
                               </div>
                               <span className="text-xs font-black text-slate-700 dark:text-slate-200">
                                 {formatCurrency(b.balance, settings.currency)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {searchResults.invoices.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 py-2">Invoices</p>
+                          {searchResults.invoices.map(i => (
+                            <button key={i.id} onClick={() => navigateTo('invoices')} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all group">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center">
+                                  <FileText size={16} />
+                                </div>
+                                <div className="text-left">
+                                  <span className="text-sm font-bold text-slate-700 dark:text-slate-200 block">#{i.invoice_number}</span>
+                                  <span className="text-[10px] text-slate-400 font-medium">{parties.find(p => p.id === i.party_id)?.name || i.party_name}</span>
+                                </div>
+                              </div>
+                              <span className="text-xs font-black text-slate-700 dark:text-slate-200">
+                                {formatCurrency(i.total, settings.currency)}
                               </span>
                             </button>
                           ))}

@@ -28,6 +28,7 @@ interface jsPDFWithAutoTable extends jsPDF {
 export default function Expenses() {
   const { transactions, addTransaction, updateTransaction, deleteTransaction, settings, banks, parties, currentCompany, items } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
+  const [dateRange, setDateRange] = useState<'All' | 'This Month' | '7 Days'>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
@@ -44,10 +45,25 @@ export default function Expenses() {
   });
 
   const expenses = transactions.filter(t => t.type === 'Expense');
-  const filteredExpenses = expenses.filter(e => 
-    e.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.category?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredExpenses = expenses.filter(e => {
+    const matchesSearch = e.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        e.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        e.amount.toString().includes(searchTerm);
+    
+    let matchesDate = true;
+    if (dateRange === 'This Month') {
+      const date = new Date(e.date);
+      const now = new Date();
+      matchesDate = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    } else if (dateRange === '7 Days') {
+      const date = new Date(e.date);
+      const now = new Date();
+      const diff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
+      matchesDate = diff <= 7;
+    }
+
+    return matchesSearch && matchesDate;
+  });
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
@@ -161,11 +177,24 @@ export default function Expenses() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
-            placeholder="Search expenses..."
+            placeholder="Search expenses by description, category or amount..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-white"
+            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-white font-bold text-sm"
           />
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Filter size={16} className="text-slate-400 ml-2" />
+          <select 
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value as any)}
+            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
+          >
+            <option value="All">All Time</option>
+            <option value="This Month">This Month</option>
+            <option value="7 Days">Last 7 Days</option>
+          </select>
         </div>
       </div>
 

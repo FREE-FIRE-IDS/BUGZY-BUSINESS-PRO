@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   X,
   FileText,
+  Filter,
   RefreshCw
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
@@ -111,6 +112,27 @@ export default function Banks() {
     return [...txs, ...invs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, invoices]);
 
+  const [bankSearchTerm, setBankSearchTerm] = useState('');
+  const [amountFilter, setAmountFilter] = useState<'all' | 'positive' | 'negative'>('all');
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
+  const [isLedgerSearchOpen, setIsLedgerSearchOpen] = useState(false);
+  const [ledgerDateRange, setLedgerDateRange] = useState<'All' | 'This Month' | '7 Days'>('All');
+
+  const filteredBanks = useMemo(() => {
+    return banks.filter(bank => {
+      const matchesSearch = bank.name.toLowerCase().includes(bankSearchTerm.toLowerCase()) ||
+                          bank.account_number?.toLowerCase().includes(bankSearchTerm.toLowerCase()) ||
+                          bank.bank_name?.toLowerCase().includes(bankSearchTerm.toLowerCase());
+      
+      let matchesAmount = true;
+      if (amountFilter === 'positive') matchesAmount = bank.balance > 0;
+      else if (amountFilter === 'negative') matchesAmount = bank.balance < 0;
+
+      return matchesSearch && matchesAmount;
+    });
+  }, [banks, bankSearchTerm, amountFilter]);
+
   const bankLedger = useMemo(() => {
     if (!selectedBank) return [];
     
@@ -130,8 +152,29 @@ export default function Banks() {
       .filter(t => t.bank_id === selectedBank.id || t.to_bank_id === selectedBank.id);
       
     return [openingEntry, ...filtered]
+      .filter(entry => {
+        // Date Filter
+        if (ledgerDateRange === 'This Month') {
+          const date = new Date(entry.date);
+          const now = new Date();
+          if (date.getMonth() !== now.getMonth() || date.getFullYear() !== now.getFullYear()) return false;
+        } else if (ledgerDateRange === '7 Days') {
+          const date = new Date(entry.date);
+          const now = new Date();
+          const diff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
+          if (diff > 7) return false;
+        }
+
+        if (!ledgerSearchTerm) return true;
+        const lowSearch = ledgerSearchTerm.toLowerCase();
+        return (
+          entry.description?.toLowerCase().includes(lowSearch) ||
+          entry.type?.toLowerCase().includes(lowSearch) ||
+          entry.amount.toString().includes(lowSearch)
+        );
+      })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [selectedBank, transactions]);
+  }, [selectedBank, transactions, ledgerSearchTerm, ledgerDateRange]);
 
   const handleExportPDF = () => {
     if (currentCompany && selectedBank) {
@@ -405,35 +448,56 @@ export default function Banks() {
           </div>
 
           <div className="bg-white dark:bg-white rounded-3xl border border-slate-100 dark:border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-200 flex flex-wrap items-center justify-between gap-4">
-              <h3 className="font-bold text-slate-900 dark:text-slate-900">Bank Ledger</h3>
-              <div className="flex items-center gap-2">
-                <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mr-2">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <h3 className="font-bold text-slate-900 dark:text-white">Bank Ledger</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative group">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  <input 
+                    type="text" 
+                    placeholder="Search..."
+                    value={ledgerSearchTerm}
+                    onChange={(e) => setLedgerSearchTerm(e.target.value)}
+                    className="pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 w-40 transition-all"
+                  />
+                </div>
+
+                <select 
+                  value={ledgerDateRange}
+                  onChange={(e) => setLedgerDateRange(e.target.value as any)}
+                  className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="All">All Time</option>
+                  <option value="This Month">This Month</option>
+                  <option value="7 Days">Last 7 Days</option>
+                </select>
+
+                <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
                   <button 
                     onClick={() => setViewMode('app')}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                      viewMode === 'app' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
+                      "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all",
+                      viewMode === 'app' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-400"
                     )}
                   >
-                    App View
+                    App
                   </button>
                   <button 
                     onClick={() => setViewMode('accounting')}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                      viewMode === 'accounting' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-500"
+                      "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all",
+                      viewMode === 'accounting' ? "bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400" : "text-slate-400"
                     )}
                   >
-                    Accounting View
+                    Accounting
                   </button>
                 </div>
                 <button 
                   onClick={handleExportPDF}
-                  className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                  className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-wider shadow-sm"
                 >
-                  <Download size={18} />
-                  PDF
+                  <Download size={14} />
+                  <span>PDF Statement</span>
                 </button>
               </div>
             </div>
@@ -600,20 +664,79 @@ export default function Banks() {
             </motion.div>
           </div>
 
-          <div className="flex flex-row items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Bank Accounts</h2>
-            <button 
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-bold hover:opacity-90 transition-all shadow-lg text-sm md:text-base"
-            >
-              <Plus size={18} />
-              <span className="hidden sm:inline">Add Bank</span>
-              <span className="sm:hidden">Add</span>
-            </button>
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative w-full sm:w-auto">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Search banks..."
+                  value={bankSearchTerm}
+                  onChange={(e) => setBankSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-64 transition-all"
+                />
+              </div>
+
+              <div className="relative w-full sm:w-auto">
+                <button 
+                  onClick={() => setShowFilterMenu(!showFilterMenu)}
+                  className={cn(
+                    "w-full px-4 py-2 bg-white dark:bg-slate-800 border rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all",
+                    amountFilter !== 'all' ? "border-indigo-600 text-indigo-600 shadow-sm" : "border-slate-200 dark:border-slate-700 text-slate-500"
+                  )}
+                >
+                  <Filter size={14} />
+                  <span>{amountFilter === 'all' ? 'All' : amountFilter === 'positive' ? 'Positive' : 'Negative'}</span>
+                </button>
+                <AnimatePresence>
+                  {showFilterMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowFilterMenu(false)} />
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                        className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-2xl z-50 p-2"
+                      >
+                        {[
+                          { id: 'all', label: 'All Balances', icon: Building2 },
+                          { id: 'positive', label: 'Positive (>0)', icon: ArrowUpRight, color: 'text-emerald-600' },
+                          { id: 'negative', label: 'Negative (<0)', icon: ArrowDownLeft, color: 'text-rose-600' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              setAmountFilter(opt.id as any);
+                              setShowFilterMenu(false);
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-3 p-3 rounded-xl transition-all",
+                              amountFilter === opt.id ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600" : "hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+                            )}
+                          >
+                            <opt.icon size={16} className={opt.color} />
+                            <span className="text-xs font-bold">{opt.label}</span>
+                          </button>
+                        ))}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <button 
+                onClick={() => setIsAddModalOpen(true)}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-bold hover:opacity-90 transition-all shadow-lg text-sm h-[38px]"
+              >
+                <Plus size={18} />
+                <span>Add Bank</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {banks.map((bank) => (
+            {filteredBanks.map((bank) => (
               <motion.div
                 key={bank.id}
                 layout
