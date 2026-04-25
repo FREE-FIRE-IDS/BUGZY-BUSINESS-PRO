@@ -32,7 +32,7 @@ import {
 } from 'recharts';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, cn } from '../lib/utils';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { getBusinessInsights } from '../services/geminiService';
 import { differenceInDays, addDays } from 'date-fns';
 
@@ -140,12 +140,156 @@ export default function Dashboard() {
     });
   }, [transactions]);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return null;
+    const query = searchQuery.toLowerCase();
+    
+    return {
+      parties: parties.filter(p => p.name.toLowerCase().includes(query)),
+      banks: banks.filter(b => b.name.toLowerCase().includes(query) || b.account_number.toLowerCase().includes(query)),
+      transactions: transactions.filter(t => 
+        (t.description?.toLowerCase().includes(query)) || 
+        (t.type.toLowerCase().includes(query)) ||
+        (t.amount.toString().includes(query))
+      ).slice(0, 5),
+      items: items.filter(i => i.name.toLowerCase().includes(query) || i.sku?.toLowerCase().includes(query))
+    };
+  }, [searchQuery, parties, banks, transactions, items]);
+
   const navigateTo = (tab: string) => {
     window.dispatchEvent(new CustomEvent('navigate', { detail: tab }));
   };
 
   return (
     <div className="space-y-8 pb-24 md:pb-8">
+      {/* Header with Search */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+            Dashboard
+          </h1>
+          <p className="text-slate-500 font-medium mt-1">Welcome back to your business overview</p>
+        </div>
+
+        <div className="relative flex-1 max-w-md w-full group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={20} />
+          <input 
+            type="text"
+            placeholder="Search transactions, parties..."
+            value={searchQuery}
+            onFocus={() => setIsSearching(true)}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400"
+          />
+          
+          <AnimatePresence>
+            {isSearching && searchQuery && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-2xl z-50 overflow-hidden"
+              >
+                <div className="max-h-[400px] overflow-y-auto p-2">
+                  {searchResults && (Object.values(searchResults) as any[]).some(arr => arr.length > 0) ? (
+                    <>
+                      {searchResults.parties.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 py-2">Parties</p>
+                          {searchResults.parties.map(p => (
+                            <button key={p.id} onClick={() => navigateTo('parties')} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all group">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center">
+                                  <Users size={16} />
+                                </div>
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{p.name}</span>
+                              </div>
+                              <span className={cn("text-xs font-black", p.balance >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                                {formatCurrency(Math.abs(p.balance), settings.currency)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {searchResults.banks.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 py-2">Banks</p>
+                          {searchResults.banks.map(b => (
+                            <button key={b.id} onClick={() => navigateTo('banks')} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all group">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center">
+                                  <Building2 size={16} />
+                                </div>
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{b.name}</span>
+                              </div>
+                              <span className="text-xs font-black text-slate-700 dark:text-slate-200">
+                                {formatCurrency(b.balance, settings.currency)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {searchResults.items.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 py-2">Inventory</p>
+                          {searchResults.items.map(i => (
+                            <button key={i.id} onClick={() => navigateTo('inventory')} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all group">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center">
+                                  <Package size={16} />
+                                </div>
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{i.name}</span>
+                              </div>
+                              <span className="text-xs font-black text-slate-700 dark:text-slate-200">
+                                {i.stock} {i.unit}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {searchResults.transactions.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 py-2">Recent Transactions</p>
+                          {searchResults.transactions.map(t => (
+                            <button key={t.id} onClick={() => navigateTo('reports')} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all">
+                              <div className="flex items-center gap-3">
+                                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", t.amount >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600")}>
+                                  {t.amount >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                                </div>
+                                <div className="text-left">
+                                  <span className="text-sm font-bold text-slate-700 dark:text-slate-200 block">{t.description || t.type}</span>
+                                  <span className="text-[10px] text-slate-400 font-medium">{new Date(t.date).toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                              <span className="text-xs font-black text-slate-700 dark:text-slate-200">
+                                {formatCurrency(t.amount, settings.currency)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="p-8 text-center">
+                      <p className="text-sm text-slate-500 font-medium">No results found for "{searchQuery}"</p>
+                    </div>
+                  )}
+                </div>
+                <button 
+                  onClick={() => setIsSearching(false)}
+                  className="w-full p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 text-xs font-bold text-slate-500 hover:text-slate-900 transition-all"
+                >
+                  Close Search
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
       {/* License Status & Backup Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-4">

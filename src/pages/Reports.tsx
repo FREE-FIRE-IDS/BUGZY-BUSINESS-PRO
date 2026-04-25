@@ -95,6 +95,10 @@ export default function Reports() {
   const [selectedEntity, setSelectedEntity] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [dateRange, setDateRange] = useState('This Month');
+  const [amountFilter, setAmountFilter] = useState<'all' | 'positive' | 'negative'>('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   const categories = useMemo(() => {
     if (activeReport === 'All Parties') {
@@ -161,7 +165,19 @@ export default function Reports() {
     
     const filterByDate = (txs: any[]) => {
       if (dateRange === 'This Month') return txs.filter(t => new Date(t.date) >= startOfMonth);
+      if (dateRange === 'Custom' && customStartDate && customEndDate) {
+        return txs.filter(t => {
+          const d = new Date(t.date);
+          return d >= new Date(customStartDate) && d <= new Date(customEndDate);
+        });
+      }
       return txs;
+    };
+
+    const applyAmountFilter = (items: any[]) => {
+      if (amountFilter === 'positive') return items.filter(i => (i.Balance || i.balance || 0) > 0);
+      if (amountFilter === 'negative') return items.filter(i => (i.Balance || i.balance || 0) < 0);
+      return items;
     };
 
     const companyTransactions = transactions.filter(t => t.company_id === currentCompany?.id);
@@ -615,6 +631,10 @@ export default function Reports() {
           };
         }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
+    }
+
+    if (['All Parties', 'Single Party', 'All Banks', 'Single Bank'].includes(activeReport)) {
+      result = applyAmountFilter(result);
     }
 
     if (searchQuery) {
@@ -1132,12 +1152,31 @@ export default function Reports() {
                     >
                       <option>This Month</option>
                       <option>All Time</option>
+                      <option>Custom</option>
                     </select>
                   </div>
                 </div>
 
+                {/* Custom Date Row */}
+                {dateRange === 'Custom' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <input 
+                      type="date" 
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[11px] font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all"
+                    />
+                    <input 
+                      type="date" 
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[11px] font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all"
+                    />
+                  </div>
+                )}
+
                 {/* Secondary Filters Row */}
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 relative">
                   <div className="relative group flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                     <input 
@@ -1150,11 +1189,58 @@ export default function Reports() {
                   </div>
 
                   <div className="flex gap-2 shrink-0">
+                    <div className="relative">
+                      <button 
+                        onClick={() => setShowFilterMenu(!showFilterMenu)}
+                        className={cn(
+                          "flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-bold border text-[10px] uppercase tracking-wider transition-all",
+                          amountFilter !== 'all' ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20" : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-100 dark:border-slate-800"
+                        )}
+                      >
+                        <Filter size={14} />
+                        <span>Filter</span>
+                      </button>
+                      
+                      <AnimatePresence>
+                        {showFilterMenu && (
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                          >
+                            <div className="p-2 space-y-1">
+                              {[
+                                { id: 'all', label: 'All Balances', icon: BarChart3 },
+                                { id: 'positive', label: 'Positive (> 0)', icon: ArrowUpRight, color: 'text-emerald-600' },
+                                { id: 'negative', label: 'Negative (< 0)', icon: ArrowDownLeft, color: 'text-rose-600' },
+                              ].map((opt) => (
+                                <button
+                                  key={opt.id}
+                                  onClick={() => {
+                                    setAmountFilter(opt.id as any);
+                                    setShowFilterMenu(false);
+                                  }}
+                                  className={cn(
+                                    "w-full flex items-center gap-3 p-3 rounded-xl transition-all",
+                                    amountFilter === opt.id ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600" : "hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+                                  )}
+                                >
+                                  <opt.icon size={16} className={opt.color} />
+                                  <span className="text-xs font-bold">{opt.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
                     <button 
                       onClick={() => setIsColumnModalOpen(true)}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 rounded-xl font-bold border border-slate-100 dark:border-slate-800 text-[10px] uppercase tracking-wider"
                     >
-                      <Filter size={14} />
+                      <SettingsIcon size={14} />
                       <span className="hidden sm:inline">Columns</span>
                     </button>
                     
