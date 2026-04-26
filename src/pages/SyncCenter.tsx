@@ -19,13 +19,23 @@ import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 
 export default function SyncCenter() {
-  const { settings, updateSettings, refreshData, manualSyncLogin, confirmSyncLogin, isOnline, syncStatus, signOut } = useApp();
+  const { settings, updateSettings, refreshData, manualSyncLogin, confirmSyncLogin, isOnline, syncStatus, signOut, session } = useApp();
   const [email, setEmail] = useState(settings.user_email || '');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState(settings.sync_enabled ? 'active' : 'intro');
+  const [step, setStep] = useState(settings.sync_enabled || session ? 'active' : 'intro');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
+
+  // Auto-transition if session becomes active (e.g. magic link clicked)
+  React.useEffect(() => {
+    if (session && step !== 'active') {
+      setStep('active');
+      if (!settings.sync_enabled) {
+        updateSettings({ sync_enabled: true, user_email: session.user.email });
+      }
+    }
+  }, [session, step]);
 
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,10 +182,20 @@ export default function SyncCenter() {
             <div className="space-y-2">
               <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Verify Identity</h2>
               <p className="text-slate-500 dark:text-slate-400 font-medium px-4">
-                We've sent a 6-digit verification code to <span className="text-indigo-600 font-bold">{email}</span>
+                We've sent a <span className="text-indigo-600 font-bold">Magic Link</span> or <span className="text-indigo-600 font-bold">6-digit code</span> to <span className="text-indigo-600 font-bold">{email}</span>
               </p>
+              <div className="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-2xl mx-6 space-y-2">
+                <p className="text-[11px] text-amber-700 dark:text-amber-400 font-bold leading-tight uppercase tracking-wider">
+                  Option 1: Enter 6-digit Code below
+                </p>
+                <div className="h-px bg-amber-100 dark:bg-amber-800/20" />
+                <p className="text-[11px] text-amber-700 dark:text-amber-400 font-bold leading-tight uppercase tracking-wider">
+                  Option 2: Click the Link in email. 
+                  <span className="block text-[9px] opacity-70">If you click the link, this tab will switch automatically.</span>
+                </p>
+              </div>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 px-6">
-                Please check your <span className="text-rose-500">Inbox & Spam</span> folder. It can take up to 2 mins.
+                Please check <span className="text-rose-500">Inbox & Spam</span>. It can take 2 mins.
               </p>
             </div>
 
@@ -197,6 +217,23 @@ export default function SyncCenter() {
                 {loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={20} />}
                 Confirm Verification
               </button>
+
+              <div className="flex items-center gap-3">
+                <div className="h-px bg-slate-100 dark:bg-slate-800 flex-1" />
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">OR</span>
+                <div className="h-px bg-slate-100 dark:bg-slate-800 flex-1" />
+              </div>
+
+              <div className="text-center space-y-2">
+                <p className="text-xs text-slate-500 font-medium">Already clicked the Magic Link?</p>
+                <button
+                  type="button"
+                  onClick={() => refreshData()}
+                  className="w-full py-3 rounded-xl border-2 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-950 transition-all text-sm mb-4"
+                >
+                  Check Login Status
+                </button>
+              </div>
               <button 
                 type="button"
                 onClick={() => setStep('intro')}
