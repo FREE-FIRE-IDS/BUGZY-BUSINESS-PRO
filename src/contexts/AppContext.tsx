@@ -1398,14 +1398,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const loginWithUsername = async (username: string, isLogin: boolean = true) => {
-    // License Check for first-time login
-    if (companies.length === 0 && !isDeviceLicensed) {
-       if (isLogin) {
-         setSyncStatus({ loading: false, error: 'LICENSE_REQUIRED', success: null });
-         throw new Error('LICENSE_REQUIRED');
-       }
-    }
-
     const normalizedUsername = username.toLowerCase().trim();
     if (!normalizedUsername) return false;
     
@@ -1521,12 +1513,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     const isFirstCompany = companies.length === 0;
     
-    // License Check only on FIRST company
-    if (isFirstCompany && !isDeviceLicensed) {
-       setSyncStatus({ loading: false, error: 'LICENSE_REQUIRED', success: null });
-       throw new Error('LICENSE_REQUIRED');
-    }
-
     const newCompany: Company = {
       ...company,
       id: generateId(),

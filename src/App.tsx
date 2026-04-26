@@ -665,7 +665,8 @@ export default function App() {
   } = useApp();
   const { theme, toggleTheme } = useTheme();
 
-  const isOwner = !currentCompany || !currentCompany.owner_email || (session?.user?.email && currentCompany.owner_email === session.user.email);
+  const isOwner = !currentCompany || !currentCompany.owner_email || 
+    (session?.user?.email && currentCompany.owner_email.toLowerCase() === session.user.email.toLowerCase());
   const [showSplash, setShowSplash] = useState(true);
   const [forceUpgrade, setForceUpgrade] = useState(false);
   const [dismissedPayment, setDismissedPayment] = useState(false);
@@ -870,7 +871,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 mt-6 px-3 space-y-1 overflow-y-auto no-scrollbar">
-          {[...menuItems.slice(0, 4), ...moreItems].map((item) => (
+          {menuItems.filter(i => i.id !== 'more').concat(moreItems.filter(i => i.id !== 'upgrade')).map((item) => (
             <button
               key={item.id}
               onClick={() => {
