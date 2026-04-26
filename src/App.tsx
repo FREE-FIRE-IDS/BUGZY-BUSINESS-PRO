@@ -725,20 +725,6 @@ export default function App() {
     // Check if user is on a premium tab
     const isPremiumTab = [...menuItems, ...moreItems].find(i => i.id === tab)?.premium;
 
-    // IF TRIAL OR LICENSE EXPIRED: Redirect logic
-    if (isTrialExpired && !isLicensedUser) {
-        // DIRECT TO PAYMENT PAGE as requested:
-        return (
-          <div className="flex items-center justify-center p-4 min-h-[80vh]">
-            <div className="w-full max-w-xl">
-              <PaymentScreen 
-                company={currentCompany!} 
-              />
-            </div>
-          </div>
-        );
-    }
-
     if (tab === 'upgrade') {
       setForceUpgrade(true);
       setDismissedPayment(false);
@@ -814,10 +800,17 @@ export default function App() {
     return <SetupCompany />;
   }
 
-  // Trial Check handled via Overlay and renderPage logic
-  if (currentCompany && isTrialExpired && !isLicensedUser && !dismissedPayment && !forceUpgrade) {
-    // We want to show it by default if expired, but allow dismissing it to see Dashboard
-    // But we don't want to block the entire component here because we want to use the OVERLAY pattern
+  // IF TRIAL OR LICENSE EXPIRED: Block entire app
+  if (isTrialExpired && !isLicensedUser && currentCompany) {
+    return (
+      <div className="h-screen w-screen bg-slate-950 overflow-y-auto flex items-center justify-center p-4">
+        <div className="w-full max-w-xl">
+          <PaymentScreen 
+            company={currentCompany} 
+          />
+        </div>
+      </div>
+    );
   }
 
   if (!currentCompany) {
