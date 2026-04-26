@@ -172,7 +172,10 @@ export default function SyncCenter() {
             <div className="space-y-2">
               <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Verify Identity</h2>
               <p className="text-slate-500 dark:text-slate-400 font-medium px-4">
-                We've sent a verification code to <span className="text-indigo-600 font-bold">{email}</span>
+                We've sent a 6-digit verification code to <span className="text-indigo-600 font-bold">{email}</span>
+              </p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 px-6">
+                Please check your <span className="text-rose-500">Inbox & Spam</span> folder. It can take up to 2 mins.
               </p>
             </div>
 

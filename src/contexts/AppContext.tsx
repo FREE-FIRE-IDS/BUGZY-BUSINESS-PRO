@@ -2114,6 +2114,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const manualSyncLogin = async (email: string) => {
+    console.log(`[Sync] Requesting OTP for: ${email}`);
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
@@ -2121,18 +2122,32 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       },
     });
     
-    if (error) throw error;
+    if (error) {
+      console.error('[Sync OTP Error]', error);
+      if (error.message.includes('rate limit')) {
+        throw new Error('Email rate limit reached. Please wait a few minutes before trying again ⏳');
+      }
+      throw error;
+    }
     return "SENT";
   };
 
   const confirmSyncLogin = async (email: string, token: string) => {
-    const { error } = await supabase.auth.verifyOtp({
+    console.log(`[Sync] Verifying OTP for: ${email}`);
+    const { data, error } = await supabase.auth.verifyOtp({
       email,
       token,
       type: 'email',
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error('[Sync Verify Error]', error);
+      throw new Error(error.message || 'Invalid or expired code ❌');
+    }
+
+    if (data.session) {
+      setSession(data.session);
+    }
 
     updateSettings({ user_email: email, sync_enabled: true });
     await refreshData(email, true);
