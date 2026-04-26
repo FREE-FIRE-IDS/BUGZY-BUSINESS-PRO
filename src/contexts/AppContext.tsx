@@ -2119,6 +2119,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       email,
       options: {
         shouldCreateUser: true,
+        emailRedirectTo: window.location.origin,
       },
     });
     

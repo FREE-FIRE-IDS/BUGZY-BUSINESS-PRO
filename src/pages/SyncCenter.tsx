@@ -184,14 +184,13 @@ export default function SyncCenter() {
               <p className="text-slate-500 dark:text-slate-400 font-medium px-4">
                 We've sent a <span className="text-indigo-600 font-bold">Magic Link</span> or <span className="text-indigo-600 font-bold">6-digit code</span> to <span className="text-indigo-600 font-bold">{email}</span>
               </p>
-              <div className="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-2xl mx-6 space-y-2">
-                <p className="text-[11px] text-amber-700 dark:text-amber-400 font-bold leading-tight uppercase tracking-wider">
-                  Option 1: Enter 6-digit Code below
+              <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-2xl mx-6 space-y-3 border border-indigo-100 dark:border-indigo-800/30">
+                <p className="text-[12px] text-indigo-700 dark:text-indigo-300 font-bold leading-tight uppercase tracking-wider text-center">
+                  Enter the 6-digit code from your email
                 </p>
-                <div className="h-px bg-amber-100 dark:bg-amber-800/20" />
-                <p className="text-[11px] text-amber-700 dark:text-amber-400 font-bold leading-tight uppercase tracking-wider">
-                  Option 2: Click the Link in email. 
-                  <span className="block text-[9px] opacity-70">If you click the link, this tab will switch automatically.</span>
+                <div className="h-px bg-indigo-100 dark:bg-indigo-800/40" />
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center italic">
+                  Tip: You can ignore the "Confirm your mail" link and just enter the code below.
                 </p>
               </div>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 px-6">
