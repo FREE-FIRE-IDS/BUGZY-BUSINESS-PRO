@@ -282,7 +282,19 @@ CREATE TABLE payment_requests (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. Create Licenses Table
+-- 9. Create Company Access Table
+CREATE TABLE IF NOT EXISTS company_access (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  owner_email TEXT NOT NULL,
+  shared_email TEXT NOT NULL,
+  permission TEXT DEFAULT 'view',
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(company_id, shared_email)
+);
+
+-- 10. Create Licenses Table
 DROP TABLE IF EXISTS licenses;
 CREATE TABLE licenses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -321,7 +333,7 @@ DO $$
 DECLARE
     t text;
 BEGIN
-    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'expenses', 'invoices', 'payment_requests', 'licenses')
+    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'expenses', 'invoices', 'payment_requests', 'licenses', 'company_access')
     LOOP
         EXECUTE format('DROP POLICY IF EXISTS "Full Access" ON %I', t);
         -- Allowing both authenticated and anon to ensure sync works even if session is pending, 
@@ -354,7 +366,7 @@ DO $$
 DECLARE
     t text;
 BEGIN
-    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'expenses', 'invoices')
+    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'expenses', 'invoices', 'company_access')
     LOOP
         EXECUTE format('DROP TRIGGER IF EXISTS update_%I_updated_at ON %I', t, t);
         EXECUTE format('CREATE TRIGGER update_%I_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column()', t, t);
@@ -375,7 +387,7 @@ END $$;
 DO $$
 DECLARE
     tbl text;
-    tables_to_add text[] := ARRAY['companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'expenses', 'payment_requests', 'licenses'];
+    tables_to_add text[] := ARRAY['companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'expenses', 'payment_requests', 'licenses', 'company_access'];
 BEGIN
     FOREACH tbl IN ARRAY tables_to_add
     LOOP
@@ -467,208 +479,6 @@ NOTIFY pgrst, 'reload schema';
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 px-4 md:px-0">
-      {/* Company Section */}
-      <section>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <h3 className="text-xl font-bold flex items-center gap-2">
-            <Building2 size={24} className="text-indigo-600" />
-            Company Management
-          </h3>
-          <button 
-            onClick={() => setIsAddCompanyModalOpen(true)}
-            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold text-sm"
-          >
-            <Plus size={18} />
-            Add Company
-          </button>
-        </div>
-
-        <AnimatePresence>
-          {isDeleteCompanyModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setIsDeleteCompanyModalOpen(null)}
-                className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
-              />
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative w-full max-w-sm bg-white dark:bg-white rounded-3xl shadow-2xl p-8 text-center"
-              >
-                <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
-                  <Trash2 size={32} />
-                </div>
-                <h3 className="text-xl font-bold mb-2 text-rose-600">Delete Company?</h3>
-                <p className="text-slate-500 mb-8 text-sm">This will permanently delete the company and all its data from the cloud and this device. This action cannot be undone.</p>
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => setIsDeleteCompanyModalOpen(null)}
-                    className="flex-1 px-4 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteCompany(isDeleteCompanyModalOpen)}
-                    className="flex-1 px-4 py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-          {isAddCompanyModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setIsAddCompanyModalOpen(false)}
-                className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
-              />
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative w-full max-w-md bg-white dark:bg-white rounded-3xl shadow-2xl overflow-hidden"
-              >
-                <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <h2 className="text-xl font-bold">Add New Company</h2>
-                  <button onClick={() => setIsAddCompanyModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
-                    <X size={20} />
-                  </button>
-                </div>
-                  <div className="p-8 space-y-6">
-                    {syncStatus.error && (
-                      <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-sm font-bold flex items-center gap-2">
-                        <ShieldAlert size={18} />
-                        {syncStatus.error}
-                      </div>
-                    )}
-                    <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Company Name</label>
-                    <input 
-                      type="text" 
-                      value={newCompanyName}
-                      onChange={(e) => setNewCompanyName(e.target.value)}
-                      placeholder="e.g. My Business"
-                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-500 mb-1">Username</label>
-                    <input 
-                      type="text" 
-                      value={newCompanyUsername}
-                      onChange={(e) => setNewCompanyUsername(e.target.value.toLowerCase())}
-                      placeholder="unique_username"
-                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-1 italic">This username will be used to login and sync your data.</p>
-                  </div>
-                    <div className="flex gap-3">
-                      <button 
-                        onClick={() => setIsAddCompanyModalOpen(false)}
-                        disabled={syncStatus.loading}
-                        className="flex-1 px-6 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all disabled:opacity-50"
-                      >
-                        Cancel
-                      </button>
-                      <button 
-                        onClick={handleAddCompany}
-                        disabled={syncStatus.loading || !newCompanyName.trim()}
-                        className="flex-1 px-6 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {syncStatus.loading ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Creating...
-                          </>
-                        ) : (
-                          'Create'
-                        )}
-                      </button>
-                    </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
-          {isResetConfirmOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsResetConfirmOpen(false)} className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" />
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm bg-white dark:bg-white rounded-3xl shadow-2xl p-8 text-center">
-                <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
-                  <Trash2 size={32} />
-                </div>
-                <h3 className="text-xl font-bold mb-2 text-rose-600">Reset Application?</h3>
-                <p className="text-slate-500 mb-8 text-sm">CRITICAL: This will delete ALL your local data permanently. This action cannot be undone.</p>
-                <div className="flex gap-3">
-                  <button onClick={() => setIsResetConfirmOpen(false)} className="flex-1 px-4 py-3 rounded-xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
-                  <button onClick={handleResetApp} className="flex-1 px-4 py-3 rounded-xl font-bold bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">Reset All</button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {companies.map(company => (
-            <div 
-              key={company.id}
-              onClick={() => setCurrentCompany(company)}
-              className={cn(
-                "p-5 md:p-6 rounded-3xl border transition-all cursor-pointer group relative overflow-hidden",
-                currentCompany?.id === company.id 
-                  ? "bg-indigo-600 text-white border-indigo-600 shadow-xl shadow-indigo-500/20" 
-                  : "bg-white dark:bg-white border-slate-100 dark:border-slate-200 hover:border-indigo-200 shadow-sm"
-              )}
-            >
-              <div className="flex justify-between items-start mb-4 relative z-10">
-                <div className={cn(
-                  "w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl transition-transform group-hover:scale-110",
-                  currentCompany?.id === company.id ? "bg-white/20" : "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600"
-                )}>
-                  {company.name.charAt(0)}
-                </div>
-                <div className="flex items-center gap-2">
-                  {currentCompany?.id === company.id && (
-                    <span className="bg-white/20 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest">Active</span>
-                  )}
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsDeleteCompanyModalOpen(company.id);
-                    }}
-                    className={cn(
-                      "p-2 rounded-xl transition-all",
-                      currentCompany?.id === company.id 
-                        ? "hover:bg-white/20 text-white/60 hover:text-white" 
-                        : "hover:bg-rose-50 text-slate-400 hover:text-rose-600"
-                    )}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-              <h4 className="font-black text-lg relative z-10">{company.name}</h4>
-              <p className={cn(
-                "text-xs font-bold mt-1 opacity-80 relative z-10",
-                currentCompany?.id === company.id ? "text-indigo-100" : "text-slate-500"
-              )}>{company.currency}</p>
-              
-              {currentCompany?.id === company.id && (
-                 <div className="absolute top-0 right-0 p-1 opacity-10">
-                    <CheckCircle2 size={120} className="translate-x-12 -translate-y-8" />
-                 </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* Licensing Section */}
       {isLicensed() && (
       <section>

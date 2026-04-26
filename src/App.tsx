@@ -55,6 +55,7 @@ import Admin from './pages/Admin';
 import Activation from './pages/Activation';
 import Customization from './pages/Customization';
 import SyncCenter from './pages/SyncCenter';
+import ManageCompanies from './pages/ManageCompanies';
 
 import GlobalTransactionModal from './components/GlobalTransactionModal';
 
@@ -715,14 +716,15 @@ export default function App() {
 
   const menuItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-    { id: 'parties', label: 'Parties', icon: Users, premium: true },
-    { id: 'banks', label: 'Banks', icon: Building2, premium: true },
+    { id: 'companies', label: 'Companies', icon: Building2 },
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
     ...(isOwner ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : []),
     { id: 'more', label: 'More', icon: Menu },
   ];
 
   const moreItems = [
+    { id: 'parties', label: 'Parties', icon: Users, premium: true },
+    { id: 'banks', label: 'Banks', icon: Building2, premium: true },
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
     { id: 'business-status', label: 'Business Status', icon: BarChart3, premium: true },
@@ -743,6 +745,7 @@ export default function App() {
     }
     switch (tab) {
       case 'dashboard': return <Dashboard />;
+      case 'companies': return <ManageCompanies />;
       case 'sync': return <SyncCenter />;
       case 'activation': return <Activation />;
       case 'parties': return <Parties />;

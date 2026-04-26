@@ -171,27 +171,32 @@ export default function Invoices() {
       doc.setTextColor(0, 0, 0);
       
       const infoY = 32;
+      const labelX = 14;
+      const valueX = 40;
+      const rightLabelX = 130;
+      const rightValueX = 165;
+
       // Left Column
       doc.setFont('helvetica', 'bold');
-      doc.text('Bill To:', 14, infoY);
+      doc.text('Bill To:', labelX, infoY);
       doc.setFont('helvetica', 'normal');
-      doc.text(party?.name || 'Walk-in Customer', 40, infoY);
+      doc.text(party?.name || 'Walk-in Customer', valueX, infoY);
       
       doc.setFont('helvetica', 'bold');
-      doc.text('Contact:', 14, infoY + 8);
+      doc.text('Contact:', labelX, infoY + 8);
       doc.setFont('helvetica', 'normal');
-      doc.text(party?.phone || '-', 40, infoY + 8);
+      doc.text(party?.phone || '-', valueX, infoY + 8);
 
       // Right Column
       doc.setFont('helvetica', 'bold');
-      doc.text('Invoice #:', 130, infoY);
+      doc.text('Invoice #:', rightLabelX, infoY);
       doc.setFont('helvetica', 'normal');
-      doc.text(invoice.invoice_number || '-', 160, infoY);
+      doc.text(invoice.invoice_number || '-', rightValueX, infoY);
       
       doc.setFont('helvetica', 'bold');
-      doc.text('Date:', 130, infoY + 8);
+      doc.text('Date:', rightLabelX, infoY + 8);
       doc.setFont('helvetica', 'normal');
-      doc.text(formatDate(invoice.date), 160, infoY + 8);
+      doc.text(formatDate(invoice.date), rightValueX, infoY + 8);
 
       // Table
       const tableData = invoice.items.map((item: any, idx: number) => [

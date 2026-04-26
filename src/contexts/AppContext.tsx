@@ -70,6 +70,9 @@ interface AppContextType {
   isOnline: boolean;
   manualSyncLogin: (email: string) => Promise<string>;
   confirmSyncLogin: (email: string, token: string) => Promise<boolean>;
+  shareCompany: (companyId: string, shareWithEmail: string) => Promise<void>;
+  revokeCompanyAccess: (companyId: string, sharedEmail: string) => Promise<void>;
+  getSharedCompanies: () => Promise<Company[]>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -427,8 +430,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
       .subscribe();
 
+    const accessChannel = supabase
+      .channel('access-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_access' }, (payload) => {
+        const email = settings.user_email?.toLowerCase();
+        if (!email) return;
+
+        const data = (payload.new || payload.old) as any;
+        if (data.user_email?.toLowerCase() === email) {
+          // If our access was modified or added, we should reload shared companies or refresh companies list
+          // For simplicity, we just trigger refresh
+          refreshData(undefined, true).catch(console.error);
+        }
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(accessChannel);
     };
   }, [settings.user_email, currentCompany?.id]);
 
@@ -502,6 +521,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const otherCompanies = nonDeletedCompanies.filter(c => c.id !== activeCompany?.id);
 
       const syncOneCompany = async (comp: Company) => {
+        if (comp.company_type === 'hr') return; // Strictly offline
         const fetchAndMerge = async (table: string, setter: (data: any[]) => void) => {
           try {
             const dbTable = table === 'items' ? 'inventory' : table;
@@ -1524,10 +1544,16 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       created_at: now,
       updated_at: now,
       linked_emails: [],
+      owner_email: settings.user_email?.toLowerCase() || ''
     };
     
     try {
-      // 1. Check if username is taken by ANOTHER account
+      // 1. Mandatory License Check for FIRST company creation
+      if (companies.length === 0 && !isDeviceLicensed) {
+        throw new Error('LICENSE_REQUIRED');
+      }
+
+      // 2. Check if username is taken by ANOTHER account
       const targetUsername = (company.username || currentUser || '').toLowerCase().trim();
       if (!targetUsername) throw new Error('Username is required');
 
@@ -2147,6 +2173,64 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     return true;
   };
 
+  const shareCompany = async (companyId: string, shareWithEmail: string) => {
+    if (!currentCompany || currentCompany.id !== companyId) throw new Error('Company not selected');
+    const email = shareWithEmail.toLowerCase().trim();
+    if (!email) throw new Error('Email is required');
+
+    const { error } = await supabase.from('company_access').insert({
+      company_id: companyId,
+      owner_email: currentCompany.owner_email || settings.user_email,
+      shared_email: email,
+      permission: 'view',
+      status: 'pending'
+    });
+
+    if (error) throw error;
+    
+    // Also update linked_emails for faster join queries if needed, though company_access is cleaner
+    const updatedEmails = Array.from(new Set([...(currentCompany.linked_emails || []), email]));
+    await updateCompany(companyId, { linked_emails: updatedEmails });
+  };
+
+  const revokeCompanyAccess = async (companyId: string, sharedEmail: string) => {
+    const { error } = await supabase
+      .from('company_access')
+      .delete()
+      .eq('company_id', companyId)
+      .eq('shared_email', sharedEmail.toLowerCase().trim());
+
+    if (error) throw error;
+
+    // Remove from linked_emails too
+    const company = companies.find(c => c.id === companyId);
+    if (company) {
+      const updatedEmails = (company.linked_emails || []).filter(e => e !== sharedEmail.toLowerCase().trim());
+      await updateCompany(companyId, { linked_emails: updatedEmails });
+    }
+  };
+
+  const getSharedCompanies = async () => {
+    if (!settings.user_email) return [];
+    
+    const { data, error } = await supabase
+      .from('company_access')
+      .select('company_id')
+      .eq('shared_email', settings.user_email.toLowerCase().trim());
+
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+
+    const companyIds = data.map(d => d.company_id);
+    const { data: sharedCompanies, error: cError } = await supabase
+      .from('companies')
+      .select('*')
+      .in('id', companyIds);
+
+    if (cError) throw cError;
+    return sharedCompanies || [];
+  };
+
   return (
     <AppContext.Provider value={{
       companies, 
@@ -2173,7 +2257,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
       session, signOut, isOnline,
       manualSyncLogin,
-      confirmSyncLogin
+      confirmSyncLogin,
+      shareCompany,
+      revokeCompanyAccess,
+      getSharedCompanies
     }}>
       {children}
     </AppContext.Provider>
