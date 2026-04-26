@@ -17,6 +17,7 @@ import {
   Sun,
   Moon,
   Wallet,
+  Cloud,
   ArrowUpRight,
   ArrowDownLeft,
   ArrowLeftRight,
@@ -53,6 +54,7 @@ import Settings from './pages/Settings';
 import Admin from './pages/Admin';
 import Activation from './pages/Activation';
 import Customization from './pages/Customization';
+import SyncCenter from './pages/SyncCenter';
 
 import GlobalTransactionModal from './components/GlobalTransactionModal';
 
@@ -657,9 +659,13 @@ export default function App() {
     licenseExpiry,
     isTrialExpired,
     paymentStatus,
-    isOnline
+    isOnline,
+    session,
+    syncStatus
   } = useApp();
   const { theme, toggleTheme } = useTheme();
+
+  const isOwner = !currentCompany || !currentCompany.owner_email || (session?.user?.email && currentCompany.owner_email === session.user.email);
   const [showSplash, setShowSplash] = useState(true);
   const [forceUpgrade, setForceUpgrade] = useState(false);
   const [dismissedPayment, setDismissedPayment] = useState(false);
@@ -695,6 +701,12 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (syncStatus.error === 'LICENSE_REQUIRED') {
+      setActiveTab('activation');
+    }
+  }, [syncStatus.error]);
+
   const isLicensedUser = isLicensed();
   
   // License expiry for header
@@ -705,7 +717,7 @@ export default function App() {
     { id: 'parties', label: 'Parties', icon: Users, premium: true },
     { id: 'banks', label: 'Banks', icon: Building2, premium: true },
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
-    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
+    ...(isOwner ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : []),
     { id: 'more', label: 'More', icon: Menu },
   ];
 
@@ -725,14 +737,12 @@ export default function App() {
     // Check if user is on a premium tab
     const isPremiumTab = [...menuItems, ...moreItems].find(i => i.id === tab)?.premium;
 
-    if (tab === 'upgrade') {
-      setForceUpgrade(true);
-      setDismissedPayment(false);
-      setActiveTab('dashboard');
-      return <Dashboard />;
+    if (tab === 'sync' && !isOwner) {
+       return <Dashboard />;
     }
     switch (tab) {
       case 'dashboard': return <Dashboard />;
+      case 'sync': return <SyncCenter />;
       case 'activation': return <Activation />;
       case 'parties': return <Parties />;
       case 'banks': return <Banks />;
@@ -1195,21 +1205,26 @@ export default function App() {
 }
 
 function SetupCompany() {
-  const { addCompany, loginWithUsername, restoreCompany, restoreData, syncStatus, session } = useApp();
+  const { addCompany, loginWithUsername, restoreCompany, restoreData, syncStatus, session, companies, setCurrentCompany } = useApp();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
   const [currency, setCurrency] = useState('PKR');
-  const [mode, setMode] = useState<'login' | 'signup' | 'restore'>('signup');
+  const [type, setType] = useState<'normal' | 'hr'>('normal');
+  const [mode, setMode] = useState<'login' | 'signup' | 'restore' | 'list'>(companies.length > 0 ? 'list' : 'signup');
+
+  const myCompanies = companies.filter(c => !c.owner_email || c.owner_email === session?.user?.email);
+  const sharedCompanies = companies.filter(c => c.owner_email && c.owner_email !== session?.user?.email);
 
   const handleAction = async () => {
     if (mode === 'login') {
       if (!username.trim()) return;
       const success = await loginWithUsername(username.trim());
-      if (!success) return;
+      if (success) setMode('list');
     } else if (mode === 'restore') {
       if (!recoveryCode.trim()) return;
       await restoreCompany(recoveryCode.trim());
+      setMode('list');
     } else {
       if (!name.trim() || !username.trim()) return;
       
@@ -1226,8 +1241,10 @@ function SetupCompany() {
           username: normalizedUsername,
           address: '',
           currency,
+          company_type: type,
           user_id: session?.user?.id || 'default',
         });
+        setMode('list');
       } catch (e: any) {
         console.error('Add company error:', e);
       }
@@ -1242,10 +1259,81 @@ function SetupCompany() {
       const content = event.target?.result as string;
       if (content) {
         await restoreData(content);
+        setMode('list');
       }
     };
     reader.readAsText(file);
   };
+
+  if (mode === 'list' && companies.length > 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
+        <div className="max-w-2xl w-full space-y-6">
+          <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+             <div>
+               <h1 className="text-xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Select Business</h1>
+               <p className="text-sm text-slate-500 font-medium tracking-tight">Welcome back to Bugzy Pro</p>
+             </div>
+             <button 
+              onClick={() => setMode('signup')}
+              className="p-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+             >
+               <Plus size={20} />
+             </button>
+          </div>
+
+          <div className="space-y-4">
+             <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-2">My Companies</h3>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+               {myCompanies.map(c => (
+                 <button 
+                  key={c.id} 
+                  onClick={() => setCurrentCompany(c)}
+                  className="flex items-center gap-4 p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-500 transition-all text-left shadow-sm group"
+                 >
+                   <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center text-indigo-600 shrink-0 group-hover:scale-110 transition-transform">
+                     {c.company_type === 'hr' ? <Users size={24} /> : <Building2 size={24} />}
+                   </div>
+                   <div className="min-w-0">
+                     <h4 className="font-bold text-slate-900 dark:text-slate-50 truncate">{c.name}</h4>
+                     <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">{c.company_type === 'hr' ? 'HR / Offline' : 'Business / Online'}</p>
+                   </div>
+                 </button>
+               ))}
+             </div>
+          </div>
+
+          {sharedCompanies.length > 0 && (
+            <div className="space-y-4">
+               <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-2">Shared With Me</h3>
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 {sharedCompanies.map(c => (
+                   <button 
+                    key={c.id} 
+                    onClick={() => setCurrentCompany(c)}
+                    className="flex items-center gap-4 p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-500 transition-all text-left shadow-sm group"
+                   >
+                     <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/20 rounded-2xl flex items-center justify-center text-amber-600 shrink-0 group-hover:scale-110 transition-transform">
+                       <Cloud size={24} />
+                     </div>
+                     <div className="min-w-0">
+                       <h4 className="font-bold text-slate-900 dark:text-slate-50 truncate">{c.name}</h4>
+                       <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Owner: {c.owner_email}</p>
+                     </div>
+                   </button>
+                 ))}
+               </div>
+            </div>
+          )}
+
+          <div className="flex justify-center gap-4 pt-4">
+             <button onClick={() => setMode('login')} className="text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors">Login with Username</button>
+             <button onClick={() => setMode('restore')} className="text-sm font-bold text-slate-500 hover:text-indigo-600 transition-colors">Restore Data</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const title = mode === 'login' ? 'Login' : mode === 'restore' ? 'Restore Data' : 'Create Account';
   const subTitle = mode === 'login' ? 'Access your business data' : mode === 'restore' ? 'Enter recovery code or upload backup file' : 'Start managing your business';
@@ -1266,15 +1354,44 @@ function SetupCompany() {
         
         <div className="space-y-4">
           {mode === 'signup' && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Company Name</label>
-              <input 
-                type="text" 
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50"
-                placeholder="e.g. Acme Corp"
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-400 mb-2">Company Type</label>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+                   <button 
+                    onClick={() => setType('normal')}
+                    className={cn(
+                      "py-3 rounded-xl font-bold transition-all text-xs flex items-center justify-center gap-2",
+                      type === 'normal' ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" : "text-slate-500"
+                    )}
+                   >
+                     <Cloud size={14} /> Normal
+                   </button>
+                   <button 
+                    onClick={() => setType('hr')}
+                    className={cn(
+                      "py-3 rounded-xl font-bold transition-all text-xs flex items-center justify-center gap-2",
+                      type === 'hr' ? "bg-white dark:bg-slate-700 text-rose-600 shadow-sm" : "text-slate-500"
+                    )}
+                   >
+                     <Users size={14} /> HR / Offline
+                   </button>
+                </div>
+                <p className="mt-2 text-[10px] text-slate-400 font-medium px-2 italic">
+                  {type === 'normal' ? 'Full cloud sync & multi-device sharing enabled.' : 'Private offline-only company. No cloud sync.'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Company Name</label>
+                <input 
+                  type="text" 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50"
+                  placeholder="e.g. Acme Corp"
+                />
+              </div>
             </div>
           )}
           

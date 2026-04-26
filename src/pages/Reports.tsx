@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PDFPreviewModal from '../components/PDFPreviewModal';
+import { format } from 'date-fns';
 
 // Extend jsPDF with autotable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -765,16 +766,27 @@ export default function Reports() {
     const pdfSettings = (settings as any).pdf_settings || {};
     
     if (activeReport === 'All Parties') {
-      // Party Report Specific Layout
-      doc.setFontSize(22);
-      doc.setTextColor(0, 0, 0);
-      doc.setFont('helvetica', 'bold');
-      const title = 'All Parties Balance Report';
+      // Professional 2-Column Header for All Parties
       const pageWidth = doc.internal.pageSize.getWidth();
-      const titleWidth = doc.getTextWidth(title);
-      doc.text(title, (pageWidth - titleWidth) / 2, 20);
-      doc.setLineWidth(0.5);
-      doc.line((pageWidth - titleWidth) / 2, 21.5, (pageWidth + titleWidth) / 2, 21.5);
+      
+      doc.setFillColor(248, 250, 252);
+      doc.rect(14, 10, pageWidth - 28, 30, 'F');
+
+      doc.setFontSize(18);
+      doc.setTextColor(30, 41, 59);
+      doc.setFont('helvetica', 'bold');
+      doc.text(companyName, 20, 25);
+      
+      doc.setFontSize(14);
+      doc.setTextColor(79, 70, 229);
+      const title = 'All Parties Balance';
+      doc.text(title, pageWidth - doc.getTextWidth(title) - 20, 25);
+      
+      const genText = `Generated: ${format(new Date(), 'dd MMM yyyy')}`;
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.setFont('helvetica', 'normal');
+      doc.text(genText, pageWidth - doc.getTextWidth(genText) - 20, 33);
 
       const col1 = viewMode === 'app' ? 'Receivable Balance' : 'Debit';
       const col2 = viewMode === 'app' ? 'Payable Balance' : 'Credit';
@@ -793,14 +805,13 @@ export default function Reports() {
       autoTable(doc, {
         head: [['#', 'Name', col1, col2, col3]],
         body,
-        startY: 30,
+        startY: 45,
         theme: 'grid',
         headStyles: { 
-          fillColor: [79, 70, 229],
+          fillColor: [30, 41, 59],
           textColor: [255, 255, 255],
           fontSize: pdfSettings.smallFont ? 8 : 9,
-          fontStyle: 'bold',
-          halign: 'left'
+          fontStyle: 'bold'
         },
         columnStyles: {
           0: { halign: 'left', cellWidth: 12 },
@@ -836,24 +847,27 @@ export default function Reports() {
         }
       });
     } else if (activeReport === 'Balance Sheet') {
-      // Balance Sheet Specific Layout (4-Column Side-by-Side Theme)
+      // Professional 2-Column Header for Balance Sheet
       const pageWidth = doc.internal.pageSize.getWidth();
       
-      // Top Header
-      doc.setFontSize(22);
-      doc.setTextColor(0, 0, 0);
-      doc.setFont('helvetica', 'bold');
-      const dateStr = pdfSettings.hideDate ? '' : ` as on ${formatDate(new Date().toISOString())}`;
-      const title = `Balance Sheet${dateStr}`;
-      const titleWidth = doc.getTextWidth(title);
-      doc.text(title, (pageWidth - titleWidth) / 2, 20);
+      doc.setFillColor(248, 250, 252);
+      doc.rect(14, 10, pageWidth - 28, 30, 'F');
 
-      // Sub Header info
-      if (!pdfSettings.hideContact) {
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Phone no.: ${currentCompany?.phone || '091267091'}`, pageWidth - 14, 15, { align: 'right' });
-      }
+      doc.setFontSize(18);
+      doc.setTextColor(30, 41, 59);
+      doc.setFont('helvetica', 'bold');
+      doc.text(companyName, 20, 25);
+      
+      doc.setFontSize(14);
+      doc.setTextColor(79, 70, 229);
+      const titleLabel = `Balance Sheet`;
+      doc.text(titleLabel, pageWidth - doc.getTextWidth(titleLabel) - 20, 25);
+      
+      const dateStr = pdfSettings.hideDate ? '' : `As on ${formatDate(new Date().toISOString())}`;
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.setFont('helvetica', 'normal');
+      doc.text(dateStr, pageWidth - doc.getTextWidth(dateStr) - 20, 33);
 
       const assetRows = filteredData.filter(d => d.type === 'asset');
       const liabilityRows = filteredData.filter(d => d.type === 'liability');
@@ -962,23 +976,39 @@ export default function Reports() {
         }
       });
     } else {
-      // General Header for other reports
-      doc.setFontSize(22);
-      doc.setTextColor(0, 0, 0);
-      doc.setFont('helvetica', 'bold');
-      const title = `${activeReport} Report`;
+      // Professional 2-Column Header for General Reports
       const pageWidth = doc.internal.pageSize.getWidth();
-      const titleWidth = doc.getTextWidth(title);
-      doc.text(title, (pageWidth - titleWidth) / 2, 20);
-      doc.setLineWidth(0.5);
-      doc.line((pageWidth - titleWidth) / 2, 21.5, (pageWidth + titleWidth) / 2, 21.5);
       
-      doc.setFontSize(10);
-      doc.setTextColor(100, 116, 139);
-      if (!pdfSettings.hideDate) doc.text(`Period: ${dateRange}`, 14, 38);
+      // Top Rectangle for Header
+      doc.setFillColor(248, 250, 252);
+      doc.rect(14, 10, pageWidth - 28, 30, 'F');
+
+      doc.setFontSize(18);
+      doc.setTextColor(30, 41, 59);
+      doc.setFont('helvetica', 'bold');
+      doc.text(companyName, 20, 25);
+      
+      doc.setFontSize(14);
+      doc.setTextColor(79, 70, 229);
+      const title = `${activeReport} Report`;
+      doc.text(title, pageWidth - doc.getTextWidth(title) - 20, 25);
+      
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.setFont('helvetica', 'normal');
+      if (!pdfSettings.hideDate) {
+        doc.text(`Period: ${dateRange}`, 20, 33);
+      }
+      
+      const genText = `Generated: ${format(new Date(), 'dd MMM yyyy')}`;
+      doc.text(genText, pageWidth - doc.getTextWidth(genText) - 20, 33);
+
       if (selectedEntity && !pdfSettings.hideContact) {
         const entityName = (activeReport === 'Single Party' ? parties : banks).find(e => e.id === selectedEntity)?.name;
-        doc.text(`For: ${entityName}`, 14, pdfSettings.hideDate ? 38 : 44);
+        doc.setFontSize(10);
+        doc.setTextColor(51, 65, 85);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`For: ${entityName}`, 20, 48);
       }
 
       let head = [selectedColumns];
@@ -993,11 +1023,11 @@ export default function Reports() {
       autoTable(doc, {
         head,
         body,
-        startY: 55,
+        startY: selectedEntity ? 55 : 45,
         theme: 'grid',
         headStyles: { 
-          fillColor: [220, 220, 220],
-          textColor: [0, 0, 0],
+          fillColor: [30, 41, 59],
+          textColor: [255, 255, 255],
           fontSize: pdfSettings.smallFont ? 8 : 9,
           fontStyle: 'bold'
         },

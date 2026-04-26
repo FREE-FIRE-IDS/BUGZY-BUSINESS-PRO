@@ -24,6 +24,9 @@ export interface Subscription {
   status: 'active' | 'expired' | 'trial';
 }
 
+export type CompanyType = 'normal' | 'hr';
+export type SharePermission = 'view' | 'edit';
+
 export interface Company {
   id: string;
   name: string;
@@ -33,6 +36,7 @@ export interface Company {
   currency: string;
   user_id: string;
   user_email?: string;
+  company_type?: CompanyType;
   trial_start?: string; // ISO date
   is_paid?: boolean;
   subscription?: Subscription;
@@ -40,6 +44,8 @@ export interface Company {
   updated_at?: string;
   deleted_at?: string;
   linked_emails?: string[]; // Emails of other accounts linked to this company
+  owner_email?: string; // Email of the real owner if it's shared
+  permission?: SharePermission; // My permission for this company
 }
 
 export interface Party {
