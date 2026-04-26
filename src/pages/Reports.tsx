@@ -112,6 +112,7 @@ export default function Reports() {
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'app' | 'accounting'>('app');
   const [searchQuery, setSearchQuery] = useState('');
+  const [hideZeroBalances, setHideZeroBalances] = useState(false);
 
   const companyBanks = banks.filter(b => b.company_id === currentCompany?.id);
   const companyItems = items.filter(i => i.company_id === currentCompany?.id);
@@ -232,6 +233,7 @@ export default function Reports() {
       case 'All Parties':
         result = companyParties
           .filter(p => selectedCategory === 'All' || p.type === selectedCategory)
+          .filter(p => !hideZeroBalances || p.balance !== 0)
           .sort((a, b) => a.name.localeCompare(b.name))
           .map((p, index) => ({ 
             '#': index + 1,
@@ -294,7 +296,9 @@ export default function Reports() {
         }
         break;
       case 'All Banks':
-        result = companyBanks.map(b => ({ 
+        result = companyBanks
+          .filter(b => !hideZeroBalances || b.balance !== 0)
+          .map(b => ({ 
           name: b.name, 
           balance: b.balance, 
           account: b.account_number,
@@ -1141,6 +1145,23 @@ export default function Reports() {
                     enabled={settings.show_dr_cr || false} 
                     onToggle={(val) => updateSettings({ show_dr_cr: val })} 
                   />
+                  {(activeReport === 'All Parties' || activeReport === 'All Banks' || activeReport === 'Balance Sheet') && (
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 pointer-events-auto shrink-0 transition-all hover:bg-slate-200 dark:hover:bg-slate-700">
+                      <span className="text-[9px] font-black uppercase text-slate-500 ml-1">Hide 0</span>
+                      <button 
+                        onClick={() => setHideZeroBalances(!hideZeroBalances)}
+                        className={cn(
+                          "relative w-8 h-4 rounded-full transition-all duration-300",
+                          hideZeroBalances ? "bg-red-500" : "bg-slate-300 dark:bg-slate-600"
+                        )}
+                      >
+                        <div className={cn(
+                          "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-300 shadow-sm",
+                          hideZeroBalances ? "left-4.5" : "left-0.5"
+                        )} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
