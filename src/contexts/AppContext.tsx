@@ -410,12 +410,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setCompanies(prev => {
             const exists = prev.find(c => c.id === updatedCompany.id);
             if (exists) {
+              // Only update if data actually changed to avoid re-render loops
+              if (JSON.stringify(exists) === JSON.stringify(updatedCompany)) return prev;
               return prev.map(c => c.id === updatedCompany.id ? updatedCompany : c);
             }
             return [...prev, updatedCompany];
           });
           if (currentCompany?.id === updatedCompany.id) {
-            setCurrentCompany(updatedCompany);
+            if (JSON.stringify(currentCompany) !== JSON.stringify(updatedCompany)) {
+              setCurrentCompany(updatedCompany);
+            }
           }
         }
       })
@@ -466,7 +470,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const { merged: mergedCompanies, toUpload: companiesToUpload } = mergeData(localCompanies, cloudCompanies || []);
       
       const nonDeletedCompanies = mergedCompanies.filter(c => !c.deleted_at);
-      setCompanies(nonDeletedCompanies);
+      if (JSON.stringify(companies) !== JSON.stringify(nonDeletedCompanies)) {
+        setCompanies(nonDeletedCompanies);
+      }
       localStorage.setItem(`companies_${username || email || currentUser}`, JSON.stringify(mergedCompanies));
 
       if (companiesToUpload.length > 0) {
@@ -477,6 +483,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!activeCompany && nonDeletedCompanies.length > 0) {
         activeCompany = nonDeletedCompanies[0];
         setCurrentCompany(activeCompany);
+      } else if (activeCompany) {
+        // Just in case currentCompany was updated during merge
+        const updatedActive = mergedCompanies.find(c => c.id === activeCompany?.id);
+        if (updatedActive && JSON.stringify(activeCompany) !== JSON.stringify(updatedActive)) {
+          setCurrentCompany(updatedActive);
+        }
       }
 
       if (!activeCompany) {

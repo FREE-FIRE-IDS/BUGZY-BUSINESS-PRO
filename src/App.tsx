@@ -686,7 +686,17 @@ export default function App() {
       setActiveTab(e.detail);
     };
     window.addEventListener('navigate', handleNavigate);
-    return () => window.removeEventListener('navigate', handleNavigate);
+    
+    const handleForceUpgrade = () => {
+      setForceUpgrade(true);
+      setDismissedPayment(false);
+    };
+    window.addEventListener('forceUpgrade', handleForceUpgrade);
+
+    return () => {
+      window.removeEventListener('navigate', handleNavigate);
+      window.removeEventListener('forceUpgrade', handleForceUpgrade);
+    };
   }, []);
 
   const isLicensedUser = isLicensed();
@@ -721,7 +731,7 @@ export default function App() {
 
     // IF TRIAL OR LICENSE EXPIRED: Redirect logic
     if (isTrialExpired && !isLicensedUser) {
-      if (isPremiumTab || (tab !== 'dashboard' && tab !== 'settings' && tab !== 'more')) {
+      if (tab !== 'settings' && tab !== 'more') {
           // DIRECT TO PAYMENT PAGE as requested:
           return (
             <div className="flex items-center justify-center p-4">

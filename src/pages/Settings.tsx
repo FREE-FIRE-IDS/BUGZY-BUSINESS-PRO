@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { 
   Settings as SettingsIcon, 
   Moon, 
@@ -33,7 +34,7 @@ export default function Settings() {
     settings, updateSettings, companies, currentCompany, setCurrentCompany, 
     refreshData, addCompany, deleteCompany, pullCompanies, syncStatus,
     linkDevice, signOut, updateCompany, isAdmin, backupData, restoreData,
-    isDeviceLicensed, isLicensed
+    isDeviceLicensed, isLicensed, licenseExpiry
   } = useApp();
   const { theme, toggleTheme } = useTheme();
   const [emailInput, setEmailInput] = React.useState(settings.user_email || '');

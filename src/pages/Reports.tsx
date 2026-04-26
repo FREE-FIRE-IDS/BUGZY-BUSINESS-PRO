@@ -1009,6 +1009,21 @@ export default function Reports() {
           }
           return acc;
         }, {}),
+        foot: tableTotals ? [
+          selectedColumns.map(col => {
+            const val = (tableTotals as any)[col];
+            if (val !== undefined) return formatValue(col, val, true);
+            if (col === selectedColumns[0]) return 'TOTAL';
+            return '';
+          })
+        ] : undefined,
+        footStyles: {
+          fillColor: [248, 250, 252],
+          textColor: [79, 70, 229],
+          fontStyle: 'bold',
+          fontSize: pdfSettings.smallFont ? 8 : 9,
+          halign: 'right'
+        },
         didDrawPage: (data) => {
           const str = "Page " + (doc as any).internal.getNumberOfPages();
           doc.setFontSize(8);
