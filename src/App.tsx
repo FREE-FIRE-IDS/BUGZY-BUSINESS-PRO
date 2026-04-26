@@ -731,7 +731,7 @@ export default function App() {
 
     // IF TRIAL OR LICENSE EXPIRED: Redirect logic
     if (isTrialExpired && !isLicensedUser) {
-      if (tab !== 'dashboard' && tab !== 'more') {
+      if (tab !== 'settings' && tab !== 'more' && tab !== 'activation') {
           // DIRECT TO PAYMENT PAGE as requested:
           return (
             <div className="flex items-center justify-center p-4">
@@ -754,6 +754,7 @@ export default function App() {
     }
     switch (tab) {
       case 'dashboard': return <Dashboard />;
+      case 'activation': return <Activation />;
       case 'parties': return <Parties />;
       case 'banks': return <Banks />;
       case 'inventory': return <Inventory />;

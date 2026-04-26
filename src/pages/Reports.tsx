@@ -593,7 +593,7 @@ export default function Reports() {
           { type: 'asset', label: 'Current Assets', amount: null, isHeader: true },
           { type: 'asset', label: 'Cash in hand', amount: cashBalance },
           { type: 'asset', label: 'Bank Accounts', amount: bankBalancesTotal, isSubHeader: true },
-          ...companyBanks.map(b => ({ type: 'asset', label: b.name, amount: b.balance, isSubItem: true })),
+          ...companyBanks.filter(b => !hideZeroBalances || b.balance !== 0).map(b => ({ type: 'asset', label: b.name, amount: b.balance, isSubItem: true })),
           { type: 'asset', label: 'Accounts receivable / Sundry Debtors', amount: receivables },
           { type: 'asset', label: 'Inventory on hand/ Closing stock', amount: stockValue },
           { type: 'asset', label: 'Tax Receivable', amount: 0, isSubHeader: true },

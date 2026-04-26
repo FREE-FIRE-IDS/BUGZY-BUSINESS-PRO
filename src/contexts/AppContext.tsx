@@ -2019,8 +2019,20 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   useEffect(() => {
     const licensed = localStorage.getItem('device_license') === 'true';
-    if (licensed !== isDeviceLicensed) {
-      setIsDeviceLicensed(licensed);
+    const expiry = localStorage.getItem('license_expiry');
+    
+    let stillValid = licensed;
+    if (licensed && expiry) {
+      if (new Date(expiry) < new Date()) {
+        stillValid = false;
+        localStorage.removeItem('device_license');
+        localStorage.removeItem('active_license_key');
+        localStorage.removeItem('license_expiry');
+      }
+    }
+
+    if (stillValid !== isDeviceLicensed) {
+      setIsDeviceLicensed(stillValid);
     }
 
     const handleStorageChange = (e: StorageEvent) => {

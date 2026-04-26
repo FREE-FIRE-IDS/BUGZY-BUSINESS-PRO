@@ -670,6 +670,7 @@ NOTIFY pgrst, 'reload schema';
       </section>
 
       {/* Licensing Section */}
+      {(isLicensed() || localStorage.getItem('active_license_key')) && (
       <section>
         <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
           <Shield size={24} className="text-indigo-600" />
@@ -713,7 +714,7 @@ NOTIFY pgrst, 'reload schema';
                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">License Expiry Date</span>
                   </div>
                   <p className="font-bold text-slate-700 dark:text-slate-300">
-                    {licenseExpiry ? format(new Date(licenseExpiry), 'dd MMMM yyyy (hh:mm a)') : (isLicensed() ? 'Lifetime/Infinite' : 'N/A')}
+                    {licenseExpiry ? format(new Date(licenseExpiry), 'dd MMMM yyyy (hh:mm a)') : (isLicensed() ? 'Registered Permanent' : 'N/A')}
                   </p>
                   {isLicensed() && licenseExpiry && (
                     <p className="text-[10px] font-bold text-emerald-600 mt-1 uppercase tracking-tighter">
@@ -769,6 +770,7 @@ NOTIFY pgrst, 'reload schema';
           </div>
         </div>
       </section>
+      )}
 
       {/* Recovery Code Section */}
       {currentCompany && (
