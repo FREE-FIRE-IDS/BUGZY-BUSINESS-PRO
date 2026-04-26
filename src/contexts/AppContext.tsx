@@ -2101,20 +2101,26 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const manualSyncLogin = async (email: string) => {
     console.log(`[Sync] Requesting OTP for: ${email}`);
+    
+    // In Electron or local file environments, redirecting to window.location.origin might fail
+    const redirectTo = window.location.protocol === 'http:' || window.location.protocol === 'https:' 
+      ? window.location.origin 
+      : undefined;
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: redirectTo,
       },
     });
     
     if (error) {
       console.error('[Sync OTP Error]', error);
-      if (error.message.includes('rate limit')) {
-        throw new Error('Email rate limit reached. Please wait a few minutes before trying again ⏳');
+      if (error.message.toLowerCase().includes('rate limit')) {
+        throw new Error('Supabase Rate Limit Reached: You can only request 3 codes per hour. Please wait a bit longer (up to 60 mins) before trying again ⏳');
       }
-      throw error;
+      throw new Error(error.message || 'Failed to send code ❌');
     }
     return "SENT";
   };

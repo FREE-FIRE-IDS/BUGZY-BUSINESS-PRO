@@ -26,6 +26,7 @@ export default function SyncCenter() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   // Auto-transition if session becomes active (e.g. magic link clicked)
   React.useEffect(() => {
@@ -37,15 +38,27 @@ export default function SyncCenter() {
     }
   }, [session, step]);
 
+  React.useEffect(() => {
+    let timer: any;
+    if (cooldown > 0) {
+      timer = setInterval(() => {
+        setCooldown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email || cooldown > 0) return;
+    
     setLoading(true);
     setError(null);
     try {
       await manualSyncLogin(email);
       setOtpSent(true);
       setStep('otp');
+      setCooldown(60);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -142,11 +155,11 @@ export default function SyncCenter() {
               )}
               <button
                 type="submit"
-                disabled={loading || !isOnline}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                disabled={loading || !isOnline || cooldown > 0}
+                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50 disabled:bg-slate-400 flex items-center justify-center gap-2"
               >
-                {loading ? <Loader2 className="animate-spin" /> : <Smartphone size={20} />}
-                Verify & Enable Sync
+                {loading ? <Loader2 className="animate-spin" /> : <Mail size={20} />}
+                {cooldown > 0 ? `Retry in ${cooldown}s` : 'Send Verification Code'}
               </button>
             </form>
 
@@ -216,6 +229,17 @@ export default function SyncCenter() {
                 {loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={20} />}
                 Confirm Verification
               </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  disabled={loading || cooldown > 0}
+                  onClick={handleSendOTP}
+                  className="text-indigo-600 dark:text-indigo-400 text-sm font-bold hover:underline disabled:text-slate-400 disabled:no-underline"
+                >
+                  {cooldown > 0 ? `Resend Code in ${cooldown}s` : "Didn't receive code? Resend"}
+                </button>
+              </div>
 
               <div className="flex items-center gap-3">
                 <div className="h-px bg-slate-100 dark:bg-slate-800 flex-1" />
