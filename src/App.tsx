@@ -282,7 +282,7 @@ function PaymentScreen({ company, onClose }: { company: Company, onClose?: () =>
           >
             <ArrowLeft size={24} />
           </button>
-        ) : step === 'plan' ? (
+        ) : (step === 'plan' && !isExpired) ? (
           <button 
             type="button"
             onClick={() => {
@@ -341,6 +341,35 @@ function PaymentScreen({ company, onClose }: { company: Company, onClose?: () =>
                       </div>
                     </button>
                   ))}
+                </div>
+
+                <div className="mb-8">
+                   <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest text-center mb-3">Already have a License?</p>
+                   <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={licenseKey}
+                      onChange={e => {
+                        setLicenseKey(e.target.value);
+                        setErrorMsg('');
+                      }}
+                      placeholder="Enter License Key"
+                      className={cn(
+                        "flex-1 bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-mono text-sm",
+                        status === 'error' && errorMsg.includes('License') ? "border-rose-500" : "border-slate-100 dark:border-slate-700 focus:border-indigo-600"
+                      )}
+                    />
+                    <button 
+                      onClick={handleActivate}
+                      disabled={!licenseKey || status === 'loading'}
+                      className="bg-slate-900 text-white px-6 rounded-2xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+                    >
+                      {status === 'loading' ? '...' : 'Activate'}
+                    </button>
+                  </div>
+                  {status === 'error' && errorMsg && (
+                    <p className="text-rose-500 text-[10px] font-bold text-center mt-2">{errorMsg}</p>
+                  )}
                 </div>
 
                 <button 
@@ -514,39 +543,6 @@ function PaymentScreen({ company, onClose }: { company: Company, onClose?: () =>
                     </button>
                   </div>
                 </form>
-
-                  <div className="mt-10 pt-8 border-t border-slate-100 dark:border-slate-800">
-                    <p className="text-xs text-slate-400 text-center mb-4 font-bold uppercase tracking-widest">Or Activate with Key</p>
-                    <div className="space-y-4">
-                      <div className="flex gap-2">
-                        <input 
-                          type="text"
-                          value={licenseKey}
-                          onChange={e => {
-                            setLicenseKey(e.target.value);
-                            setErrorMsg('');
-                          }}
-                          placeholder="Enter License Key"
-                          className={cn(
-                            "flex-1 bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl px-5 py-3 outline-none transition-all font-mono text-sm",
-                            status === 'error' && errorMsg.includes('License') ? "border-rose-500" : "border-slate-100 dark:border-slate-700 focus:border-indigo-600"
-                          )}
-                        />
-                        <button 
-                          onClick={handleActivate}
-                          disabled={!licenseKey || status === 'loading'}
-                          className="bg-slate-900 text-white px-6 rounded-2xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
-                        >
-                          Activate
-                        </button>
-                      </div>
-                      {status === 'error' && errorMsg && (
-                        <p className="text-rose-500 text-xs font-bold text-center bg-rose-50 dark:bg-rose-900/10 p-3 rounded-xl border border-rose-100 dark:border-rose-800/50">
-                          {errorMsg}
-                        </p>
-                      )}
-                    </div>
-                  </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -731,19 +727,16 @@ export default function App() {
 
     // IF TRIAL OR LICENSE EXPIRED: Redirect logic
     if (isTrialExpired && !isLicensedUser) {
-      if (tab !== 'settings' && tab !== 'more' && tab !== 'activation') {
-          // DIRECT TO PAYMENT PAGE as requested:
-          return (
-            <div className="flex items-center justify-center p-4">
-              <div className="w-full max-w-xl">
-                <PaymentScreen 
-                  company={currentCompany!} 
-                  onClose={() => setActiveTab('dashboard')} 
-                />
-              </div>
+        // DIRECT TO PAYMENT PAGE as requested:
+        return (
+          <div className="flex items-center justify-center p-4 min-h-[80vh]">
+            <div className="w-full max-w-xl">
+              <PaymentScreen 
+                company={currentCompany!} 
+              />
             </div>
-          );
-      }
+          </div>
+        );
     }
 
     if (tab === 'upgrade') {

@@ -670,7 +670,7 @@ NOTIFY pgrst, 'reload schema';
       </section>
 
       {/* Licensing Section */}
-      {(isLicensed() || localStorage.getItem('active_license_key')) && (
+      {isLicensed() && (
       <section>
         <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
           <Shield size={24} className="text-indigo-600" />
@@ -705,22 +705,27 @@ NOTIFY pgrst, 'reload schema';
                     {isLicensed() && <span className="text-[10px] font-bold text-emerald-600">AUTHORIZED</span>}
                   </div>
                   <p className="font-mono text-sm font-bold text-slate-700 dark:text-slate-300">
-                    {localStorage.getItem('active_license_key') || 'NO-ACTIVE-KEY'}
+                    {(() => {
+                      const key = localStorage.getItem('active_license_key');
+                      if (!key) return 'NO-ACTIVE-KEY';
+                      if (key.length <= 10) return key;
+                      return `${key.substring(0, 4)}••••••••${key.substring(key.length - 4)}`;
+                    })()}
                   </p>
                 </div>
 
                 <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">License Expiry Date</span>
+                    {licenseExpiry && isLicensed() && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">
+                        {Math.max(0, Math.ceil((new Date(licenseExpiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))} Days Left
+                      </span>
+                    )}
                   </div>
                   <p className="font-bold text-slate-700 dark:text-slate-300">
-                    {licenseExpiry ? format(new Date(licenseExpiry), 'dd MMMM yyyy (hh:mm a)') : (isLicensed() ? 'Registered Permanent' : 'N/A')}
+                    {licenseExpiry ? format(new Date(licenseExpiry), 'dd MMMM yyyy') : (isLicensed() ? 'Registered Permanent' : 'N/A')}
                   </p>
-                  {isLicensed() && licenseExpiry && (
-                    <p className="text-[10px] font-bold text-emerald-600 mt-1 uppercase tracking-tighter">
-                      Expires in {Math.max(0, Math.ceil((new Date(licenseExpiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))} days
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
