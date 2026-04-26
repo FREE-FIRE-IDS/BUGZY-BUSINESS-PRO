@@ -49,15 +49,14 @@ export default function SyncCenter() {
     setLoading(true);
     setError(null);
     try {
-      // For simulation, any 6 digit OTP works, or just check if it's entered
       if (otp.length === 6) {
-        await confirmSyncLogin(email);
+        await confirmSyncLogin(email, otp);
         setStep('active');
       } else {
         setError('Invalid OTP code ❌');
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Verification failed. Please check the code.');
     } finally {
       setLoading(false);
     }

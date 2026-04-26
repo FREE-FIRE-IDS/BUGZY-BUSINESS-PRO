@@ -69,7 +69,7 @@ interface AppContextType {
   restoreCompany: (code: string) => Promise<boolean>;
   isOnline: boolean;
   manualSyncLogin: (email: string) => Promise<string>;
-  confirmSyncLogin: (email: string) => Promise<boolean>;
+  confirmSyncLogin: (email: string, token: string) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -2114,19 +2114,26 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const manualSyncLogin = async (email: string) => {
-    // 1. Generate OTP (logic already exists in generateVerificationCode?)
-    // Actually simplicity: Enter Gmail -> Verify (we can just pull data for now as the prompt says)
-    // "Enter Gmail -> Verify OTP/email verification -> Then Sync becomes ACTIVE"
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: true,
+      },
+    });
     
-    // For now, I'll implement a Mock OTP check or use the existing generateVerificationCode
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log(`[Sync OTP] Code for ${email}: ${otp}`);
-    
-    // In a real app we'd send email. Here we just simulate.
-    return otp;
+    if (error) throw error;
+    return "SENT";
   };
 
-  const confirmSyncLogin = async (email: string) => {
+  const confirmSyncLogin = async (email: string, token: string) => {
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email',
+    });
+
+    if (error) throw error;
+
     updateSettings({ user_email: email, sync_enabled: true });
     await refreshData(email, true);
     return true;
