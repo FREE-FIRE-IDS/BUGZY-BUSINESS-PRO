@@ -248,21 +248,30 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    // Legacy license requirement removed
-  }, [syncStatus.error]);
-
   if (showSplash) return <SplashScreen />;
 
-  if (showOnboarding && companies.length === 0) {
-    return <Onboarding onComplete={() => {
-        setShowOnboarding(false);
-        localStorage.setItem('onboarding_complete', 'true');
-    }} />;
+  if (settings && !settings.onboarding_completed) {
+    return <Onboarding onComplete={() => updateSettings({ onboarding_completed: true })} />;
   }
 
-  // No more forced activation on launch
-  
+  if (!currentCompany && companies.length === 0) {
+    return <SetupCompany />;
+  }
+
+  if (!currentCompany && companies.length > 0) {
+    // This state should be transient as useEffect will set it
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mb-4" />
+        <p className="text-slate-500 font-bold animate-pulse uppercase tracking-[0.2em] text-[10px]">Initializing workspace</p>
+      </div>
+    );
+  }
+
+  if (!currentCompany) {
+    return <SetupCompany />;
+  }
+
   const menuItems = [
     { id: 'sale', label: 'Sale', icon: FileText },
     { id: 'pay-in', label: 'Pay-In', icon: Wallet },
@@ -346,29 +355,6 @@ export default function App() {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
-
-  if (showSplash) {
-    return <SplashScreen />;
-  }
-
-  if (settings && !settings.onboarding_completed) {
-    return <Onboarding onComplete={() => updateSettings({ onboarding_completed: true })} />;
-  }
-
-  if (!currentCompany && companies.length === 0) {
-    return <SetupCompany />;
-  }
-
-  // No blocking based on trial anymore
-
-  if (!currentCompany) {
-    return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mb-4" />
-        <p className="text-slate-500 font-bold animate-pulse uppercase tracking-[0.2em] text-[10px]">Initializing workspace</p>
-      </div>
-    );
-  }
 
   return (
     <div className={cn(

@@ -908,7 +908,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [transactions, parties, banks, items, invoices, currentCompany?.id]);
+  }, [transactions, invoices, currentCompany?.id]);
 
   const recalculateBalances = async (allTransactions: Transaction[], allParties: Party[], allBanks: BankAccount[], allItems: Item[], allInvoices: Invoice[]) => {
     if (!currentCompany) return;
