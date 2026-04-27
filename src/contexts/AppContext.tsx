@@ -121,6 +121,16 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
   };
 };
 
+const safeParse = (str: string | null, fallback: any) => {
+  if (!str) return fallback;
+  try {
+    return JSON.parse(str);
+  } catch (e) {
+    console.error('Safe JSON Parse Error:', e, 'for string:', str);
+    return fallback;
+  }
+};
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
   const isTrialExpired = false;
@@ -142,11 +152,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const savedCompanies = localStorage.getItem(`companies_${currentUser}`);
-    const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
+    const loadedCompanies = safeParse(savedCompanies, []);
     setCompanies(loadedCompanies);
 
     const savedCurrent = localStorage.getItem(`currentCompany_${currentUser}`);
-    const loadedCurrent = savedCurrent ? JSON.parse(savedCurrent) : (loadedCompanies[0] || null);
+    const loadedCurrent = safeParse(savedCurrent, loadedCompanies[0] || null);
     setCurrentCompany(loadedCurrent);
   }, [currentUser]);
 
@@ -163,7 +173,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const id = currentCompany.id;
     const load = (key: string) => {
       const saved = localStorage.getItem(`${key}_${id}`);
-      return saved ? JSON.parse(saved) : [];
+      return safeParse(saved, []);
     };
 
     setParties(load('parties'));
@@ -180,9 +190,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currency: 'PKR',
       pdf_theme: 'standard',
       sync_enabled: true,
-      onboarding_completed: true, // Default to true to skip if possible, but depends on user
+      onboarding_completed: true, 
     };
-    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
+    return saved ? { ...defaultSettings, ...safeParse(saved, {}) } : defaultSettings;
   });
   const [syncStatus, setSyncStatus] = useState<{ loading: boolean; error: string | null; success: string | null }>({
     loading: false,
@@ -435,7 +445,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
             
             const localKey = `${table}_${comp.id}`;
-            const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+            const localData = safeParse(localStorage.getItem(localKey), []);
             const { merged, toUpload } = mergeData(localData, data || []);
             
             localStorage.setItem(localKey, JSON.stringify(merged));
@@ -718,8 +728,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       // Load current company from localStorage initially just to have a starting point
       const saved = localStorage.getItem('currentCompany');
       if (saved) {
-        const company = JSON.parse(saved);
-        setCurrentCompany(company);
+        const company = safeParse(saved, null);
+        if (company) setCurrentCompany(company);
       }
       
       // Then pull companies from cloud
@@ -797,7 +807,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
                             : Array.from(managedCompanyIds);
 
                         targetIds.forEach(targetId => {
-                            const localAll = JSON.parse(localStorage.getItem(`${key}_${targetId}`) || '[]');
+                            const localAll = safeParse(localStorage.getItem(`${key}_${targetId}`), []);
                             if (!Array.isArray(localAll)) return;
                             
                             let updatedAll = [...localAll];
@@ -847,7 +857,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
                     else if (table === 'companies') {
                         isInternalUpdate.current = true;
                         setCompanies(prev => {
-                            const localAll = JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]');
+                            const localAll = safeParse(localStorage.getItem(`companies_${currentUser}`), []);
                             let updatedAll = [...localAll];
                             if (eventType === 'INSERT' || eventType === 'UPDATE') {
                                 const index = updatedAll.findIndex(c => c.id === record.id);
@@ -1296,7 +1306,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       const updatedTransactions = transactions.filter(t => t.id !== id);
       setTransactions(updatedTransactions);
 
-      const localAll = JSON.parse(localStorage.getItem(`transactions_${currentCompany.id}`) || '[]');
+      const localAll = safeParse(localStorage.getItem(`transactions_${currentCompany.id}`), []);
       
       if (hard) {
         const filteredAll = localAll.filter((t: any) => t.id !== id);
@@ -1330,7 +1340,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       // 1. Check local storage first (for offline support)
       const localCompaniesStr = localStorage.getItem(`companies_${normalizedUsername}`);
       if (localCompaniesStr) {
-        const localData = JSON.parse(localCompaniesStr);
+        const localData = safeParse(localCompaniesStr, []);
         if (isLogin) {
           localStorage.setItem('currentUser', normalizedUsername);
           setCurrentUser(normalizedUsername);
@@ -1494,8 +1504,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     const data: any = {
       username: currentUser,
-      companies: JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]'),
-      settings: JSON.parse(localStorage.getItem('app_settings') || '{}'),
+      companies: safeParse(localStorage.getItem(`companies_${currentUser}`), []),
+      settings: safeParse(localStorage.getItem('app_settings'), {}),
       device_license: localStorage.getItem('device_license'),
       active_license_key: localStorage.getItem('active_license_key'),
       companyData: {}
@@ -1503,11 +1513,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     data.companies.forEach((c: any) => {
       data.companyData[c.id] = {
-        parties: JSON.parse(localStorage.getItem(`parties_${c.id}`) || '[]'),
-        banks: JSON.parse(localStorage.getItem(`banks_${c.id}`) || '[]'),
-        items: JSON.parse(localStorage.getItem(`items_${c.id}`) || '[]'),
-        transactions: JSON.parse(localStorage.getItem(`transactions_${c.id}`) || '[]'),
-        invoices: JSON.parse(localStorage.getItem(`invoices_${c.id}`) || '[]'),
+        parties: safeParse(localStorage.getItem(`parties_${c.id}`), []),
+        banks: safeParse(localStorage.getItem(`banks_${c.id}`), []),
+        items: safeParse(localStorage.getItem(`items_${c.id}`), []),
+        transactions: safeParse(localStorage.getItem(`transactions_${c.id}`), []),
+        invoices: safeParse(localStorage.getItem(`invoices_${c.id}`), []),
       };
     });
 
@@ -1722,7 +1732,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const updatedInvoices = invoices.filter(i => i.id !== id);
     setInvoices(updatedInvoices);
 
-    const localAll = JSON.parse(localStorage.getItem(`invoices_${currentCompany.id}`) || '[]');
+    const localAll = safeParse(localStorage.getItem(`invoices_${currentCompany.id}`), []);
     
     if (hard) {
       const filteredAll = localAll.filter((i: any) => i.id !== id);
