@@ -51,7 +51,6 @@ import Invoices from './pages/Invoices';
 import Reports from './pages/Reports';
 import BusinessStatus from './pages/BusinessStatus';
 import Settings from './pages/Settings';
-import Admin from './pages/Admin';
 import Activation from './pages/Activation';
 import Customization from './pages/Customization';
 import SyncCenter from './pages/SyncCenter';
@@ -80,7 +79,7 @@ function Onboarding({ onComplete }: { onComplete: () => void }) {
     },
     {
       title: "Ready to Grow?",
-      desc: "Set up your company in seconds and start your 7-day free trial today.",
+      desc: "Set up your company in seconds and start managing your business today.",
       icon: <Building2 size={48} className="text-indigo-500" />
     }
   ];
@@ -257,13 +256,8 @@ export default function App() {
     }
   }, [syncStatus.error]);
 
-  const isLicensedUser = isLicensed();
-  
-  if (!isDeviceLicensed || !isLicensedUser) {
-    return <Activation />;
-  }
-
   if (showSplash) return <SplashScreen />;
+
   if (showOnboarding && companies.length === 0) {
     return <Onboarding onComplete={() => {
         setShowOnboarding(false);
@@ -271,8 +265,22 @@ export default function App() {
     }} />;
   }
 
+  const isLicensedUser = typeof isLicensed === 'function' ? isLicensed() : false;
+  
+  // Only force activation if NOT in setup mode AND not licensed
+  if (companies && companies.length > 0 && (!isDeviceLicensed || !isLicensedUser)) {
+    return <Activation />;
+  }
+
   // License expiry for header
-  const daysLeftLicense = licenseExpiry ? Math.max(0, differenceInDays(new Date(licenseExpiry), new Date())) : null;
+  let daysLeftLicense = null;
+  try {
+    if (licenseExpiry) {
+      daysLeftLicense = Math.max(0, differenceInDays(new Date(licenseExpiry), new Date()));
+    }
+  } catch (e) {
+    console.error('License expiry calculation failed:', e);
+  }
 
   const menuItems = [
     { id: 'sale', label: 'Sale', icon: FileText },

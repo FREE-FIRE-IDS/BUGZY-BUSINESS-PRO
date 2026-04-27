@@ -499,11 +499,11 @@ NOTIFY pgrst, 'reload schema';
                 </div>
                 <div>
                   <h4 className="font-black text-lg text-slate-900 dark:text-white">
-                    {isLicensed() ? 'Premium Pro' : 'Trial Version'}
+                    {isLicensed() ? 'Premium Pro' : 'License Required'}
                   </h4>
                   <p className="text-xs text-slate-500">
-                    Status: <span className={cn("font-bold", isLicensed() ? "text-emerald-600" : "text-amber-600")}>
-                      {isLicensed() ? 'Active' : 'Basic/Trial'}
+                    Status: <span className={cn("font-bold", isLicensed() ? "text-emerald-600" : "text-rose-600")}>
+                      {isLicensed() ? 'Authorized' : 'Unlicensed'}
                     </span>
                   </p>
                 </div>
@@ -535,7 +535,7 @@ NOTIFY pgrst, 'reload schema';
                     )}
                   </div>
                   <p className="font-bold text-slate-700 dark:text-slate-300">
-                    {licenseExpiry ? format(new Date(licenseExpiry), 'dd MMMM yyyy') : (isLicensed() ? 'Registered Permanent' : 'N/A')}
+                    {licenseExpiry ? format(new Date(licenseExpiry), 'dd MMMM yyyy') : (isLicensed() ? 'Permanent License' : 'N/A')}
                   </p>
                 </div>
               </div>
@@ -588,43 +588,55 @@ NOTIFY pgrst, 'reload schema';
       </section>
       )}
 
-      {/* Recovery Code Section */}
-      {currentCompany && (
-        <section>
-          <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
-            <Shield size={24} className="text-indigo-600" />
-            Security & Recovery
-          </h3>
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <p className="font-bold mb-1 text-slate-900 dark:text-white text-sm md:text-base">Recovery Code</p>
-                <p className="text-[10px] md:text-xs text-slate-500">Use this code to restore your company data on any device.</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <input 
-                  type="text"
-                  value={currentCompany.recovery_code || ''}
-                  onChange={(e) => updateCompany(currentCompany.id, { recovery_code: e.target.value.toLowerCase() })}
-                  className="flex-1 md:flex-none px-4 md:px-6 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-mono font-bold text-indigo-600 dark:text-indigo-400 text-center outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
-                  placeholder="custom-code"
-                />
-                <button 
-                  onClick={() => {
-                    if (currentCompany.recovery_code) {
-                      navigator.clipboard.writeText(currentCompany.recovery_code);
-                      setToast({ message: 'Recovery code copied!', type: 'success' });
-                    }
-                  }}
-                  className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all text-slate-400 hover:text-indigo-600"
-                >
-                  <Link2 size={20} />
-                </button>
-              </div>
-            </div>
+      {/* Data Management Section */}
+      <section>
+        <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
+          <Database size={24} className="text-indigo-600" />
+          Data Management
+        </h3>
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <button 
+              onClick={() => backupData()}
+              className="flex items-center gap-4 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-indigo-500 transition-all text-left"
+             >
+               <div className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm text-indigo-600">
+                 <Download size={24} />
+               </div>
+               <div>
+                 <p className="font-bold text-slate-900 dark:text-white">Backup Data</p>
+                 <p className="text-xs text-slate-500">Download all your records to a JSON file</p>
+               </div>
+             </button>
+
+             <button 
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = (e: any) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (res) => restoreData(res.target?.result as string);
+                    reader.readAsText(file);
+                  }
+                };
+                input.click();
+              }}
+              className="flex items-center gap-4 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-rose-500 transition-all text-left"
+             >
+               <div className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm text-rose-600">
+                 <Upload size={24} />
+               </div>
+               <div>
+                 <p className="font-bold text-slate-900 dark:text-white">Restore Data</p>
+                 <p className="text-xs text-slate-500">Restore your records from a backup file</p>
+               </div>
+             </button>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       {/* Branding Section */}
       <section>
