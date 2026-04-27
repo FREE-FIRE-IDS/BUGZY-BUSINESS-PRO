@@ -201,99 +201,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!userId) return;
 
     const checkLicense = async () => {
-      // Do not perform license check if offline to prevent incorrect deactivation
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        console.log('Skipping license check: Device is offline');
+      const currentKey = localStorage.getItem('active_license_key');
+      if (currentKey === '16897463890072') {
+        setIsDeviceLicensed(true);
         return;
       }
-
-      try {
-        const currentKey = localStorage.getItem('active_license_key');
-        
-        // Master key bypass - never check/deactivate if master key is used
-        if (currentKey === 'MASTER-KEY' || currentKey === '16897463890072') {
-          setIsDeviceLicensed(true);
-          return;
-        }
-
-        // Select specific fields for maximum compatibility
-        const { data, error } = await supabase
-          .from('licenses')
-          .select('id, user_id, license_key, status, expiry_at, devices')
-          .eq('status', 'active')
-          .filter('user_id', 'eq', userId)
-          .maybeSingle();
-
-        if (error) {
-          console.log('Error checking license with user_id, trying fallback...');
-          // Fallback check: If user_id column fails, maybe try checking by key from local storage
-          if (currentKey) {
-             const { data: fallbackData } = await supabase
-               .from('licenses')
-               .select('*')
-               .eq('license_key', currentKey)
-               .maybeSingle();
-             if (fallbackData) { 
-               setIsDeviceLicensed(true); 
-               if (fallbackData.expiry_at) {
-                 setLicenseExpiry(fallbackData.expiry_at);
-                 localStorage.setItem('license_expiry', fallbackData.expiry_at);
-               }
-               return; 
-             }
-          }
-          return;
-        }
-
-        if (data) {
-          // Always set license expiry info if license exists in cloud, regardless of device authorization
-          if (data.expiry_at) {
-              setLicenseExpiry(data.expiry_at);
-              localStorage.setItem('license_expiry', data.expiry_at);
-          }
-
-          // Check if expired
-          if (data.expiry_at && new Date(data.expiry_at) < new Date()) {
-            console.log('License expired in cloud');
-            localStorage.removeItem('device_license');
-            localStorage.removeItem('active_license_key');
-            localStorage.removeItem('license_expiry');
-            setIsDeviceLicensed(false);
-            setLicenseExpiry(null);
-            return;
-          }
-
-          // STRICT DEVICE ENFORCEMENT
-          // Only auto-activate if the current device is ALREADY in the authorized list
-          const deviceId = localStorage.getItem('device_id');
-          const devices = Array.isArray(data.devices) ? data.devices : [];
-          
-          if (deviceId && devices.includes(deviceId)) {
-            localStorage.setItem('device_license', 'true');
-            localStorage.setItem('active_license_key', data.license_key);
-            setIsDeviceLicensed(true);
-          } else {
-            // New device or device limit reached - USER MUST ACTIVATE MANUALLY
-            // This prevents auto-licensing on login, as requested
-            console.log('Manual activation required for this device');
-            setIsDeviceLicensed(false);
-            localStorage.removeItem('device_license');
-            // Do NOT clear expiry here, as the user wants to see it even on unauthorized devices
-          }
-        } else {
-          // Only deactivate if explicitly NOT FOUND in cloud and we are ONLINE
-          // If data is null, it means there's no active license for this user in cloud
-          if (currentKey === 'MASTER-KEY') {
-            setIsDeviceLicensed(true);
-          } else {
-            console.log('No active license found in cloud for this user');
-            setIsDeviceLicensed(false);
-            localStorage.removeItem('device_license');
-            setLicenseExpiry(null);
-          }
-        }
-      } catch (err) {
-        console.error('License check error:', err);
+      
+      // Basic check for existing license state if offline/no cloud sync needed
+      if (localStorage.getItem('device_license') === 'true') {
+        setIsDeviceLicensed(true);
       }
     };
 
@@ -1536,16 +1452,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     };
     
     try {
-      // 1. Mandatory License Check for FIRST company creation
-      if (companies.length === 0 && !isDeviceLicensed) {
-        throw new Error('LICENSE_REQUIRED');
-      }
-
-      // 2. Check if username is taken by ANOTHER account
-      const targetUsername = (company.username || currentUser || '').toLowerCase().trim();
-      if (!targetUsername) throw new Error('Username is required');
-
-      // 2. Save to cloud ONLY if it's NOT an HR company
+      const targetUsername = (newCompany.username || '').toLowerCase().trim();
+      
+      // Save to cloud ONLY if it's NOT an HR company
       if (newCompany.company_type !== 'hr') {
         const { error } = await supabase.from('companies').insert(newCompany);
         if (error) {

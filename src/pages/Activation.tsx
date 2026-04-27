@@ -120,13 +120,9 @@ export default function Activation() {
         )}
 
         <div className="mt-10 pt-8 border-t border-slate-100 dark:border-slate-800">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Need a License Key?</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Support & Help</p>
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 mb-6 text-left">
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2 font-bold">Contact Admin to purchase your Master Key.</p>
-            <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl border border-indigo-100 dark:border-indigo-800">
-               <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest leading-none mb-1">WhatsApp Support</p>
-               <p className="font-mono font-bold text-lg text-slate-900 dark:text-white">+92 332 7373104</p>
-            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 font-bold text-center">Contact your administrator for assistance.</p>
           </div>
         </div>
       </div>

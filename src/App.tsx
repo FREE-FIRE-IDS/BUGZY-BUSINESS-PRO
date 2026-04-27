@@ -265,13 +265,8 @@ export default function App() {
     }} />;
   }
 
-  const isLicensedUser = typeof isLicensed === 'function' ? isLicensed() : false;
+  // No more forced activation on launch
   
-  // Only force activation if NOT in setup mode AND not licensed
-  if (companies && companies.length > 0 && (!isDeviceLicensed || !isLicensedUser)) {
-    return <Activation />;
-  }
-
   // License expiry for header
   let daysLeftLicense = null;
   try {
@@ -475,19 +470,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4 shrink-0">
-            {isLicensedUser && daysLeftLicense !== null && (
-              <div className="flex flex-col items-end gap-0.5">
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 text-[8px] sm:text-[10px] font-black uppercase tracking-wider truncate">
-                  <Clock size={10} className="shrink-0" />
-                  <span>{daysLeftLicense}D Left</span>
-                </div>
-                {licenseExpiry && (
-                  <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
-                    Expires: {format(new Date(licenseExpiry), 'dd MMM yyyy')}
-                  </span>
-                )}
-              </div>
-            )}
             <div className="flex items-center gap-2 px-2 md:px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 max-w-[120px] md:max-w-none relative group">
               <Building2 size={16} className="shrink-0" />
               <span className="text-xs md:text-sm font-medium truncate">{currentCompany?.name}</span>
@@ -608,9 +590,11 @@ function SetupCompany() {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
+  const [licenseKey, setLicenseKey] = useState('');
   const [currency, setCurrency] = useState('PKR');
   const [type, setType] = useState<'normal' | 'hr'>('normal');
   const [mode, setMode] = useState<'login' | 'signup' | 'restore' | 'list'>(companies.length > 0 ? 'list' : 'signup');
+  const [licenseError, setLicenseError] = useState(false);
 
   const myCompanies = companies.filter(c => !c.owner_email || c.owner_email === session?.user?.email);
   const sharedCompanies = companies.filter(c => c.owner_email && c.owner_email !== session?.user?.email);
@@ -626,6 +610,13 @@ function SetupCompany() {
       setMode('list');
     } else {
       if (!name.trim() || !username.trim()) return;
+
+      // Mandatory License Check
+      if (licenseKey !== '16897463890072') {
+        setLicenseError(true);
+        return;
+      }
+      setLicenseError(false);
       
       const normalizedUsername = username.trim().toLowerCase();
       
@@ -643,6 +634,11 @@ function SetupCompany() {
           company_type: type,
           user_id: session?.user?.id || 'default',
         });
+        
+        // Mark device as licensed locally if they used the correct key
+        localStorage.setItem('device_license', 'true');
+        localStorage.setItem('active_license_key', '16897463890072');
+        
         setMode('list');
       } catch (e: any) {
         console.error('Add company error:', e);
@@ -790,6 +786,21 @@ function SetupCompany() {
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-slate-50"
                   placeholder="e.g. Acme Corp"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Secret License Key</label>
+                <input 
+                  type="password" 
+                  value={licenseKey}
+                  onChange={(e) => setLicenseKey(e.target.value)}
+                  className={cn(
+                    "w-full p-3 rounded-xl border bg-transparent focus:ring-2 outline-none transition-all text-slate-900 dark:text-slate-50 font-mono",
+                    licenseError ? "border-red-500 focus:ring-red-500" : "border-slate-200 dark:border-slate-800 focus:ring-indigo-500"
+                  )}
+                  placeholder="Enter 14-digit key"
+                />
+                {licenseError && <p className="text-[10px] text-red-500 mt-1 font-bold">Invalid license key provided.</p>}
               </div>
             </div>
           )}
