@@ -289,8 +289,9 @@ CREATE TABLE IF NOT EXISTS company_access (
   owner_email TEXT NOT NULL,
   shared_email TEXT NOT NULL,
   permission TEXT DEFAULT 'view',
-  status TEXT DEFAULT 'active',
+  status TEXT DEFAULT 'pending',
   created_at TIMESTAMPTZ DEFAULT NOW(),
+  accepted_at TIMESTAMPTZ,
   UNIQUE(company_id, shared_email)
 );
 

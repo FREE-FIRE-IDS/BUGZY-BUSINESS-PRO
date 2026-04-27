@@ -669,8 +669,9 @@ export default function App() {
   const isOwner = !currentCompany || !currentCompany.owner_email || 
     (session?.user?.email && currentCompany.owner_email.toLowerCase() === session.user.email.toLowerCase());
   const [showSplash, setShowSplash] = useState(true);
-  const [forceUpgrade, setForceUpgrade] = useState(false);
-  const [dismissedPayment, setDismissedPayment] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    return localStorage.getItem('onboarding_complete') !== 'true';
+  });
 
   useEffect(() => {
     if (!currentCompany && companies.length > 0) {
@@ -691,15 +692,8 @@ export default function App() {
     };
     window.addEventListener('navigate', handleNavigate);
     
-    const handleForceUpgrade = () => {
-      setForceUpgrade(true);
-      setDismissedPayment(false);
-    };
-    window.addEventListener('forceUpgrade', handleForceUpgrade);
-
     return () => {
       window.removeEventListener('navigate', handleNavigate);
-      window.removeEventListener('forceUpgrade', handleForceUpgrade);
     };
   }, []);
 
@@ -711,6 +705,18 @@ export default function App() {
 
   const isLicensedUser = isLicensed();
   
+  if (!isDeviceLicensed) {
+    return <Activation />;
+  }
+
+  if (showSplash) return <SplashScreen />;
+  if (showOnboarding && companies.length === 0) {
+    return <Onboarding onComplete={() => {
+        setShowOnboarding(false);
+        localStorage.setItem('onboarding_complete', 'true');
+    }} />;
+  }
+
   // License expiry for header
   const daysLeftLicense = licenseExpiry ? Math.max(0, differenceInDays(new Date(licenseExpiry), new Date())) : null;
 
@@ -718,7 +724,7 @@ export default function App() {
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'companies', label: 'Companies', icon: Building2 },
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
-    ...(isOwner ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : []),
+    ...(isOwner && !session?.user?.id ? [] : (isOwner ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : [])),
     { id: 'more', label: 'More', icon: Menu },
   ];
 
@@ -737,9 +743,6 @@ export default function App() {
   const renderPage = () => {
     const tab = activeTab === 'more' ? 'settings' : activeTab;
     
-    // Check if user is on a premium tab
-    const isPremiumTab = [...menuItems, ...moreItems].find(i => i.id === tab)?.premium;
-
     if (tab === 'sync' && !isOwner) {
        return <Dashboard />;
     }
@@ -770,10 +773,6 @@ export default function App() {
         setIsShortcutPopupOpen(true);
       }
       if (e.altKey) {
-        if (isTrialExpired && !isLicensedUser) {
-          setForceUpgrade(true);
-          return;
-        }
         e.preventDefault();
         switch (e.key.toLowerCase()) {
           case 'i': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' })); break;
@@ -878,12 +877,7 @@ export default function App() {
             <button
               key={item.id}
               onClick={() => {
-                if ((item as any).premium && !isLicensed() && isTrialExpired) {
-                  setForceUpgrade(true);
-                  setDismissedPayment(false);
-                } else {
                   setActiveTab(item.id);
-                }
               }}
               className={cn(
                 "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative",
@@ -896,9 +890,6 @@ export default function App() {
               {isSidebarOpen && (
                 <div className="flex-1 flex items-center justify-between truncate">
                   <span className="truncate">{item.label}</span>
-                  {item.premium && isTrialExpired && !isLicensedUser && (
-                    <Crown size={14} className="text-amber-400 fill-amber-400 shrink-0" />
-                  )}
                 </div>
               )}
               {!isSidebarOpen && (
@@ -908,22 +899,6 @@ export default function App() {
               )}
             </button>
           ))}
-          
-          {currentCompany && !currentCompany.is_paid && !isLicensed() && (
-            <button
-              onClick={() => {
-                setForceUpgrade(true);
-                setDismissedPayment(false);
-              }}
-              className={cn(
-                "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative mt-6 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 font-bold hover:bg-amber-100 dark:hover:bg-amber-900/40",
-                !isSidebarOpen && "justify-center"
-              )}
-            >
-              <Sparkles size={22} className="animate-pulse shrink-0" />
-              {isSidebarOpen && <span className="truncate">Buy Now</span>}
-            </button>
-          )}
         </nav>
       </aside>
 
@@ -970,16 +945,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4 shrink-0">
-            {(isTrialExpired && !isLicensedUser) && (
-              <button 
-                onClick={() => setForceUpgrade(true)}
-                className="group relative flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500 text-white shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all active:scale-95 border border-white/20"
-              >
-                <Crown size={14} className="fill-white animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-wider">Premium Lock</span>
-                <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white shadow-sm" />
-              </button>
-            )}
             {isLicensedUser && daysLeftLicense !== null && (
               <div className="flex flex-col items-end gap-0.5">
                 <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 text-[8px] sm:text-[10px] font-black uppercase tracking-wider truncate">
@@ -996,11 +961,6 @@ export default function App() {
             <div className="flex items-center gap-2 px-2 md:px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 max-w-[120px] md:max-w-none relative group">
               <Building2 size={16} className="shrink-0" />
               <span className="text-xs md:text-sm font-medium truncate">{currentCompany?.name}</span>
-              {(isTrialExpired && !isLicensedUser) && (
-                <div className="absolute -top-1 -right-1 flex items-center justify-center p-0.5 bg-amber-500 rounded-full border border-white shadow-sm">
-                  <Crown size={8} className="text-white fill-white" />
-                </div>
-              )}
             </div>
 
             <div className={cn(
@@ -1024,19 +984,6 @@ export default function App() {
 
         {/* Scrollable Area */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar scroll-smooth">
-          {currentCompany && (
-            <div className="sticky top-0 z-10 w-full">
-              <TrialBanner 
-                company={currentCompany} 
-                isLicensed={isLicensed()} 
-                onUpgrade={() => {
-                  setForceUpgrade(true);
-                  setDismissedPayment(false);
-                }} 
-              />
-            </div>
-          )}
-
           <div className="p-4 md:p-8 w-full">
             <div className="max-w-7xl mx-auto">
               <AnimatePresence mode="wait">
@@ -1053,12 +1000,7 @@ export default function App() {
                         <button
                           key={item.id}
                           onClick={() => {
-                            if (item.premium && !isLicensedUser && isTrialExpired) {
-                              setForceUpgrade(true);
-                              setDismissedPayment(false);
-                            } else {
-                              setActiveTab(item.id);
-                            }
+                            setActiveTab(item.id);
                           }}
                           className={cn(
                             "flex flex-col items-center justify-center p-4 sm:p-6 rounded-2xl border transition-all gap-2 sm:gap-3",
@@ -1069,11 +1011,6 @@ export default function App() {
                         >
                           <div className="p-2 sm:p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl relative">
                             <item.icon size={22} className="sm:w-6 sm:h-6" />
-                            {item.premium && isTrialExpired && !isLicensedUser && (
-                              <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-amber-500 rounded-full flex items-center justify-center text-white border-2 border-white shadow-lg">
-                                <Crown size={8} className="sm:w-2.5 sm:h-2.5 fill-white" />
-                              </div>
-                            )}
                           </div>
                           <span className="font-bold text-[10px] sm:text-sm uppercase tracking-wider">{item.label}</span>
                         </button>
@@ -1087,29 +1024,14 @@ export default function App() {
         </main>
 
         {/* Floating Action Button for Mobile */}
-        <div className={cn(
-          "fixed bottom-28 right-6 z-40 md:hidden transition-all",
-          (isTrialExpired && !isLicensedUser) && "animate-bounce"
-        )}>
+        <div className="fixed bottom-28 right-6 z-40 md:hidden transition-all">
           <button 
             onClick={() => {
-              if (isTrialExpired && !isLicensedUser) {
-                setForceUpgrade(true);
-              } else {
-                window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }));
-              }
+              window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }));
             }}
-            className={cn(
-              "w-14 h-14 rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-all shadow-indigo-500/40 relative",
-              (isTrialExpired && !isLicensedUser) ? "bg-amber-500 text-white" : "bg-indigo-600 text-white"
-            )}
+            className="w-14 h-14 rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-all shadow-indigo-500/40 relative bg-indigo-600 text-white"
           >
-            {isTrialExpired && !isLicensedUser ? <Crown size={28} className="fill-white" /> : <Plus size={32} />}
-            {isTrialExpired && !isLicensedUser && (
-              <div className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center border-2 border-white">
-                <span className="text-[10px] font-black">!</span>
-              </div>
-            )}
+            <Plus size={32} />
           </button>
         </div>
 
@@ -1122,12 +1044,7 @@ export default function App() {
             <button
               key={item.id}
               onClick={() => {
-                if (item.premium && !isLicensedUser && isTrialExpired) {
-                  setForceUpgrade(true);
-                  setDismissedPayment(false);
-                } else {
-                  setActiveTab(item.id);
-                }
+                setActiveTab(item.id);
               }}
               className={cn(
                 "flex flex-col items-center gap-1 px-2 py-1 rounded-2xl transition-all relative min-w-[64px]",
@@ -1144,11 +1061,6 @@ export default function App() {
               )}
               <div className="relative">
                 <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                {isTrialExpired && !isLicensedUser && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full flex items-center justify-center border border-white">
-                    <Sparkles size={6} className="text-white" />
-                  </div>
-                )}
               </div>
               <span className={cn(
                 "text-[9px] font-black uppercase tracking-[0.1em]",
@@ -1161,49 +1073,6 @@ export default function App() {
 
       <GlobalTransactionModal />
       <ShortcutHelper show={isShortcutPopupOpen} />
-
-      {/* Payment Overlay */}
-      {(forceUpgrade || (isTrialExpired && !isLicensedUser && !dismissedPayment && paymentStatus !== 'pending')) && currentCompany && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-4xl min-h-screen flex items-center justify-center p-4">
-            <div className="absolute inset-0" onClick={() => {
-              // Only allow background click search if they forced it or if it's already pending
-              if (paymentStatus === 'pending') {
-                setDismissedPayment(true);
-                setForceUpgrade(false);
-              }
-            }} />
-            <div className="relative z-10 w-full max-w-xl">
-              <PaymentScreen 
-                company={currentCompany} 
-                onClose={() => {
-                  // If trial is expired and no request, don't allow permanent dismissal
-                  if (isTrialExpired && !isLicensedUser && paymentStatus !== 'pending') {
-                      setDismissedPayment(false);
-                      setForceUpgrade(true);
-                  } else {
-                      setForceUpgrade(false);
-                      setDismissedPayment(true);
-                  }
-                  if (activeTab !== 'dashboard') setActiveTab('dashboard');
-                }} 
-              />
-              {(forceUpgrade || paymentStatus === 'pending') && (
-                <button 
-                  onClick={() => {
-                    setForceUpgrade(false);
-                    setDismissedPayment(true);
-                    if (activeTab !== 'dashboard') setActiveTab('dashboard');
-                  }}
-                  className="absolute top-8 right-8 p-2 text-slate-400 hover:text-white transition-all z-20"
-                >
-                  <X size={24} />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
