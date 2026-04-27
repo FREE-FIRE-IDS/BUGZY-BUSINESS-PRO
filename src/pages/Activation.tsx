@@ -122,7 +122,7 @@ export default function Activation() {
         <div className="mt-10 pt-8 border-t border-slate-100 dark:border-slate-800">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Support & Help</p>
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 mb-6 text-left">
-            <p className="text-sm text-slate-600 dark:text-slate-400 font-bold text-center">Contact your administrator for assistance.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 font-bold text-center italic">Please contact your system administrator for license support.</p>
           </div>
         </div>
       </div>

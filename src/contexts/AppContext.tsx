@@ -41,8 +41,6 @@ interface AppContextType {
   fetchLicenses: () => Promise<License[]>;
   resetLicenseDevice: (id: string) => Promise<void>;
   isDeviceLicensed: boolean;
-  licenseExpiry: string | null;
-  isTrialExpired: boolean;
   isLicensed: () => boolean;
   loginWithUsername: (username: string, isLogin?: boolean) => Promise<boolean>;
   isAdmin: boolean;
@@ -1947,41 +1945,13 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (error) handleSupabaseError(error, 'Reset License Device');
   };
 
-  const getInitialLicenseState = () => {
-    const licensed = localStorage.getItem('device_license') === 'true';
-    const expiry = localStorage.getItem('license_expiry');
-    if (licensed && expiry && new Date(expiry) < new Date()) {
-      localStorage.removeItem('device_license');
-      localStorage.removeItem('active_license_key');
-      localStorage.removeItem('license_expiry');
-      return false;
-    }
-    return licensed;
-  };
-
-  const [isDeviceLicensed, setIsDeviceLicensed] = useState(getInitialLicenseState);
-  const [licenseExpiry, setLicenseExpiry] = useState<string | null>(() => localStorage.getItem('license_expiry'));
-
-  const isTrialExpired = React.useMemo(() => {
-    return false; 
-  }, []);
+  // Licensing
+  const [isDeviceLicensed, setIsDeviceLicensed] = useState(() => localStorage.getItem('device_license') === 'true');
 
   useEffect(() => {
     const licensed = localStorage.getItem('device_license') === 'true';
-    const expiry = localStorage.getItem('license_expiry');
-    
-    let stillValid = licensed;
-    if (licensed && expiry) {
-      if (new Date(expiry) < new Date()) {
-        stillValid = false;
-        localStorage.removeItem('device_license');
-        localStorage.removeItem('active_license_key');
-        localStorage.removeItem('license_expiry');
-      }
-    }
-
-    if (stillValid !== isDeviceLicensed) {
-      setIsDeviceLicensed(stillValid);
+    if (licensed !== isDeviceLicensed) {
+      setIsDeviceLicensed(licensed);
     }
 
     const handleStorageChange = (e: StorageEvent) => {
@@ -2151,8 +2121,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       addInvoice, updateInvoice, deleteInvoice,
       activateLicense, fetchLicenses, resetLicenseDevice,
       isDeviceLicensed,
-      licenseExpiry,
-      isTrialExpired,
       isLicensed: () => isDeviceLicensed,
       loginWithUsername,
       restoreCompany,

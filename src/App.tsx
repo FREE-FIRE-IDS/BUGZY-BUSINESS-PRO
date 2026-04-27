@@ -211,8 +211,6 @@ export default function App() {
     isAdmin, 
     isDeviceLicensed,
     isLicensed,
-    licenseExpiry,
-    isTrialExpired,
     isOnline,
     session,
     syncStatus
@@ -267,16 +265,6 @@ export default function App() {
 
   // No more forced activation on launch
   
-  // License expiry for header
-  let daysLeftLicense = null;
-  try {
-    if (licenseExpiry) {
-      daysLeftLicense = Math.max(0, differenceInDays(new Date(licenseExpiry), new Date()));
-    }
-  } catch (e) {
-    console.error('License expiry calculation failed:', e);
-  }
-
   const menuItems = [
     { id: 'sale', label: 'Sale', icon: FileText },
     { id: 'pay-in', label: 'Pay-In', icon: Wallet },
@@ -365,7 +353,7 @@ export default function App() {
     return <SplashScreen />;
   }
 
-  if (!settings.onboarding_completed) {
+  if (settings && !settings.onboarding_completed) {
     return <Onboarding onComplete={() => updateSettings({ onboarding_completed: true })} />;
   }
 

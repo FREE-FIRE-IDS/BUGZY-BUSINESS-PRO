@@ -880,7 +880,7 @@ NOTIFY pgrst, 'reload schema';
             </div>
 
             {/* License Status */}
-            <div className="p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+            <div className="p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-xl">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center">
                   <Shield size={20} />
@@ -888,34 +888,16 @@ NOTIFY pgrst, 'reload schema';
                 <div>
                   <p className="font-bold">License Status</p>
                   <p className="text-xs text-slate-500">
-                    {isDeviceLicensed ? (
-                      (() => {
-                        const key = localStorage.getItem('active_license_key');
-                        const expiry = localStorage.getItem('license_expiry');
-                        if (key === 'MASTER-KEY' || key === '16897463890072') return 'Lifetime Pro Access ⚡';
-                        if (expiry) {
-                          const daysLeft = Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                          return `Pro Version Active • ${daysLeft} days left`;
-                        }
-                        return 'Pro Version Active';
-                      })()
-                    ) : 'Free Version'}
+                    {isDeviceLicensed ? 'Premium Activated ⚡' : 'Standard Version'}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {isDeviceLicensed ? (
+                {isDeviceLicensed && (
                   <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-xl text-xs font-bold border border-emerald-100 dark:border-emerald-800/50 flex items-center gap-2">
                     <CheckCircle2 size={14} />
                     Licensed
                   </div>
-                ) : (
-                  <button 
-                    onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'payment' }))}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
-                  >
-                    Upgrade to Pro
-                  </button>
                 )}
               </div>
             </div>
@@ -990,7 +972,7 @@ NOTIFY pgrst, 'reload schema';
         </div>
       </section>
 
-      {isAdmin ? (
+      {isAdmin && (
         <section>
           <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-indigo-600">
             <Shield size={24} />
@@ -1011,16 +993,6 @@ NOTIFY pgrst, 'reload schema';
               </button>
             </div>
           </div>
-        </section>
-      ) : settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com' && (
-        <section className="bg-amber-50 dark:bg-amber-900/10 p-6 rounded-3xl border border-amber-200 dark:border-amber-800">
-          <p className="text-amber-800 dark:text-amber-200 font-bold flex items-center gap-2">
-            <ShieldAlert size={18} />
-            Admin Email Detected
-          </p>
-          <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-            You are using the admin email but the dashboard is hidden. Try refreshing the page or re-linking your device.
-          </p>
         </section>
       )}
 

@@ -6,10 +6,8 @@ import { TransactionType } from '../types';
 import { addDays, isAfter } from 'date-fns';
 
 export default function GlobalTransactionModal() {
-  const { parties, banks, addTransaction, updateTransaction, currentCompany, selectedPartyId, selectedBankId, isLicensed, isTrialExpired } = useApp();
+  const { parties, banks, addTransaction, updateTransaction, currentCompany, selectedPartyId, selectedBankId } = useApp();
   
-  // Trial logic for UI feedback
-  const isLicensedUser = isLicensed();
   const [isOpen, setIsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -88,10 +86,6 @@ export default function GlobalTransactionModal() {
 
   useEffect(() => {
     const handleOpen = (e: any) => {
-      if (isTrialExpired && !isLicensedUser) {
-        window.dispatchEvent(new CustomEvent('forceUpgrade'));
-        return;
-      }
       const data = e.detail;
       if (data && typeof data === 'object' && data.id) {
         // We are editing
@@ -130,13 +124,6 @@ export default function GlobalTransactionModal() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (isTrialExpired && !isLicensedUser) {
-        alert('Trial/License Expired! Please upgrade to continue adding entries ❌');
-        setIsOpen(false);
-        window.dispatchEvent(new CustomEvent('navigate', { detail: 'upgrade' }));
-        return;
-    }
-
     if (!amount || isNaN(Number(amount))) return;
 
     const txData = {
