@@ -249,9 +249,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (syncStatus.error === 'LICENSE_REQUIRED') {
-      setActiveTab('activation');
-    }
+    // Legacy license requirement removed
   }, [syncStatus.error]);
 
   if (showSplash) return <SplashScreen />;

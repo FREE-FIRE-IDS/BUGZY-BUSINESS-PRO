@@ -2,8 +2,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Transaction, Party, BankAccount as Bank } from "../types";
 
 export async function getBusinessInsights(transactions: Transaction[], parties: Party[], banks: Bank[]) {
-  const apiKey = (process.env as any).API_KEY || (process.env as any).GEMINI_API_KEY;
-  const ai = new GoogleGenAI({ apiKey });
+  const apiKey = process.env.GEMINI_API_KEY;
+  const ai = new GoogleGenAI({ apiKey: apiKey || '' });
   
   const summary = {
     totalSales: transactions.filter(t => t.type === 'Sale').reduce((sum, t) => sum + t.amount, 0),
@@ -18,7 +18,7 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
   const maxRetries = 3;
   let retryCount = 0;
 
-  const executeWithRetry = async (): Promise<any> => {
+  const executeWithRetry = async (): Promise<string[]> => {
     if (!apiKey) {
       console.warn('Gemini API Key missing, using fallback insights.');
       return [
@@ -30,30 +30,35 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
 
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash", // Using a more stable model name
+        model: "gemini-flash-latest", 
         contents: prompt,
         config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.STRING,
-            },
-            description: "A list of 3 short, actionable business insights."
-          }
+          responseMimeType: "application/json"
         }
       });
       
       const text = response.text || '[]';
       try {
-        return JSON.parse(text);
+        const parsed = JSON.parse(text);
+        let result: string[] = [];
+        if (Array.isArray(parsed)) {
+          result = parsed;
+        } else if (typeof parsed === 'object' && parsed !== null) {
+          result = Object.values(parsed).filter(v => typeof v === 'string') as string[];
+        }
+        
+        if (result.length > 0) return result;
+        throw new Error('Empty insights from model');
       } catch (e) {
-        // Fallback for cases where JSON might have extra formatting or markdown blocks
-        const jsonStr = text.match(/\[.*\]/s)?.[0] || text;
-        return JSON.parse(jsonStr);
+        // Fallback parsing for partial JSON
+        const jsonMatch = text.match(/\[.*\]/s);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(parsed)) return parsed;
+        }
+        return ["Review monthly spending habits.", "Monitor party receivables regularly.", "Ensure bank reconciliations are accurate."];
       }
     } catch (error: any) {
-      // Logic for retry stays similar but with improved logging
       let errorMessage = '';
       let errorCode = 0;
 
@@ -67,20 +72,14 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
         errorMessage = JSON.stringify(error);
       }
 
+      const lowerMsg = errorMessage.toLowerCase();
       if (error?.code) errorCode = error.code;
       else if (error?.error?.code) errorCode = error.error.code;
 
-      const lowerMsg = errorMessage.toLowerCase();
-      
-      // Retry for rate limits, RPC/Connection issues, or 500 Internal/Proxy errors
-      const shouldRetry = 
+      const isRetryable = 
         errorCode === 429 || 
-        errorCode === 500 ||
-        errorCode === 503 ||
-        lowerMsg.includes('429') || 
-        lowerMsg.includes('500') ||
-        lowerMsg.includes('resource_exhausted') || 
-        lowerMsg.includes('quota') ||
+        errorCode >= 500 ||
+        lowerMsg.includes('quota') || 
         lowerMsg.includes('rate limit') ||
         lowerMsg.includes('rpc failed') ||
         lowerMsg.includes('xhr error') ||
@@ -88,21 +87,16 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
         lowerMsg.includes('unknown') ||
         lowerMsg.includes('internal error');
       
-      if (shouldRetry && retryCount < maxRetries) {
+      if (isRetryable && retryCount < maxRetries) {
         retryCount++;
         const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000);
-        console.warn(`Gemini API temporary failure (${errorCode || 'RPC'}). Retrying... (Attempt ${retryCount}/${maxRetries})`);
+        console.warn(`Gemini API retry attempt ${retryCount}/${maxRetries} due to: ${errorMessage.substring(0, 50)}`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return executeWithRetry();
       }
       
-      if (shouldRetry && (errorCode === 429 || lowerMsg.includes('quota'))) {
-        console.warn('Gemini API quota exceeded.');
-      } else {
-        console.warn('Gemini API Insight error (fallback activated):', errorMessage.substring(0, 200));
-      }
+      console.error('Gemini Business Insights Error:', errorMessage);
       
-      // Always return fallback instead of crashing
       return [
         "Monitor high-balance accounts to ensure your collections stay on track.",
         "Your operating expenses are stable; looking for small efficiencies could boost margins.",
