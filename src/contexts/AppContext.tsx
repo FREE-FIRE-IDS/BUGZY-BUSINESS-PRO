@@ -15,10 +15,8 @@ interface AppContextType {
   settings: AppSettings;
   syncStatus: { loading: boolean; error: string | null; success: string | null };
   updateSettings: (settings: Partial<AppSettings>) => void;
-  refreshData: (emailOverride?: string) => Promise<void>;
+  refreshData: (emailOverride?: string, forceRemote?: boolean) => Promise<void>;
   pullCompanies: (email: string) => Promise<boolean>;
-  generateVerificationCode: (email: string) => Promise<string>;
-  verifyCode: (code: string) => Promise<boolean>;
   linkDevice: (email: string) => Promise<boolean>;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'created_at'>) => Promise<void>;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => Promise<void>;
@@ -39,18 +37,6 @@ interface AppContextType {
   addInvoice: (invoice: Omit<Invoice, 'id' | 'created_at'>) => Promise<void>;
   updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
-  submitPaymentRequest: (data: {
-    user_name: string;
-    username?: string;
-    account_name: string;
-    phone: string;
-    amount: number;
-    plan: 'monthly' | 'yearly';
-    screenshot_url?: string;
-  }) => Promise<void>;
-  fetchPaymentRequests: () => Promise<PaymentRequest[]>;
-  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected', companyId: string) => Promise<void>;
-  paymentStatus: 'none' | 'pending' | 'approved' | 'rejected';
   activateLicense: (key: string) => Promise<void>;
   fetchLicenses: () => Promise<License[]>;
   resetLicenseDevice: (id: string) => Promise<void>;
@@ -70,9 +56,11 @@ interface AppContextType {
   isOnline: boolean;
   manualSyncLogin: (email: string) => Promise<string>;
   confirmSyncLogin: (email: string, token: string) => Promise<boolean>;
+  deleteCompany: (id: string) => Promise<void>;
   shareCompany: (companyId: string, shareWithEmail: string) => Promise<void>;
   revokeCompanyAccess: (companyId: string, sharedEmail: string) => Promise<void>;
   getSharedCompanies: () => Promise<Company[]>;
+  getSharedUsers: (companyId: string) => Promise<any[]>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -193,7 +181,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currency: 'PKR',
       pdf_theme: 'standard',
       sync_enabled: true,
-      onboarding_completed: false,
+      onboarding_completed: true, // Default to true to skip if possible, but depends on user
     };
     return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
   });
@@ -2066,16 +2054,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const [licenseExpiry, setLicenseExpiry] = useState<string | null>(() => localStorage.getItem('license_expiry'));
 
   const isTrialExpired = React.useMemo(() => {
-    // License required ONLY on first company creation or activation
-    if (isDeviceLicensed) return false;
-    
-    // If they already have a company, we assume they passed the initial check 
-    // unless the user specifically wants to block ALL companies if trial expires.
-    // The prompt says "if trial KTM hojati ha tb magar ab mujhe wo nhi me chata humble app me new company create krne or login krne ke waqt first time license key require ho"
-    // This means license is checked ONLY when creating first company.
-    
-    return false; // By default don't block via isTrialExpired anymore, handle in Creation logic
-  }, [currentCompany, isDeviceLicensed]);
+    return false; 
+  }, []);
 
   useEffect(() => {
     const licensed = localStorage.getItem('device_license') === 'true';
@@ -2210,6 +2190,15 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     }
   };
 
+  const getSharedUsers = async (companyId: string) => {
+    const { data, error } = await supabase
+      .from('company_access')
+      .select('*')
+      .eq('company_id', companyId);
+    if (error) throw error;
+    return data || [];
+  };
+
   const getSharedCompanies = async () => {
     if (!settings.user_email) return [];
     
@@ -2251,8 +2240,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       addCompany, updateCompany, deleteCompany,
       backupData, restoreData,
       addInvoice, updateInvoice, deleteInvoice,
-      submitPaymentRequest, fetchPaymentRequests, updatePaymentRequestStatus,
-      paymentStatus,
       activateLicense, fetchLicenses, resetLicenseDevice,
       isDeviceLicensed,
       licenseExpiry,
@@ -2267,7 +2254,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       confirmSyncLogin,
       shareCompany,
       revokeCompanyAccess,
-      getSharedCompanies
+      getSharedCompanies,
+      getSharedUsers
     }}>
       {children}
     </AppContext.Provider>

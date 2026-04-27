@@ -159,401 +159,6 @@ function SplashScreen() {
   );
 }
 
-function PaymentScreen({ company, onClose }: { company: Company, onClose?: () => void }) {
-  const { submitPaymentRequest, activateLicense, isLicensed } = useApp();
-  const isLicensedUser = isLicensed();
-  const [step, setStep] = useState<'plan' | 'payment' | 'form' | 'success'>('plan');
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    screenshot: ''
-  });
-  const [licenseKey, setLicenseKey] = useState('');
-  const isExpired = !isLicensedUser;
-  const version = "v2.5.0-PRO";
-
-  const plans = {
-    monthly: { name: 'Monthly Plan', price: 599, duration: '30 Days' },
-    yearly: { name: 'Yearly Plan', price: 1499, duration: '365 Days' }
-  };
-
-  const [uploading, setUploading] = useState(false);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `proofs/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('payment-proofs')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('payment-proofs')
-        .getPublicUrl(filePath);
-
-      setFormData({ ...formData, screenshot: publicUrl });
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      alert('Failed to upload image. Please try again or use a URL.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.screenshot) {
-      alert('Please upload a payment screenshot ❌');
-      return;
-    }
-    setStatus('loading');
-    try {
-      await submitPaymentRequest({
-        ...formData,
-        amount: plans[selectedPlan].price,
-        plan: selectedPlan
-      });
-      setStep('success');
-    } catch (err: any) {
-      console.error('Submit Error:', err);
-      setStatus('error');
-      setErrorMsg(err.message || 'Failed to submit request. Please try again.');
-    }
-  };
-
-  const handleActivate = async () => {
-    setStatus('loading');
-    setErrorMsg('');
-    try {
-      await activateLicense(licenseKey);
-      window.location.reload();
-    } catch (err: any) {
-      setErrorMsg(err.message);
-      setStatus('error');
-    }
-  };
-
-  if (step === 'success') {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6 text-center">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-10 border border-slate-100 dark:border-slate-800"
-        >
-          <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-3xl flex items-center justify-center mx-auto mb-8">
-            <Sparkles size={40} />
-          </div>
-          <h1 className="text-3xl font-black text-slate-900 dark:text-slate-50 mb-4 tracking-tight">Request Sent!</h1>
-          <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed">
-            Your payment request for the <span className="font-bold text-indigo-600">{plans[selectedPlan].name}</span> has been submitted. 
-            Admin will verify your payment and activate your subscription shortly.
-          </p>
-          <button 
-            onClick={() => {
-              if (onClose) onClose();
-              else window.location.reload();
-            }}
-            className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20"
-          >
-            Back to Dashboard
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
-      <div className="max-w-xl w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 relative focus-within:ring-2 focus-within:ring-indigo-500/20">
-        {(step !== 'plan' && step !== 'success') ? (
-          <button 
-            type="button"
-            onClick={() => setStep(step === 'payment' ? 'plan' : 'payment')}
-            className="absolute top-8 left-8 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all z-20"
-          >
-            <ArrowLeft size={24} />
-          </button>
-        ) : (step === 'plan' && !isExpired) ? (
-          <button 
-            type="button"
-            onClick={() => {
-              if (onClose) onClose();
-              else window.location.reload();
-            }}
-            className="absolute top-8 left-8 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all z-20"
-          >
-            <X size={24} />
-          </button>
-        ) : null}
-        <div className="p-10 relative">
-          <div className="absolute top-4 right-10 opacity-20 text-[8px] font-black pointer-events-none">{version}</div>
-          <AnimatePresence mode="wait">
-            {step === 'plan' && (
-              <motion.div
-                key="plan"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="text-center"
-              >
-                <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <Package size={32} />
-                </div>
-                <h2 className="text-3xl font-black mb-2">Choose Your Plan</h2>
-                <p className="text-slate-500 mb-8">
-                  {!isLicensedUser ? 'Your trial has expired. Please upgrade to continue using all features. ❌' : 'Select a subscription plan that fits your business needs.'}
-                </p>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-                  {(['monthly', 'yearly'] as const).map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => setSelectedPlan(p)}
-                      className={cn(
-                        "p-6 rounded-3xl border-2 transition-all text-left group",
-                        selectedPlan === p 
-                          ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20" 
-                          : "border-slate-100 dark:border-slate-800 hover:border-indigo-200"
-                      )}
-                    >
-                      <div className="flex justify-between items-start mb-4">
-                        <span className={cn(
-                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                          selectedPlan === p ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
-                        )}>
-                          {plans[p].duration}
-                        </span>
-                        {selectedPlan === p && <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-white"><Plus size={12} className="rotate-45" /></div>}
-                      </div>
-                      <h3 className="font-black text-xl mb-1 text-slate-900 dark:text-white">{plans[p].name}</h3>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-black text-indigo-600">{plans[p].price}</span>
-                        <span className="text-sm text-slate-500 font-bold">PKR</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mb-8">
-                   <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest text-center mb-3">Already have a License?</p>
-                   <div className="flex gap-2">
-                    <input 
-                      type="text"
-                      value={licenseKey}
-                      onChange={e => {
-                        setLicenseKey(e.target.value);
-                        setErrorMsg('');
-                      }}
-                      placeholder="Enter License Key"
-                      className={cn(
-                        "flex-1 bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-mono text-sm",
-                        status === 'error' && errorMsg.includes('License') ? "border-rose-500" : "border-slate-100 dark:border-slate-700 focus:border-indigo-600"
-                      )}
-                    />
-                    <button 
-                      onClick={handleActivate}
-                      disabled={!licenseKey || status === 'loading'}
-                      className="bg-slate-900 text-white px-6 rounded-2xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
-                    >
-                      {status === 'loading' ? '...' : 'Activate'}
-                    </button>
-                  </div>
-                  {status === 'error' && errorMsg && (
-                    <p className="text-rose-500 text-[10px] font-bold text-center mt-2">{errorMsg}</p>
-                  )}
-                </div>
-
-                <button 
-                  onClick={() => setStep('payment')}
-                  className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20"
-                >
-                  Continue to Payment
-                </button>
-              </motion.div>
-            )}
-
-            {step === 'payment' && (
-              <motion.div
-                key="payment"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-              >
-                <div className="text-center mb-8">
-                  <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                    <Wallet size={32} />
-                  </div>
-                  <h2 className="text-3xl font-black mb-2 text-slate-900 dark:text-white">Make Payment</h2>
-                  <p className="text-slate-500">Please send the exact amount to one of the accounts below.</p>
-                </div>
-
-                <div className="space-y-4 mb-8">
-                  <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">JazzCash Only</span>
-                      <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-[10px] font-black uppercase">Active</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-2xl font-black text-slate-900 dark:text-slate-50">0332-7373104</p>
-                        <p className="text-sm text-slate-500 font-bold">Account Name: Bugzy Business</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-black text-indigo-600">{plans[selectedPlan].price}</p>
-                        <p className="text-sm text-slate-500 font-bold">PKR Total</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20 flex gap-3">
-                    <Clock size={20} className="text-amber-600 shrink-0" />
-                    <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
-                      <strong>Important:</strong> After sending the payment, please take a screenshot of the confirmation message. You will need to upload it in the next step.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <button 
-                    onClick={() => setStep('plan')}
-                    className="py-5 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-                  >
-                    Back
-                  </button>
-                  <button 
-                    onClick={() => setStep('form')}
-                    className="bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20"
-                  >
-                    I Have Paid
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {step === 'form' && (
-              <motion.div
-                key="form"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-              >
-                <div className="text-center mb-8">
-                  <h2 className="text-3xl font-black mb-2 text-slate-900 dark:text-white">Payment Details</h2>
-                  <p className="text-slate-500">Fill in the details to verify your payment.</p>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Your Name</label>
-                    <input 
-                      required
-                      type="text"
-                      value={formData.name}
-                      onChange={e => setFormData({...formData, name: e.target.value})}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3.5 focus:border-indigo-600 outline-none transition-all font-bold"
-                      placeholder="Full Name"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
-                    <input 
-                      required
-                      type="tel"
-                      value={formData.phone}
-                      onChange={e => setFormData({...formData, phone: e.target.value})}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-5 py-3.5 focus:border-indigo-600 outline-none transition-all font-bold"
-                      placeholder="03xx-xxxxxxx"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Payment Screenshot</label>
-                    <div className="space-y-3">
-                      <div className="flex gap-4">
-                        <div className="flex-1 relative">
-                          <input 
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileUpload}
-                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                            disabled={uploading}
-                          />
-                          <div className={cn(
-                            "w-full bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 flex items-center justify-center gap-2 transition-all",
-                            uploading ? "opacity-50" : "hover:border-indigo-400"
-                          )}>
-                            {uploading ? (
-                              <Loader2 className="animate-spin text-indigo-600" size={20} />
-                            ) : formData.screenshot ? (
-                              <Check className="text-emerald-600" size={20} />
-                            ) : (
-                              <Plus className="text-slate-400" size={20} />
-                            )}
-                            <span className="text-sm font-bold text-slate-500">
-                              {uploading ? 'Uploading...' : formData.screenshot ? 'Image Uploaded' : 'Upload Screenshot'}
-                            </span>
-                          </div>
-                        </div>
-                        {formData.screenshot && (
-                          <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-slate-100 dark:border-slate-800 shrink-0">
-                            <img src={formData.screenshot} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                          <FileText size={16} className="text-slate-400" />
-                        </div>
-                        <input 
-                          type="url"
-                          value={formData.screenshot}
-                          onChange={e => setFormData({...formData, screenshot: e.target.value})}
-                          className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-11 pr-5 py-3 focus:border-indigo-600 outline-none transition-all text-sm"
-                          placeholder="Or paste image URL here..."
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 grid grid-cols-2 gap-4">
-                    <button 
-                      type="button"
-                      onClick={() => setStep('payment')}
-                      className="py-5 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-                    >
-                      Back
-                    </button>
-                    <button 
-                      type="submit"
-                      disabled={status === 'loading'}
-                      className="bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50"
-                    >
-                      {status === 'loading' ? 'Submitting...' : 'Submit Request'}
-                    </button>
-                  </div>
-                </form>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ShortcutHelper({ show }: { show: boolean }) {
   if (!show) return null;
@@ -592,56 +197,6 @@ function ShortcutHelper({ show }: { show: boolean }) {
   );
 }
 
-function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onUpgrade: () => void, isLicensed?: boolean }) {
-  const expiryStr = localStorage.getItem('license_expiry');
-  const buildTag = "v2.5.0-PRO";
-  
-  if (isLicensed) {
-    if (!expiryStr) return null;
-    const expiryDate = new Date(expiryStr);
-    const daysLeft = Math.max(0, differenceInDays(expiryDate, new Date()));
-    
-    return (
-      <div className="bg-emerald-600 text-white px-4 py-2 flex items-center justify-between text-sm font-bold sticky top-0 z-[45] shadow-md">
-        <div className="flex items-center gap-2">
-          <ShieldCheck size={16} />
-          <span>Pro License: {daysLeft} days remaining ({format(expiryDate, 'dd MMM yyyy')})</span>
-          <span className="ml-2 opacity-50 px-1 border border-white/30 rounded text-[8px]">{buildTag}</span>
-        </div>
-        <div className="text-[10px] uppercase font-black opacity-80">Device Authorized</div>
-      </div>
-    );
-  }
-  
-  const trialStartRaw = company.trial_start || company.created_at;
-  const trialStart = trialStartRaw ? new Date(trialStartRaw) : new Date(0); 
-  const trialEnd = addDays(trialStart, 7);
-  const daysLeft = Math.max(0, differenceInDays(trialEnd, new Date()));
-
-  const isExpired = daysLeft <= 0;
-
-  return (
-    <div className={cn(
-      "text-white px-4 py-2 flex items-center justify-between text-sm font-bold sticky top-0 z-[45] shadow-md transition-colors",
-      isExpired ? "bg-rose-600" : "bg-indigo-600"
-    )}>
-      <div className="flex items-center gap-2">
-        <Sparkles size={16} className={isExpired ? "" : "animate-pulse"} />
-        <span className="hidden sm:inline">
-          {isExpired ? "Package Expired - Upgrade to Pro" : `Trial Mode: ${daysLeft} days remaining`}
-        </span>
-        <span className="sm:hidden">{isExpired ? "Expired" : `${daysLeft}d left`}</span>
-        <span className="opacity-50 text-[8px] bg-black/10 px-1 rounded ml-1">{buildTag}</span>
-      </div>
-      <button 
-        onClick={onUpgrade}
-        className="bg-white text-rose-600 px-4 py-1 rounded-full text-[10px] font-black hover:bg-white/90 transition-all shadow-lg active:scale-95 uppercase tracking-wider"
-      >
-        {isExpired ? "Upgrade Now" : "Get Pro"}
-      </button>
-    </div>
-  );
-}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -659,7 +214,6 @@ export default function App() {
     isLicensed,
     licenseExpiry,
     isTrialExpired,
-    paymentStatus,
     isOnline,
     session,
     syncStatus
@@ -705,7 +259,7 @@ export default function App() {
 
   const isLicensedUser = isLicensed();
   
-  if (!isDeviceLicensed) {
+  if (!isDeviceLicensed || !isLicensedUser) {
     return <Activation />;
   }
 
@@ -721,23 +275,23 @@ export default function App() {
   const daysLeftLicense = licenseExpiry ? Math.max(0, differenceInDays(new Date(licenseExpiry), new Date())) : null;
 
   const menuItems = [
-    { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-    { id: 'companies', label: 'Companies', icon: Building2 },
-    { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
-    ...(isOwner && !session?.user?.id ? [] : (isOwner ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : [])),
-    { id: 'more', label: 'More', icon: Menu },
+    { id: 'sale', label: 'Sale', icon: FileText },
+    { id: 'pay-in', label: 'Pay-In', icon: Wallet },
+    { id: 'plus', label: '', icon: Plus }, // Central FAB placeholder
+    { id: 'purchase', label: 'Purchase', icon: Package },
+    { id: 'pay-out', label: 'Pay-Out', icon: Receipt },
   ];
 
-  const moreItems = [
-    { id: 'parties', label: 'Parties', icon: Users, premium: true },
-    { id: 'banks', label: 'Banks', icon: Building2, premium: true },
-    { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
-    { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
-    { id: 'business-status', label: 'Business Status', icon: BarChart3, premium: true },
-    { id: 'reports', label: 'Reports', icon: History, premium: true },
-    { id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true },
-    ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Premium Status', icon: Sparkles, premium: true }] : []),
-    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
+  const sidebarItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'parties', label: 'Parties', icon: Users },
+    { id: 'banks', label: 'Banks', icon: Building2 },
+    { id: 'inventory', label: 'Inventory', icon: Package },
+    { id: 'expenses', label: 'Expenses', icon: Receipt },
+    { id: 'invoices', label: 'Bills', icon: FileText },
+    { id: 'reports', label: 'Reports', icon: History },
+    { id: 'sync', label: 'Sync Center', icon: Cloud },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
 
   const renderPage = () => {
@@ -759,8 +313,11 @@ export default function App() {
       case 'reports': return <Reports />;
       case 'business-status': return <BusinessStatus />;
       case 'settings': return <Settings />;
-      case 'admin': return <Admin />;
       case 'customization': return <Customization />;
+      case 'sale': return <Invoices defaultType="sale" />;
+      case 'purchase': return <Invoices defaultType="purchase" />;
+      case 'pay-in': return <Banks />; 
+      case 'pay-out': return <Banks />;
       default: return <Dashboard />;
     }
   };
@@ -813,18 +370,7 @@ export default function App() {
     return <SetupCompany />;
   }
 
-  // IF TRIAL OR LICENSE EXPIRED: Block entire app
-  if (isTrialExpired && !isLicensedUser && currentCompany) {
-    return (
-      <div className="h-screen w-screen bg-slate-950 overflow-y-auto flex items-center justify-center p-4">
-        <div className="w-full max-w-xl">
-          <PaymentScreen 
-            company={currentCompany} 
-          />
-        </div>
-      </div>
-    );
-  }
+  // No blocking based on trial anymore
 
   if (!currentCompany) {
     return (
@@ -840,67 +386,43 @@ export default function App() {
       "h-screen flex overflow-hidden transition-colors duration-300",
       theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
     )}>
-      {/* PC Sidebar */}
-      <aside className={cn(
-        "h-full shrink-0 border-r hidden md:flex flex-col transition-all duration-300 relative z-30",
-        theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200",
-        isSidebarOpen ? "w-64" : "w-20"
-      )}>
-        <div className="h-16 flex items-center px-6 border-b border-transparent shrink-0">
-          <div className="flex items-center gap-3">
-            {currentCompany?.logo_url ? (
-              <img src={currentCompany.logo_url} alt="Logo" className="w-10 h-10 object-contain rounded-xl" referrerPolicy="no-referrer" />
-            ) : (
-              <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-bold text-xl relative overflow-hidden group shrink-0">
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-indigo-800 opacity-90" />
-                <svg className="relative z-10 w-6 h-6" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M50 25 L50 75 M35 45 L35 75 M65 45 L65 75" stroke="white" strokeWidth="8" strokeLinecap="round"/>
-                  <path d="M30 75 L70 75" stroke="white" strokeWidth="4"/>
-                  <path d="M40 45 L50 35 L60 45" fill="#fbbf24"/>
-                </svg>
+        {/* PC Sidebar (Hidden for now to focus on mobile style, but kept in code) */}
+        <aside className={cn(
+          "h-full shrink-0 border-r hidden md:flex flex-col transition-all duration-300 relative z-30",
+          theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-[#008ba3] border-teal-600",
+          isSidebarOpen ? "w-64" : "w-20"
+        )}>
+          <div className="h-16 flex items-center px-6 border-b border-white/10 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white font-bold text-xl relative overflow-hidden group shrink-0">
+                <Plus size={24} />
               </div>
-            )}
-            {isSidebarOpen && (
-              <motion.span 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="font-bold text-lg tracking-tight text-slate-900 dark:text-white truncate"
-              >
-                {currentCompany?.name || 'Bugzy Pro'}
-              </motion.span>
-            )}
-          </div>
-        </div>
-
-        <nav className="flex-1 mt-6 px-3 space-y-1 overflow-y-auto no-scrollbar">
-          {menuItems.filter(i => i.id !== 'more').concat(moreItems.filter(i => i.id !== 'upgrade')).map((item) => (
-            <button
-              key={item.id}
-              onClick={() => {
-                  setActiveTab(item.id);
-              }}
-              className={cn(
-                "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative",
-                activeTab === item.id 
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
-                  : theme === 'dark' ? "text-slate-400 hover:bg-slate-800" : "text-slate-600 hover:bg-slate-100"
-              )}
-            >
-              <item.icon size={22} className="shrink-0" />
               {isSidebarOpen && (
-                <div className="flex-1 flex items-center justify-between truncate">
-                  <span className="truncate">{item.label}</span>
-                </div>
+                <span className="font-bold text-lg tracking-tight text-white truncate">
+                  {currentCompany?.name || 'Bugzy Pro'}
+                </span>
               )}
-              {!isSidebarOpen && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                  {item.label}
-                </div>
-              )}
-            </button>
-          ))}
-        </nav>
-      </aside>
+            </div>
+          </div>
+
+          <nav className="flex-1 mt-6 px-3 space-y-1 overflow-y-auto no-scrollbar">
+            {menuItems.filter(i => i.id !== 'plus').map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 p-3 rounded-xl transition-all group relative",
+                  activeTab === item.id 
+                    ? "bg-white/20 text-white" 
+                    : "text-white/70 hover:bg-white/10"
+                )}
+              >
+                <item.icon size={22} className="shrink-0" />
+                {isSidebarOpen && <span className="truncate font-bold">{item.label}</span>}
+              </button>
+            ))}
+          </nav>
+        </aside>
 
       {/* Main Content Viewport */}
       <div className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
@@ -996,7 +518,7 @@ export default function App() {
                 >
                   {activeTab === 'more' ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 pb-24 lg:pb-0">
-                      {moreItems.map(item => (
+                      {sidebarItems.filter(i => !['dashboard', 'settings', 'sync'].includes(i.id)).map(item => (
                         <button
                           key={item.id}
                           onClick={() => {
@@ -1023,51 +545,47 @@ export default function App() {
           </div>
         </main>
 
-        {/* Floating Action Button for Mobile */}
-        <div className="fixed bottom-28 right-6 z-40 md:hidden transition-all">
-          <button 
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }));
-            }}
-            className="w-14 h-14 rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-all shadow-indigo-500/40 relative bg-indigo-600 text-white"
-          >
-            <Plus size={32} />
-          </button>
-        </div>
-
         {/* Mobile Bottom Navigation */}
         <nav className={cn(
-          "h-20 shrink-0 flex items-center justify-around p-3 border-t backdrop-blur-md pb-safe md:hidden z-50",
-          theme === 'dark' ? "bg-slate-900/95 border-slate-800" : "bg-white/95 border-slate-200"
+          "h-20 shrink-0 flex items-center justify-around p-3 border-t bg-white relative",
+          theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
         )}>
-          {menuItems.filter(i => i.id !== 'admin').map((item) => (
-            <button
-              key={item.id}
+          {menuItems.map((item, idx) => {
+            if (item.id === 'plus') {
+              return (
+                <div key="fab-placeholder" className="w-14 h-14" />
+              );
+            }
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveTab(item.id);
+                }}
+                className={cn(
+                  "flex flex-col items-center gap-1 min-w-[64px] transition-all",
+                  activeTab === item.id 
+                    ? "text-[#008ba3]" 
+                    : "text-slate-400"
+                )}
+              >
+                <item.icon size={28} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+                <span className="text-[10px] font-bold">{item.label}</span>
+              </button>
+            );
+          })}
+
+          {/* Central Floating Action Button */}
+          <div className="absolute left-1/2 -translate-x-1/2 -top-8 px-4">
+             <button 
               onClick={() => {
-                setActiveTab(item.id);
+                window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Sale' }));
               }}
-              className={cn(
-                "flex flex-col items-center gap-1 px-2 py-1 rounded-2xl transition-all relative min-w-[64px]",
-                activeTab === item.id 
-                  ? "text-indigo-600" 
-                  : theme === 'dark' ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-900"
-              )}
-            >
-              {activeTab === item.id && (
-                <motion.div 
-                  layoutId="activeTab"
-                  className="absolute inset-x-0 -top-3 h-1 bg-indigo-600 rounded-full mx-4"
-                />
-              )}
-              <div className="relative">
-                <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-              </div>
-              <span className={cn(
-                "text-[9px] font-black uppercase tracking-[0.1em]",
-                activeTab === item.id ? "opacity-100" : "opacity-60"
-              )}>{item.label}</span>
-            </button>
-          ))}
+              className="w-16 h-16 rounded-full bg-[#008ba3] text-white shadow-xl flex items-center justify-center active:scale-95 transition-all shadow-teal-500/30 border-4 border-white dark:border-slate-950"
+             >
+                <Plus size={36} strokeWidth={3} />
+             </button>
+          </div>
         </nav>
       </div>
 

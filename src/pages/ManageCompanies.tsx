@@ -132,20 +132,6 @@ export default function ManageCompanies() {
             {isHR ? <Briefcase size={20} /> : <Building2 size={20} />}
           </div>
           <div className="flex items-center gap-2">
-            {!isShared && (
-               <button 
-                onClick={(e) => {
-                    e.stopPropagation();
-                    setIsShareModalOpen(company.id);
-                }}
-                className={cn(
-                    "p-2 rounded-xl transition-all",
-                    isActive ? "hover:bg-white/20 text-white/70" : "hover:bg-slate-100 text-slate-400"
-                )}
-               >
-                <Share2 size={16} />
-               </button>
-            )}
             <button 
               onClick={(e) => {
                 e.stopPropagation();
@@ -186,13 +172,6 @@ export default function ManageCompanies() {
           <h1 className="text-3xl font-black tracking-tight text-slate-900">Manage Companies</h1>
           <p className="text-slate-500 font-medium">Switch between your business entities</p>
         </div>
-        <button 
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-3xl font-black hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/25"
-        >
-          <Plus size={20} />
-          Create New Company
-        </button>
       </div>
 
       {/* Tabs */}
