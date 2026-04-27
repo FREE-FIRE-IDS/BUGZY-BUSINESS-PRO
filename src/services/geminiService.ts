@@ -44,35 +44,60 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
         return JSON.parse(jsonStr);
       }
     } catch (error: any) {
-      const errorMessage = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+      console.warn('Gemini API call failed, checking for retries...', error);
       
-      // Retry for rate limits OR RPC/Connection issues
+      let errorMessage = '';
+      let errorCode = 0;
+
+      // Robustly extract error message and code from potential nested structures
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.error?.message) {
+        errorMessage = error.error.message;
+      } else {
+        errorMessage = JSON.stringify(error);
+      }
+
+      if (error?.code) errorCode = error.code;
+      else if (error?.error?.code) errorCode = error.error.code;
+
+      const lowerMsg = errorMessage.toLowerCase();
+      
+      // Retry for rate limits, RPC/Connection issues, or 500 Internal/Proxy errors
       const shouldRetry = 
-        errorMessage.includes('429') || 
-        errorMessage.includes('RESOURCE_EXHAUSTED') || 
-        errorMessage.toLowerCase().includes('quota') ||
-        errorMessage.toLowerCase().includes('rate limit') ||
-        errorMessage.toLowerCase().includes('rpc failed') ||
-        errorMessage.toLowerCase().includes('xhr error') ||
-        errorMessage.includes('ProxyUnaryCall');
+        errorCode === 429 || 
+        errorCode === 500 ||
+        errorCode === 503 ||
+        lowerMsg.includes('429') || 
+        lowerMsg.includes('500') ||
+        lowerMsg.includes('resource_exhausted') || 
+        lowerMsg.includes('quota') ||
+        lowerMsg.includes('rate limit') ||
+        lowerMsg.includes('rpc failed') ||
+        lowerMsg.includes('xhr error') ||
+        lowerMsg.includes('proxyunarycall') ||
+        lowerMsg.includes('unknown') ||
+        lowerMsg.includes('internal error');
       
       if (shouldRetry && retryCount < maxRetries) {
         retryCount++;
-        const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 2s, 4s, 8s
-        console.warn(`Gemini API error or rate limit. Retrying in ${delay}ms (Attempt ${retryCount}/${maxRetries})...`);
+        const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000); // Exponential backoff with jitter
+        console.warn(`Gemini API retryable error (${errorCode || 'unknown'}). Retrying in ${Math.round(delay)}ms (Attempt ${retryCount}/${maxRetries})...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return executeWithRetry();
       }
       
-      if (shouldRetry && (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED'))) {
+      if (shouldRetry && (errorCode === 429 || lowerMsg.includes('quota') || lowerMsg.includes('rate limit'))) {
         throw new Error('RATE_LIMIT_EXCEEDED');
       }
       
-      console.error('AI Insight error:', error);
+      console.error('Final AI Insight error after retries:', errorMessage);
       return [
-        "Keep an eye on your high-balance parties to ensure timely collections.",
-        "Your expenses are consistent; consider a 5% reduction in non-essential costs.",
-        "Sales are trending positively. It might be a good time to expand your inventory."
+        "Monitor high-balance accounts to ensure your collections stay on track.",
+        "Your operating expenses are stable; looking for small efficiencies could boost margins.",
+        "Sales activity is showing positive momentum for the upcoming period."
       ];
     }
   };
