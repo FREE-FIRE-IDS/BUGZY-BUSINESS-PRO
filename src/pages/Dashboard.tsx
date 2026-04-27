@@ -8,7 +8,8 @@ import {
   ShoppingCart,
   LayoutList,
   Users,
-  Plus
+  Plus,
+  Loader2
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, cn } from '../lib/utils';
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const stats = useMemo(() => {
+    if (!parties) return { toReceive: 0, toPay: 0 };
     const toReceive = parties.reduce((sum, p) => sum + (p.balance > 0 ? p.balance : 0), 0);
     const toPay = parties.reduce((sum, p) => sum + (p.balance < 0 ? Math.abs(p.balance) : 0), 0);
 
@@ -27,6 +29,14 @@ export default function Dashboard() {
       toPay
     };
   }, [parties]);
+
+  if (!settings || !currentCompany) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <Loader2 className="w-8 h-8 animate-spin text-[#008ba3]" />
+      </div>
+    );
+  }
 
   const navigateTo = (tab: string) => {
     window.dispatchEvent(new CustomEvent('navigate', { detail: tab }));

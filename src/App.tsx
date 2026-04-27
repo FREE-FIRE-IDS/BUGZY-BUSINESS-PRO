@@ -239,7 +239,9 @@ export default function App() {
 
   useEffect(() => {
     const handleNavigate = (e: any) => {
-      setActiveTab(e.detail);
+      if (e && e.detail) {
+        setActiveTab(e.detail);
+      }
     };
     window.addEventListener('navigate', handleNavigate);
     
@@ -249,6 +251,16 @@ export default function App() {
   }, []);
 
   if (showSplash) return <SplashScreen />;
+
+  // Defensive check for settings loading
+  if (!settings) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mb-4" />
+        <p className="text-slate-500 font-bold animate-pulse uppercase tracking-[0.2em] text-[10px]">Loading Settings</p>
+      </div>
+    );
+  }
 
   if (settings && !settings.onboarding_completed) {
     return <Onboarding onComplete={() => updateSettings({ onboarding_completed: true })} />;
