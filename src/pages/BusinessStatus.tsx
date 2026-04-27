@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   Users, 
   Building2, 
@@ -11,7 +11,10 @@ import {
   Package,
   FileText,
   BarChart3,
-  Download
+  Download,
+  Sparkles,
+  RefreshCw,
+  Lightbulb
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, cn } from '../lib/utils';
@@ -19,6 +22,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PDFPreviewModal from '../components/PDFPreviewModal';
+import { getBusinessInsights } from '../services/geminiService';
 
 // Extend jsPDF with autotable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -138,6 +142,28 @@ export default function BusinessStatus() {
       alert('Failed to generate PDF. Please try again.');
     }
   };
+  const [insights, setInsights] = useState<string[]>([]);
+  const [loadingInsights, setLoadingInsights] = useState(false);
+
+  const fetchInsights = async () => {
+    if (loadingInsights) return;
+    setLoadingInsights(true);
+    try {
+      const data = await getBusinessInsights(transactions, parties, banks);
+      setInsights(data);
+    } catch (error) {
+      console.error('Failed to load insights:', error);
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentCompany && insights.length === 0) {
+      fetchInsights();
+    }
+  }, [currentCompany?.id]);
+
   const cards = [
     { title: 'Parties Receivable', value: stats.receivables, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
     { title: 'Parties Payable', value: stats.payables, icon: Users, color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-900/20' },
@@ -280,6 +306,67 @@ export default function BusinessStatus() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-12">
+        {/* AI Business Insights */}
+        <div className="lg:col-span-2">
+          <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-125 transition-transform duration-1000">
+              <Sparkles size={120} />
+            </div>
+            
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-white/20 rounded-2xl">
+                    <Sparkles size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black">AI Business Insights</h3>
+                    <p className="text-xs text-indigo-100 font-medium">Smart analysis of your recent activity</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={fetchInsights}
+                  disabled={loadingInsights}
+                  className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all disabled:opacity-50"
+                  title="Refresh Insights"
+                >
+                  <RefreshCw size={18} className={cn(loadingInsights && "animate-spin")} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {loadingInsights ? (
+                  Array(3).fill(0).map((_, i) => (
+                    <div key={i} className="bg-white/10 p-6 rounded-3xl animate-pulse h-32" />
+                  ))
+                ) : insights.length > 0 ? (
+                  insights.map((insight, idx) => (
+                    <motion.div 
+                      key={idx}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: idx * 0.1 }}
+                      className="bg-white/10 p-6 rounded-3xl border border-white/10 hover:bg-white/20 transition-all flex flex-col gap-3 group/item"
+                    >
+                      <div className="flex items-center justify-between">
+                        <Lightbulb size={20} className="text-amber-300" />
+                        <span className="text-[10px] font-black uppercase text-indigo-200">Tip #{idx + 1}</span>
+                      </div>
+                      <p className="text-sm font-medium leading-relaxed text-indigo-50">
+                        {insight}
+                      </p>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="col-span-full py-8 text-center bg-white/5 rounded-3xl border border-white/5">
+                    <p className="text-sm font-bold text-indigo-200">Click refresh to generate smart insights</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* All Bank Balances */}
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-between mb-8">

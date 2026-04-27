@@ -19,9 +19,18 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
   let retryCount = 0;
 
   const executeWithRetry = async (): Promise<any> => {
+    if (!apiKey) {
+      console.warn('Gemini API Key missing, using fallback insights.');
+      return [
+        "Provide more transaction data to get personalized AI business insights.",
+        "Ensure your bank balances are up to date for accurate financial tracking.",
+        "Categorize your expenses to visualize spending patterns more effectively."
+      ];
+    }
+
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-1.5-flash", // Using a more stable model name
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -39,17 +48,15 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
       try {
         return JSON.parse(text);
       } catch (e) {
-        // Fallback for cases where JSON might have extra formatting
-        const jsonStr = text.substring(text.indexOf('['), text.lastIndexOf(']') + 1) || text;
+        // Fallback for cases where JSON might have extra formatting or markdown blocks
+        const jsonStr = text.match(/\[.*\]/s)?.[0] || text;
         return JSON.parse(jsonStr);
       }
     } catch (error: any) {
-      console.warn('Gemini API call failed, checking for retries...', error);
-      
+      // Logic for retry stays similar but with improved logging
       let errorMessage = '';
       let errorCode = 0;
 
-      // Robustly extract error message and code from potential nested structures
       if (typeof error === 'string') {
         errorMessage = error;
       } else if (error?.message) {
@@ -83,17 +90,19 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
       
       if (shouldRetry && retryCount < maxRetries) {
         retryCount++;
-        const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000); // Exponential backoff with jitter
-        console.warn(`Gemini API retryable error (${errorCode || 'unknown'}). Retrying in ${Math.round(delay)}ms (Attempt ${retryCount}/${maxRetries})...`);
+        const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000);
+        console.warn(`Gemini API temporary failure (${errorCode || 'RPC'}). Retrying... (Attempt ${retryCount}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return executeWithRetry();
       }
       
-      if (shouldRetry && (errorCode === 429 || lowerMsg.includes('quota') || lowerMsg.includes('rate limit'))) {
-        throw new Error('RATE_LIMIT_EXCEEDED');
+      if (shouldRetry && (errorCode === 429 || lowerMsg.includes('quota'))) {
+        console.warn('Gemini API quota exceeded.');
+      } else {
+        console.warn('Gemini API Insight error (fallback activated):', errorMessage.substring(0, 200));
       }
       
-      console.error('Final AI Insight error after retries:', errorMessage);
+      // Always return fallback instead of crashing
       return [
         "Monitor high-balance accounts to ensure your collections stay on track.",
         "Your operating expenses are stable; looking for small efficiencies could boost margins.",

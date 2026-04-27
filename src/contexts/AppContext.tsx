@@ -123,6 +123,7 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
+  const isTrialExpired = false;
   
   const [companies, setCompanies] = useState<Company[]>([]);
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
@@ -1919,7 +1920,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     localStorage.setItem('active_license_key', key.toUpperCase());
     if (license.expiry_at) {
       localStorage.setItem('license_expiry', license.expiry_at);
-      setLicenseExpiry(license.expiry_at);
     }
     setIsDeviceLicensed(true);
   };
@@ -1945,23 +1945,13 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (error) handleSupabaseError(error, 'Reset License Device');
   };
 
-  // Licensing
-  const [isDeviceLicensed, setIsDeviceLicensed] = useState(() => localStorage.getItem('device_license') === 'true');
+  // Licensing - system removed as requested
+  const [isDeviceLicensed, setIsDeviceLicensed] = useState(true);
 
   useEffect(() => {
-    const licensed = localStorage.getItem('device_license') === 'true';
-    if (licensed !== isDeviceLicensed) {
-      setIsDeviceLicensed(licensed);
+    if (!isDeviceLicensed) {
+      setIsDeviceLicensed(true);
     }
-
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'device_license') {
-        setIsDeviceLicensed(e.newValue === 'true');
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
   }, [isDeviceLicensed]);
 
   const isAdmin = (settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') || 

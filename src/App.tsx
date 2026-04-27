@@ -233,7 +233,7 @@ export default function App() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 2500);
+    }, 800);
     return () => clearTimeout(timer);
   }, []);
 
@@ -599,16 +599,8 @@ function SetupCompany() {
     } else {
       if (!name.trim() || !username.trim()) return;
 
-      // Mandatory License Check
-      if (licenseKey !== '16897463890072') {
-        setLicenseError(true);
-        return;
-      }
-      setLicenseError(false);
-      
-      const normalizedUsername = username.trim().toLowerCase();
-      
       // 1. Check if username is available
+      const normalizedUsername = username.trim().toLowerCase();
       const available = await loginWithUsername(normalizedUsername, false);
       if (!available) return;
 
@@ -776,20 +768,6 @@ function SetupCompany() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-400 mb-1">Secret License Key</label>
-                <input 
-                  type="password" 
-                  value={licenseKey}
-                  onChange={(e) => setLicenseKey(e.target.value)}
-                  className={cn(
-                    "w-full p-3 rounded-xl border bg-transparent focus:ring-2 outline-none transition-all text-slate-900 dark:text-slate-50 font-mono",
-                    licenseError ? "border-red-500 focus:ring-red-500" : "border-slate-200 dark:border-slate-800 focus:ring-indigo-500"
-                  )}
-                  placeholder="Enter 14-digit key"
-                />
-                {licenseError && <p className="text-[10px] text-red-500 mt-1 font-bold">Invalid license key provided.</p>}
-              </div>
             </div>
           )}
           
