@@ -215,6 +215,14 @@ export default function App() {
     session,
     syncStatus
   } = useApp();
+
+  console.log('[DEBUG] App State:', { 
+    activeTab, 
+    hasSettings: !!settings, 
+    hasCompany: !!currentCompany, 
+    isOnline, 
+    syncStatus: syncStatus.status 
+  });
   const { theme, toggleTheme } = useTheme();
 
   const isOwner = !currentCompany || !currentCompany.owner_email || 
