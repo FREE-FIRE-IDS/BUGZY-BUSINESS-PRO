@@ -7,8 +7,8 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { registerSW } from 'virtual:pwa-register';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-// Register service worker
-registerSW({ immediate: true });
+// Register service worker removed to debug white screen issues
+// registerSW({ immediate: true });
 
 console.log('[DEBUG] main.tsx init');
 

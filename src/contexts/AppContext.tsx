@@ -134,8 +134,7 @@ const safeParse = (str: string | null, fallback: any) => {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   console.log('[DEBUG] AppProvider init');
   
-  try {
-    const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
+  const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
   const isTrialExpired = false;
   
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -2142,10 +2141,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       {children}
     </AppContext.Provider>
   );
-  } catch (err) {
-    console.error('[DEBUG] AppProvider internal error:', err);
-    throw err; // Let ErrorBoundary catch it
-  }
 }
 
 export function useApp() {
