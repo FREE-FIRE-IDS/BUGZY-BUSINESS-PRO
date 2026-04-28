@@ -6,23 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Check, X, Clock, Building2, Mail, DollarSign, Key, RefreshCw, ShieldCheck, ShieldAlert } from 'lucide-react';
 
 export default function Admin() {
-  const app = useApp();
-  
-  if (!app) {
-    return (
-      <div className="p-8 text-center animate-pulse">
-        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Loading Admin Dashboard...</p>
-      </div>
-    );
-  }
-
-  const { 
-    fetchPaymentRequests = async () => [], 
-    updatePaymentRequestStatus = async () => {}, 
-    fetchLicenses = async () => [], 
-    resetLicenseDevice = async () => {}, 
-    settings = { currency: 'PKR' } 
-  } = app;
+  const { fetchPaymentRequests, updatePaymentRequestStatus, fetchLicenses, resetLicenseDevice, settings } = useApp();
   const [requests, setRequests] = useState<PaymentRequest[]>([]);
   const [licenses, setLicenses] = useState<License[]>([]);
   const [loading, setLoading] = useState(true);

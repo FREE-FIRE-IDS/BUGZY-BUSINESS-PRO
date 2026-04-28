@@ -1,58 +1,73 @@
--- Supabase Setup SQL for Bugzy Business Pro (Free & Collaborative)
+-- Supabase Setup SQL for Bugzy Business Pro SaaS
 
--- 1. Fix Database Error & Ensure Types
-ALTER TABLE companies ADD COLUMN IF NOT EXISTS company_type TEXT DEFAULT 'normal' CHECK (company_type IN ('normal', 'hr'));
-ALTER TABLE companies ADD COLUMN IF NOT EXISTS device_id TEXT;
+-- 1. Update companies table (ensure fields exist)
+-- ALTER TABLE companies ADD COLUMN IF NOT EXISTS trial_start TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+-- ALTER TABLE companies ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;
 
--- 2. Create Company Access Table (Roles)
-CREATE TABLE IF NOT EXISTS company_access (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+-- 2. Create payment_requests table
+CREATE TABLE IF NOT EXISTS payment_requests (
+  id UUID PRIMARY KEY,
+  company_id UUID REFERENCES companies(id),
   user_email TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('OWNER', 'MEMBER')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(company_id, user_email)
-);
-
--- 3. Create Invitations Table
-CREATE TABLE IF NOT EXISTS invitations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
   company_name TEXT NOT NULL,
-  inviter_email TEXT NOT NULL,
-  invitee_email TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('Pending', 'Accepted', 'Rejected')),
+  amount NUMERIC NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
+  license_key TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. Create HR Transfer Requests Table
-CREATE TABLE IF NOT EXISTS hr_transfer_requests (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
-  company_name TEXT NOT NULL,
-  owner_email TEXT NOT NULL,
-  requester_email TEXT NOT NULL,
-  new_device_id TEXT NOT NULL,
-  transfer_code TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('Pending', 'Approved', 'Rejected')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- 3. Create licenses table
+CREATE TABLE IF NOT EXISTS licenses (
+  id UUID PRIMARY KEY,
+  user_email TEXT NOT NULL,
+  license_key TEXT UNIQUE NOT NULL,
+  device_id TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 5. Enable RLS
-ALTER TABLE company_access ENABLE ROW LEVEL SECURITY;
-ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE hr_transfer_requests ENABLE ROW LEVEL SECURITY;
+-- 4. Enable RLS
+ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 
--- 6. Policies (Simplified for broad access based on email)
--- In a real app, you'd use more strict checks, but for this sync-heavy app:
-CREATE POLICY "Enable all access for involved users in invitations" ON invitations
-  USING (invitee_email = auth.jwt() ->> 'email' OR inviter_email = auth.jwt() ->> 'email');
+-- 5. Policies for payment_requests
+CREATE POLICY "Users can create their own payment requests" 
+ON payment_requests FOR INSERT 
+WITH CHECK (auth.jwt() ->> 'email' = user_email);
 
-CREATE POLICY "Enable all access for involved users in access" ON company_access
-  USING (user_email = auth.jwt() ->> 'email' OR EXISTS (
-    SELECT 1 FROM company_access WHERE company_id = company_access.company_id AND user_email = auth.jwt() ->> 'email' AND role = 'OWNER'
-  ));
+CREATE POLICY "Users can view their own payment requests" 
+ON payment_requests FOR SELECT 
+USING (auth.jwt() ->> 'email' = user_email);
 
-CREATE POLICY "Enable all access for involved users in hr transfers" ON hr_transfer_requests
-  USING (requester_email = auth.jwt() ->> 'email' OR owner_email = auth.jwt() ->> 'email');
+CREATE POLICY "Admins can view all payment requests" 
+ON payment_requests FOR SELECT 
+USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
+
+CREATE POLICY "Admins can update payment requests" 
+ON payment_requests FOR UPDATE 
+USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
+
+-- 6. Policies for licenses
+CREATE POLICY "Users can view their own licenses" 
+ON licenses FOR SELECT 
+USING (auth.jwt() ->> 'email' = user_email);
+
+CREATE POLICY "Admins can view all licenses" 
+ON licenses FOR SELECT 
+USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
+
+CREATE POLICY "Admins can manage licenses" 
+ON licenses FOR ALL 
+USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
+
+CREATE POLICY "Users can update their own device_id" 
+ON licenses FOR UPDATE 
+USING (auth.jwt() ->> 'email' = user_email)
+WITH CHECK (auth.jwt() ->> 'email' = user_email);
+
+-- 7. Admin policy for companies table
+CREATE POLICY "Admins can update company paid status" 
+ON companies FOR UPDATE 
+USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');

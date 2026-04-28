@@ -71,27 +71,7 @@ type ReportType =
   | 'Cash Flow';
 
 export default function Reports() {
-  const app = useApp();
-  
-  if (!app) {
-    return (
-      <div className="p-8 text-center animate-pulse">
-        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Loading Reports...</p>
-      </div>
-    );
-  }
-
-  const { 
-    transactions = [], 
-    parties = [], 
-    banks = [], 
-    items = [], 
-    invoices = [], 
-    settings = { currency: 'PKR' }, 
-    updateSettings, 
-    currentCompany = null, 
-    refreshData 
-  } = app;
+  const { transactions, parties, banks, items, invoices, settings, updateSettings, currentCompany, refreshData, pullCompanies } = useApp();
   const [isSyncing, setIsSyncing] = useState(false);
 
   // PDF Preview State

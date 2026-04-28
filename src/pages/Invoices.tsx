@@ -24,27 +24,7 @@ interface jsPDFWithAutoTable extends jsPDF {
 }
 
 export default function Invoices() {
-  const app = useApp();
-  
-  if (!app) {
-    return (
-      <div className="p-8 text-center animate-pulse">
-        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Loading Invoices...</p>
-      </div>
-    );
-  }
-
-  const { 
-    invoices = [], 
-    addInvoice = async () => {}, 
-    updateInvoice = async () => {}, 
-    deleteInvoice = async () => {}, 
-    settings = { currency: 'PKR' }, 
-    parties = [], 
-    items = [], 
-    currentCompany = null, 
-    banks = [] 
-  } = app;
+  const { invoices, addInvoice, updateInvoice, deleteInvoice, settings, parties, items, currentCompany, banks } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);

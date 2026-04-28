@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Company, Party, BankAccount, InventoryItem as Item, Transaction, AppSettings, Invoice, Invitation, CompanyAccess, HRTransferRequest } from '../types';
+import { Company, Party, BankAccount, InventoryItem as Item, Transaction, AppSettings, Invoice, PaymentRequest, License, Subscription } from '../types';
 import { supabase } from '../lib/supabase';
 import { addDays, isAfter } from 'date-fns';
 
 interface AppContextType {
   companies: Company[];
   currentCompany: Company | null;
-  setCurrentCompany: (company: Company) => Promise<void>;
+  setCurrentCompany: (company: Company) => void;
   parties: Party[];
   banks: BankAccount[];
   items: Item[];
@@ -39,6 +39,25 @@ interface AppContextType {
   addInvoice: (invoice: Omit<Invoice, 'id' | 'created_at'>) => Promise<void>;
   updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
+  submitPaymentRequest: (data: {
+    user_name: string;
+    username?: string;
+    account_name: string;
+    phone: string;
+    amount: number;
+    plan: 'monthly' | 'yearly';
+    screenshot_url?: string;
+  }) => Promise<void>;
+  fetchPaymentRequests: () => Promise<PaymentRequest[]>;
+  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected', companyId: string) => Promise<void>;
+  paymentStatus: 'none' | 'pending' | 'approved' | 'rejected';
+  activateLicense: (key: string) => Promise<void>;
+  fetchLicenses: () => Promise<License[]>;
+  resetLicenseDevice: (id: string) => Promise<void>;
+  isDeviceLicensed: boolean;
+  licenseExpiry: string | null;
+  isTrialExpired: boolean;
+  isLicensed: () => boolean;
   loginWithUsername: (username: string, isLogin?: boolean) => Promise<boolean>;
   isAdmin: boolean;
   selectedPartyId: string | null;
@@ -49,21 +68,11 @@ interface AppContextType {
   signOut: () => Promise<void>;
   restoreCompany: (code: string) => Promise<boolean>;
   isOnline: boolean;
-  deviceId: string;
   manualSyncLogin: (email: string) => Promise<string>;
   confirmSyncLogin: (email: string, token: string) => Promise<boolean>;
-  sendInvitation: (email: string) => Promise<void>;
-  respondToInvitation: (invitationId: string, status: 'Accepted' | 'Rejected') => Promise<void>;
-  getInvitations: () => Promise<Invitation[]>;
-  getCompanyUsers: (companyId: string) => Promise<CompanyAccess[]>;
-  removeUser: (companyId: string, email: string) => Promise<void>;
-  requestHRTransfer: (companyId: string) => Promise<string>;
-  approveHRTransfer: (requestId: string) => Promise<void>;
-  getHRTransferRequests: () => Promise<HRTransferRequest[]>;
+  shareCompany: (companyId: string, shareWithEmail: string) => Promise<void>;
+  revokeCompanyAccess: (companyId: string, sharedEmail: string) => Promise<void>;
   getSharedCompanies: () => Promise<Company[]>;
-  isDeviceLicensed: boolean;
-  isLicensed: () => boolean;
-  licenseExpiry: string | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -127,23 +136,7 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [deviceId] = useState(() => {
-    let id = localStorage.getItem('bugzy_device_id');
-    if (!id) {
-      id = 'dev-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now();
-      localStorage.setItem('bugzy_device_id', id);
-    }
-    return id;
-  });
-  const [currentUser, setCurrentUser] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('currentUser');
-    } catch (e) {
-      console.error('Error reading currentUser from localStorage:', e);
-      return null;
-    }
-  });
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
   
   const [companies, setCompanies] = useState<Company[]>([]);
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
@@ -155,27 +148,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   
   // Load data when user or company changes
   useEffect(() => {
-    console.log('[App Startup] Initializing User Data...', { currentUser });
     if (!currentUser) {
       setCompanies([]);
       setCurrentCompany(null);
       return;
     }
 
-    try {
-      const savedCompanies = localStorage.getItem(`companies_${currentUser}`);
-      const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
-      setCompanies(loadedCompanies);
+    const savedCompanies = localStorage.getItem(`companies_${currentUser}`);
+    const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
+    setCompanies(loadedCompanies);
 
-      const savedCurrent = localStorage.getItem(`currentCompany_${currentUser}`);
-      const loadedCurrent = savedCurrent ? JSON.parse(savedCurrent) : (loadedCompanies[0] || null);
-      setCurrentCompany(loadedCurrent);
-      console.log('[App Startup] Loaded Companies:', loadedCompanies.length);
-    } catch (e) {
-      console.error('Error parsing company data:', e);
-      setCompanies([]);
-      setCurrentCompany(null);
-    }
+    const savedCurrent = localStorage.getItem(`currentCompany_${currentUser}`);
+    const loadedCurrent = savedCurrent ? JSON.parse(savedCurrent) : (loadedCompanies[0] || null);
+    setCurrentCompany(loadedCurrent);
   }, [currentUser]);
 
   useEffect(() => {
@@ -190,13 +175,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const id = currentCompany.id;
     const load = (key: string) => {
-      try {
-        const saved = localStorage.getItem(`${key}_${id}`);
-        return saved ? JSON.parse(saved) : [];
-      } catch (e) {
-        console.error(`Error parsing ${key} for company ${id}:`, e);
-        return [];
-      }
+      const saved = localStorage.getItem(`${key}_${id}`);
+      return saved ? JSON.parse(saved) : [];
     };
 
     setParties(load('parties'));
@@ -204,51 +184,161 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setItems(load('items'));
     setTransactions(load('transactions'));
     setInvoices(load('invoices'));
-    console.log('[App Status] Switched context to company:', currentCompany.name);
-  }, [currentCompany?.id, currentUser]);
+  }, [currentCompany, currentUser]);
 
   const [settings, setSettings] = useState<AppSettings>(() => {
-    try {
-      const saved = localStorage.getItem('app_settings');
-      const defaultSettings: AppSettings = {
-        theme: 'light',
-        currency: 'PKR',
-        pdf_theme: 'standard',
-        sync_enabled: true,
-        onboarding_completed: false,
-      };
-      return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
-    } catch (e) {
-      console.error('Error parsing app_settings:', e);
-      return {
-        theme: 'light',
-        currency: 'PKR',
-        pdf_theme: 'standard',
-        sync_enabled: true,
-        onboarding_completed: false,
-      };
-    }
+    const saved = localStorage.getItem('app_settings');
+    const defaultSettings: AppSettings = {
+      theme: 'light',
+      currency: 'PKR',
+      pdf_theme: 'standard',
+      sync_enabled: true,
+      onboarding_completed: false,
+    };
+    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
   });
   const [syncStatus, setSyncStatus] = useState<{ loading: boolean; error: string | null; success: string | null }>({
     loading: false,
     error: null,
     success: null
   });
+  const [paymentStatus, setPaymentStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
   const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
 
-  // Background Auto-Sync (Vyapar Style)
+  // Real-time license listener
   useEffect(() => {
-    if (!currentCompany || !isOnline || !settings.sync_enabled) return;
-    
-    const interval = setInterval(() => {
-      console.log('[Background Sync] Triggering auto-sync...');
-      refreshData(undefined, true).catch(console.error);
-    }, 20000); // 20 seconds
+    const userId = session?.user?.id || currentUser;
+    if (!userId) return;
 
-    return () => clearInterval(interval);
-  }, [currentCompany?.id, isOnline, settings.sync_enabled]);
+    const checkLicense = async () => {
+      // Do not perform license check if offline to prevent incorrect deactivation
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        console.log('Skipping license check: Device is offline');
+        return;
+      }
+
+      try {
+        const currentKey = localStorage.getItem('active_license_key');
+        
+        // Master key bypass - never check/deactivate if master key is used
+        if (currentKey === 'MASTER-KEY' || currentKey === '16897463890072') {
+          setIsDeviceLicensed(true);
+          return;
+        }
+
+        // Select specific fields for maximum compatibility
+        const { data, error } = await supabase
+          .from('licenses')
+          .select('id, user_id, license_key, status, expiry_at, devices')
+          .eq('status', 'active')
+          .filter('user_id', 'eq', userId)
+          .maybeSingle();
+
+        if (error) {
+          console.log('Error checking license with user_id, trying fallback...');
+          // Fallback check: If user_id column fails, maybe try checking by key from local storage
+          if (currentKey) {
+             const { data: fallbackData } = await supabase
+               .from('licenses')
+               .select('*')
+               .eq('license_key', currentKey)
+               .maybeSingle();
+             if (fallbackData) { 
+               setIsDeviceLicensed(true); 
+               if (fallbackData.expiry_at) {
+                 setLicenseExpiry(fallbackData.expiry_at);
+                 localStorage.setItem('license_expiry', fallbackData.expiry_at);
+               }
+               return; 
+             }
+          }
+          return;
+        }
+
+        if (data) {
+          // Always set license expiry info if license exists in cloud, regardless of device authorization
+          if (data.expiry_at) {
+              setLicenseExpiry(data.expiry_at);
+              localStorage.setItem('license_expiry', data.expiry_at);
+          }
+
+          // Check if expired
+          if (data.expiry_at && new Date(data.expiry_at) < new Date()) {
+            console.log('License expired in cloud');
+            localStorage.removeItem('device_license');
+            localStorage.removeItem('active_license_key');
+            localStorage.removeItem('license_expiry');
+            setIsDeviceLicensed(false);
+            setLicenseExpiry(null);
+            return;
+          }
+
+          // STRICT DEVICE ENFORCEMENT
+          // Only auto-activate if the current device is ALREADY in the authorized list
+          const deviceId = localStorage.getItem('device_id');
+          const devices = Array.isArray(data.devices) ? data.devices : [];
+          
+          if (deviceId && devices.includes(deviceId)) {
+            localStorage.setItem('device_license', 'true');
+            localStorage.setItem('active_license_key', data.license_key);
+            setIsDeviceLicensed(true);
+          } else {
+            // New device or device limit reached - USER MUST ACTIVATE MANUALLY
+            // This prevents auto-licensing on login, as requested
+            console.log('Manual activation required for this device');
+            setIsDeviceLicensed(false);
+            localStorage.removeItem('device_license');
+            // Do NOT clear expiry here, as the user wants to see it even on unauthorized devices
+          }
+        } else {
+          // Only deactivate if explicitly NOT FOUND in cloud and we are ONLINE
+          // If data is null, it means there's no active license for this user in cloud
+          if (currentKey === 'MASTER-KEY') {
+            setIsDeviceLicensed(true);
+          } else {
+            console.log('No active license found in cloud for this user');
+            setIsDeviceLicensed(false);
+            localStorage.removeItem('device_license');
+            setLicenseExpiry(null);
+          }
+        }
+      } catch (err) {
+        console.error('License check error:', err);
+      }
+    };
+
+    checkLicense();
+
+    // Subscribe to changes in licenses table for this user
+    const channel = supabase
+      .channel(`user-license-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'licenses',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const newLicense = payload.new as License;
+            if (newLicense.status === 'active') {
+              localStorage.setItem('device_license', 'true');
+              localStorage.setItem('active_license_key', newLicense.license_key);
+              setIsDeviceLicensed(true);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id, currentUser]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -264,6 +354,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const hasInitialSynced = React.useRef<Record<string, boolean>>({});
   const isInternalUpdate = React.useRef(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -721,21 +812,29 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   useEffect(() => {
     const init = async () => {
-      try {
-        console.log('[App Startup] Running Context Initialization...');
-        // Load current company from localStorage initially just to have a starting point
-        const saved = localStorage.getItem('currentCompany');
-        if (saved) {
-          const company = JSON.parse(saved);
-          setCurrentCompany(company);
-        }
+      // Load current company from localStorage initially just to have a starting point
+      const saved = localStorage.getItem('currentCompany');
+      if (saved) {
+        const company = JSON.parse(saved);
+        setCurrentCompany(company);
+      }
+      
+      // Then pull companies from cloud
+      if (settings.user_email || currentUser) {
+        await refreshData(undefined, true);
         
-        // Then pull companies from cloud
-        if (settings.user_email || currentUser) {
-          await refreshData(undefined, true);
+        // Check for pending payment requests
+        const userId = session?.user?.id || currentUser;
+        if (userId) {
+          const { data } = await supabase
+            .from('payment_requests')
+            .select('status')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (data) setPaymentStatus(data.status as any);
         }
-      } catch (e) {
-        console.error('[App Startup] Context Init Failure:', e);
       }
     };
     init();
@@ -989,6 +1088,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const addTransaction = async (tx: Omit<Transaction, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
 
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
+
     const now = new Date().toISOString();
     const newTx: Transaction = {
       ...tx,
@@ -1015,6 +1119,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const updateTransaction = async (id: string, tx: Partial<Transaction>) => {
     if (!currentCompany) return;
 
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const now = new Date().toISOString();
     const updated = transactions.map(t => t.id === id ? { ...t, ...tx, updated_at: now } : t);
     setTransactions(updated);
@@ -1029,6 +1137,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const addParty = async (party: Omit<Party, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
+
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
 
     const now = new Date().toISOString();
     const newParty: Party = {
@@ -1055,6 +1168,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const updateParty = async (id: string, party: Partial<Party>) => {
     if (!currentCompany) return;
 
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const now = new Date().toISOString();
     const updated = parties.map(p => p.id === id ? { ...p, ...party, updated_at: now } : p);
     setParties(updated);
@@ -1068,6 +1185,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const deleteParty = async (id: string, hard = true) => {
     if (!currentCompany) return;
+
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
 
     const party = parties.find(p => p.id === id);
     if (!party) return;
@@ -1097,6 +1219,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const addBank = async (bank: Omit<BankAccount, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
 
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
+
     const now = new Date().toISOString();
     const newBank: BankAccount = {
       ...bank,
@@ -1122,6 +1249,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const updateBank = async (id: string, bank: Partial<BankAccount>) => {
     if (!currentCompany) return;
 
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const now = new Date().toISOString();
     const updated = banks.map(b => b.id === id ? { ...b, ...bank, updated_at: now } : b);
     setBanks(updated);
@@ -1163,6 +1294,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const addItem = async (item: Omit<Item, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
 
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
+
     const now = new Date().toISOString();
     const newItem: Item = {
       ...item,
@@ -1187,6 +1323,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const updateItem = async (id: string, item: Partial<Item>) => {
     if (!currentCompany) return;
 
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const now = new Date().toISOString();
     
     // If stock is being updated directly, it might be an opening stock edit
@@ -1210,6 +1350,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const deleteItem = async (id: string, hard = true) => {
     if (!currentCompany) return;
 
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const item = items.find(i => i.id === id);
     if (!item) return;
 
@@ -1238,6 +1382,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const deleteTransaction = async (id: string, hard = true) => {
     if (!currentCompany) return;
 
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
       const tx = transactions.find(t => t.id === id);
       if (!tx) return;
 
@@ -1384,28 +1532,32 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     };
 
     const isFirstCompany = companies.length === 0;
-    const deviceId = localStorage.getItem('device_id') || crypto.randomUUID();
-    localStorage.setItem('device_id', deviceId);
-
+    
     const newCompany: Company = {
       ...company,
       id: generateId(),
       user_email: settings.user_email || '',
       username: company.username || currentUser || '',
       company_type: company.company_type || 'normal',
+      trial_start: now,
+      is_paid: false,
       created_at: now,
       updated_at: now,
-      my_role: 'OWNER',
-      owner_email: settings.user_email?.toLowerCase() || '',
-      device_id: deviceId
+      linked_emails: [],
+      owner_email: settings.user_email?.toLowerCase() || ''
     };
     
     try {
-      // Check if username is taken by ANOTHER account
+      // 1. Mandatory License Check for FIRST company creation
+      if (companies.length === 0 && !isDeviceLicensed) {
+        throw new Error('LICENSE_REQUIRED');
+      }
+
+      // 2. Check if username is taken by ANOTHER account
       const targetUsername = (company.username || currentUser || '').toLowerCase().trim();
       if (!targetUsername) throw new Error('Username is required');
 
-      // Save to cloud ONLY if it's NOT an HR company
+      // 2. Save to cloud ONLY if it's NOT an HR company
       if (newCompany.company_type !== 'hr') {
         const { error } = await supabase.from('companies').insert(newCompany);
         if (error) {
@@ -1414,27 +1566,23 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
           }
           throw error;
         }
-
-        // Add to company_access
-        if (settings.user_email) {
-          await supabase.from('company_access').insert({
-            company_id: newCompany.id,
-            user_email: settings.user_email.toLowerCase(),
-            role: 'OWNER'
-          });
-        }
       }
 
-      // Update local state
+      // 3. Update local state
       const updatedCompanies = [...companies, newCompany];
       setCompanies(updatedCompanies);
       setCurrentCompany(newCompany);
-      localStorage.setItem(`companies_${newCompany.username || currentUser}`, JSON.stringify(updatedCompanies));
-      localStorage.setItem(`currentCompany_${newCompany.username || currentUser}`, JSON.stringify(newCompany));
+      localStorage.setItem(`companies_${newCompany.username}`, JSON.stringify(updatedCompanies));
+      localStorage.setItem(`currentCompany_${newCompany.username}`, JSON.stringify(newCompany));
       
       if (!currentUser) {
         setCurrentUser(newCompany.username);
         localStorage.setItem('currentUser', newCompany.username);
+      }
+      
+      // Update sync only for normal companies
+      if (newCompany.company_type === 'normal') {
+          updateSettings({ sync_enabled: false }); // User must enable manually in Sync Center
       }
       
       setSyncStatus({ loading: false, error: null, success: 'Company created successfully' });
@@ -1447,15 +1595,13 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const backupData = () => {
     if (!currentUser) return;
-    if (currentCompany?.my_role === 'MEMBER') {
-        alert('Action restricted: Only OWNER can create backups ❌');
-        return;
-    }
     
     const data: any = {
       username: currentUser,
       companies: JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]'),
       settings: JSON.parse(localStorage.getItem('app_settings') || '{}'),
+      device_license: localStorage.getItem('device_license'),
+      active_license_key: localStorage.getItem('active_license_key'),
       companyData: {}
     };
 
@@ -1481,10 +1627,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const restoreData = async (json: string) => {
-    if (currentCompany?.my_role === 'MEMBER') {
-        alert('Action restricted: Only OWNER can restore data ❌');
-        return;
-    }
     try {
       const data = JSON.parse(json);
       if (!data.username) throw new Error('Invalid backup file');
@@ -1526,10 +1668,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const deleteCompany = async (id: string, hard = true) => {
     const companyToDelete = companies.find(c => c.id === id);
     if (!companyToDelete) return;
-    if (companyToDelete.my_role === 'MEMBER') {
-        alert('Action restricted: Only OWNER can delete companies ❌');
-        return;
-    }
 
     const now = new Date().toISOString();
     const updatedCompanies = companies.filter(c => c.id !== id);
@@ -1636,6 +1774,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const addInvoice = async (invoice: Omit<Invoice, 'id' | 'created_at'>) => {
     if (!currentCompany) return;
 
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
+
     const now = new Date().toISOString();
     const newInvoice: Invoice = {
       ...invoice,
@@ -1659,6 +1802,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const updateInvoice = async (id: string, invoice: Partial<Invoice>) => {
     if (!currentCompany) return;
 
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
     const now = new Date().toISOString();
     const updated = invoices.map(i => i.id === id ? { ...i, ...invoice, updated_at: now } : i);
     setInvoices(updated);
@@ -1715,8 +1862,248 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     throw error;
   };
 
-  const isDeviceLicensed = true;
-  const licenseExpiry = null;
+  const submitPaymentRequest = async (data: {
+    name: string;
+    phone: string;
+    amount: number;
+    plan: string;
+    screenshot: string;
+  }) => {
+    const now = new Date().toISOString();
+    
+    // Attempt 1: Full payload
+    const fullRequest = {
+      user_id: session?.user?.id || currentUser || 'anonymous',
+      name: data.name,
+      phone: data.phone,
+      amount: data.amount,
+      plan: data.plan,
+      screenshot: data.screenshot,
+      status: 'pending',
+      created_at: now,
+    };
+    
+    const { error } = await supabase.from('payment_requests').insert(fullRequest);
+    
+    if (error) {
+      console.warn('Initial payment submit failed, trying fallback...');
+      // Fallback: Minimal payload (in case some columns are missing)
+      const fallbackRequest = {
+        name: data.name,
+        phone: data.phone,
+        amount: data.amount,
+        status: 'pending'
+      };
+      const { error: error2 } = await supabase.from('payment_requests').insert(fallbackRequest as any);
+      if (error2) handleSupabaseError(error2, 'Submit Payment Fallback');
+    }
+
+    setPaymentStatus('pending');
+  };
+
+  const fetchPaymentRequests = async () => {
+    const { data, error } = await supabase
+      .from('payment_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) handleSupabaseError(error, 'Fetch Payment Requests');
+    return data || [];
+  };
+
+  const updatePaymentRequestStatus = async (id: string, status: 'approved' | 'rejected') => {
+    const now = new Date().toISOString();
+    
+    // 1. If approved, generate license first
+    if (status === 'approved') {
+      const licenseKey = generateLicenseKey();
+      
+      // Fetch request data first to get user_id
+      const { data: reqData, error: fetchError } = await supabase
+        .from('payment_requests')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (fetchError) handleSupabaseError(fetchError, 'Fetch Request for Approval');
+
+      // Insert license
+      const licensePayload: any = {
+        license_key: licenseKey,
+        user_id: reqData.user_id,
+        status: 'active',
+        created_at: now
+      };
+
+      // Only add optional columns if we are sure they exist, or try and catch
+      const { error: licenseError } = await supabase
+        .from('licenses')
+        .insert(licensePayload);
+
+      if (licenseError) {
+        console.warn('Primary license insert failed, using absolute minimal...');
+        await supabase.from('licenses').insert({ license_key: licenseKey, status: 'active' });
+      }
+
+      // Try updating extra fields separately
+      await supabase.from('licenses').update({ 
+        expiry_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        devices: []
+      }).eq('license_key', licenseKey);
+    }
+
+    // 2. Update request status
+    const { error: reqError } = await supabase
+      .from('payment_requests')
+      .update({ status })
+      .eq('id', id);
+    
+    if (reqError) handleSupabaseError(reqError, 'Update Request Status');
+  };
+
+  const generateLicenseKey = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const segment = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    return `${segment()}-${segment()}-${segment()}-${segment()}`;
+  };
+
+  const activateLicense = async (key: string) => {
+    // MASTER LICENSE CHECK
+    if (key === '16897463890072') {
+      localStorage.setItem('device_license', 'true');
+      localStorage.setItem('active_license_key', 'MASTER-KEY');
+      setIsDeviceLicensed(true);
+      return;
+    }
+
+    // 1. Get/Create Device ID
+    let deviceId = localStorage.getItem('device_id');
+    if (!deviceId) {
+      deviceId = 'dev_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('device_id', deviceId);
+    }
+    
+    // 2. Fetch License
+    const { data: license, error: fetchError } = await supabase
+      .from('licenses')
+      .select('*')
+      .eq('license_key', key.toUpperCase())
+      .single();
+    
+    if (fetchError || !license) throw new Error('Invalid License Key ❌');
+    if (license.status !== 'active') throw new Error('License is inactive ❌');
+    
+    // Check expiry
+    if (license.expiry_at && new Date(license.expiry_at) < new Date()) {
+      throw new Error('License has expired ❌');
+    }
+
+    // 3. Bind Device and User
+    const devices = Array.isArray(license.devices) ? license.devices : [];
+    const userId = session?.user?.id || currentUser;
+    
+    // Device Limit Check (Max 2 devices for standard keys, unlimited for master/special)
+    if (!devices.includes(deviceId) && devices.length >= 2) {
+      throw new Error('Device limit reached (Max 2 devices) ❌');
+    }
+
+    if (!devices.includes(deviceId) || (userId && license.user_id !== userId)) {
+      const updatedDevices = devices.includes(deviceId) ? devices : [...devices, deviceId];
+      const { error: updateError } = await supabase
+        .from('licenses')
+        .update({ 
+          devices: updatedDevices,
+          user_id: userId || license.user_id 
+        })
+        .eq('id', license.id);
+      
+      if (updateError) throw updateError;
+    }
+    
+    // 4. Unlock Device Globally
+    localStorage.setItem('device_license', 'true');
+    localStorage.setItem('active_license_key', key.toUpperCase());
+    if (license.expiry_at) {
+      localStorage.setItem('license_expiry', license.expiry_at);
+      setLicenseExpiry(license.expiry_at);
+    }
+    setIsDeviceLicensed(true);
+  };
+
+  const fetchLicenses = async () => {
+    const { data, error } = await supabase
+      .from('licenses')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) handleSupabaseError(error, 'Fetch Licenses');
+    return data || [];
+  };
+
+  const resetLicenseDevice = async (id: string) => {
+    const { error } = await supabase
+      .from('licenses')
+      .update({ 
+        device_id: null, 
+        devices: [], 
+        updated_at: new Date().toISOString() 
+      })
+      .eq('id', id);
+    if (error) handleSupabaseError(error, 'Reset License Device');
+  };
+
+  const getInitialLicenseState = () => {
+    const licensed = localStorage.getItem('device_license') === 'true';
+    const expiry = localStorage.getItem('license_expiry');
+    if (licensed && expiry && new Date(expiry) < new Date()) {
+      localStorage.removeItem('device_license');
+      localStorage.removeItem('active_license_key');
+      localStorage.removeItem('license_expiry');
+      return false;
+    }
+    return licensed;
+  };
+
+  const [isDeviceLicensed, setIsDeviceLicensed] = useState(getInitialLicenseState);
+  const [licenseExpiry, setLicenseExpiry] = useState<string | null>(() => localStorage.getItem('license_expiry'));
+
+  const isTrialExpired = React.useMemo(() => {
+    // License required ONLY on first company creation or activation
+    if (isDeviceLicensed) return false;
+    
+    // If they already have a company, we assume they passed the initial check 
+    // unless the user specifically wants to block ALL companies if trial expires.
+    // The prompt says "if trial KTM hojati ha tb magar ab mujhe wo nhi me chata humble app me new company create krne or login krne ke waqt first time license key require ho"
+    // This means license is checked ONLY when creating first company.
+    
+    return false; // By default don't block via isTrialExpired anymore, handle in Creation logic
+  }, [currentCompany, isDeviceLicensed]);
+
+  useEffect(() => {
+    const licensed = localStorage.getItem('device_license') === 'true';
+    const expiry = localStorage.getItem('license_expiry');
+    
+    let stillValid = licensed;
+    if (licensed && expiry) {
+      if (new Date(expiry) < new Date()) {
+        stillValid = false;
+        localStorage.removeItem('device_license');
+        localStorage.removeItem('active_license_key');
+        localStorage.removeItem('license_expiry');
+      }
+    }
+
+    if (stillValid !== isDeviceLicensed) {
+      setIsDeviceLicensed(stillValid);
+    }
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'device_license') {
+        setIsDeviceLicensed(e.newValue === 'true');
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [isDeviceLicensed]);
 
   const isAdmin = (settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') || 
                   (session?.user?.email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') ||
@@ -1747,7 +2134,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       : undefined;
 
     const { error } = await supabase.auth.signInWithOtp({
-      email: email.toLowerCase(),
+      email,
       options: {
         shouldCreateUser: true,
         emailRedirectTo: redirectTo,
@@ -1757,7 +2144,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (error) {
       console.error('[Sync OTP Error]', error);
       if (error.message.toLowerCase().includes('rate limit')) {
-        throw new Error('Supabase Rate Limit Reached: Please wait a bit longer (up to 60 mins) before trying again ⏳');
+        throw new Error('Supabase Rate Limit Reached: You can only request 3 codes per hour. Please wait a bit longer (up to 60 mins) before trying again ⏳');
       }
       throw new Error(error.message || 'Failed to send code ❌');
     }
@@ -1767,7 +2154,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const confirmSyncLogin = async (email: string, token: string) => {
     console.log(`[Sync] Verifying OTP for: ${email}`);
     const { data, error } = await supabase.auth.verifyOtp({
-      email: email.toLowerCase(),
+      email,
       token,
       type: 'email',
     });
@@ -1781,220 +2168,74 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       setSession(data.session);
     }
 
-    updateSettings({ user_email: email.toLowerCase(), sync_enabled: true });
-    await refreshData(email.toLowerCase(), true);
+    updateSettings({ user_email: email, sync_enabled: true });
+    await refreshData(email, true);
     return true;
   };
 
-  const sendInvitation = async (email: string) => {
-    if (!currentCompany || !session?.user?.email) return;
-    try {
-      const { error } = await supabase.from('invitations').insert({
-        company_id: currentCompany.id,
-        company_name: currentCompany.name,
-        inviter_email: session.user.email,
-        invitee_email: email,
-        status: 'Pending',
-        created_at: new Date().toISOString()
-      });
-      if (error) throw error;
-      setSyncStatus({ loading: false, error: null, success: 'Invitation sent 📨' });
-    } catch (e: any) {
-      setSyncStatus({ loading: false, error: e.message, success: null });
-    }
+  const shareCompany = async (companyId: string, shareWithEmail: string) => {
+    if (!currentCompany || currentCompany.id !== companyId) throw new Error('Company not selected');
+    const email = shareWithEmail.toLowerCase().trim();
+    if (!email) throw new Error('Email is required');
+
+    const { error } = await supabase.from('company_access').insert({
+      company_id: companyId,
+      owner_email: currentCompany.owner_email || settings.user_email,
+      shared_email: email,
+      permission: 'view',
+      status: 'pending'
+    });
+
+    if (error) throw error;
+    
+    // Also update linked_emails for faster join queries if needed, though company_access is cleaner
+    const updatedEmails = Array.from(new Set([...(currentCompany.linked_emails || []), email]));
+    await updateCompany(companyId, { linked_emails: updatedEmails });
   };
 
-  const respondToInvitation = async (invitationId: string, status: 'Accepted' | 'Rejected') => {
-    if (!session?.user?.email) return;
-    try {
-      const { data: inv, error: fetchErr } = await supabase
-        .from('invitations')
-        .select('*')
-        .eq('id', invitationId)
-        .single();
-      
-      if (fetchErr) throw fetchErr;
+  const revokeCompanyAccess = async (companyId: string, sharedEmail: string) => {
+    const { error } = await supabase
+      .from('company_access')
+      .delete()
+      .eq('company_id', companyId)
+      .eq('shared_email', sharedEmail.toLowerCase().trim());
 
-      const { error: updateErr } = await supabase
-        .from('invitations')
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq('id', invitationId);
-      
-      if (updateErr) throw updateErr;
+    if (error) throw error;
 
-      if (status === 'Accepted') {
-        const { error: accessErr } = await supabase.from('company_access').insert({
-          company_id: inv.company_id,
-          user_email: session.user.email,
-          role: 'MEMBER',
-          created_at: new Date().toISOString()
-        });
-        if (accessErr) throw accessErr;
-        await refreshData(undefined, true);
-      }
-      
-      setSyncStatus({ loading: false, error: null, success: `Invitation ${status.toLowerCase()} ✅` });
-    } catch (e: any) {
-      setSyncStatus({ loading: false, error: e.message, success: null });
-    }
-  };
-
-  const getInvitations = async () => {
-    if (!session?.user?.email) return [];
-    try {
-      const { data, error } = await supabase
-        .from('invitations')
-        .select('*')
-        .eq('invitee_email', session.user.email)
-        .eq('status', 'Pending');
-      if (error) throw error;
-      return data || [];
-    } catch (e) {
-      console.error('Error fetching invitations:', e);
-      return [];
-    }
-  };
-
-  const getCompanyUsers = async (companyId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('company_access')
-        .select('*')
-        .eq('company_id', companyId);
-      if (error) throw error;
-      return data || [];
-    } catch (e) {
-      console.error('Error fetching company users:', e);
-      return [];
-    }
-  };
-
-  const removeUser = async (companyId: string, email: string) => {
-    try {
-      const { error } = await supabase
-        .from('company_access')
-        .delete()
-        .eq('company_id', companyId)
-        .eq('user_email', email);
-      if (error) throw error;
-      setSyncStatus({ loading: false, error: null, success: 'User removed 👤' });
-    } catch (e: any) {
-      setSyncStatus({ loading: false, error: e.message, success: null });
-    }
-  };
-
-  const requestHRTransfer = async (companyId: string) => {
-    if (!session?.user?.email) return '';
-    try {
-      const company = companies.find(c => c.id === companyId);
-      if (!company) throw new Error('Company not found');
-      
-      const transferCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const { error } = await supabase.from('hr_transfer_requests').insert({
-        company_id: companyId,
-        company_name: company.name,
-        owner_email: company.owner_email || company.user_email,
-        requester_email: session.user.email,
-        new_device_id: deviceId,
-        transfer_code: transferCode,
-        status: 'Pending',
-        created_at: new Date().toISOString()
-      });
-      if (error) throw error;
-      return transferCode;
-    } catch (e: any) {
-      setSyncStatus({ loading: false, error: e.message, success: null });
-      return '';
-    }
-  };
-
-  const approveHRTransfer = async (requestId: string) => {
-    try {
-      const { data: request, error: fetchErr } = await supabase
-        .from('hr_transfer_requests')
-        .select('*')
-        .eq('id', requestId)
-        .single();
-      
-      if (fetchErr) throw fetchErr;
-
-      const { error: updateCpyErr } = await supabase
-        .from('companies')
-        .update({ device_id: request.new_device_id, updated_at: new Date().toISOString() })
-        .eq('id', request.company_id);
-      
-      if (updateCpyErr) throw updateCpyErr;
-
-      const { error: updateReqErr } = await supabase
-        .from('hr_transfer_requests')
-        .update({ status: 'Approved' })
-        .eq('id', requestId);
-      
-      if (updateReqErr) throw updateReqErr;
-      
-      setSyncStatus({ loading: false, error: null, success: 'Transfer approved ✅' });
-    } catch (e: any) {
-      setSyncStatus({ loading: false, error: e.message, success: null });
-    }
-  };
-
-  const getHRTransferRequests = async () => {
-    if (!session?.user?.email) return [];
-    try {
-      const { data, error } = await supabase
-        .from('hr_transfer_requests')
-        .select('*')
-        .eq('owner_email', session.user.email)
-        .eq('status', 'Pending');
-      if (error) throw error;
-      return data || [];
-    } catch (e) {
-      console.error('Error fetching HR transfers:', e);
-      return [];
+    // Remove from linked_emails too
+    const company = companies.find(c => c.id === companyId);
+    if (company) {
+      const updatedEmails = (company.linked_emails || []).filter(e => e !== sharedEmail.toLowerCase().trim());
+      await updateCompany(companyId, { linked_emails: updatedEmails });
     }
   };
 
   const getSharedCompanies = async () => {
-    if (!session?.user?.email) return [];
-    try {
-      const { data: access, error: accessErr } = await supabase
-        .from('company_access')
-        .select('company_id')
-        .eq('user_email', session.user.email)
-        .eq('role', 'MEMBER');
-      
-      if (accessErr) throw accessErr;
-      if (!access || access.length === 0) return [];
+    if (!settings.user_email) return [];
+    
+    const { data, error } = await supabase
+      .from('company_access')
+      .select('company_id')
+      .eq('shared_email', settings.user_email.toLowerCase().trim());
 
-      const companyIds = access.map(a => a.company_id);
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .in('id', companyIds);
-      
-      if (error) throw error;
-      return (data || []).map(c => ({ ...c, my_role: 'MEMBER' }));
-    } catch (e) {
-      console.error('Error fetching shared companies:', e);
-      return [];
-    }
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+
+    const companyIds = data.map(d => d.company_id);
+    const { data: sharedCompanies, error: cError } = await supabase
+      .from('companies')
+      .select('*')
+      .in('id', companyIds);
+
+    if (cError) throw cError;
+    return sharedCompanies || [];
   };
-
-  const selectCompany = async (company: Company) => {
-    setCurrentCompany(company);
-    if (currentUser) {
-      localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(company));
-    }
-  };
-
-
-  const isLicensed = () => true;
 
   return (
     <AppContext.Provider value={{
       companies, 
       currentCompany, 
-      setCurrentCompany: selectCompany,
+      setCurrentCompany: (company) => setCurrentCompany(company),
       parties, banks, items, transactions, invoices, settings, syncStatus,
       updateSettings, refreshData, pullCompanies, linkDevice,
       addTransaction, updateTransaction,
@@ -2003,25 +2244,23 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       addCompany, updateCompany, deleteCompany,
       backupData, restoreData,
       addInvoice, updateInvoice, deleteInvoice,
+      submitPaymentRequest, fetchPaymentRequests, updatePaymentRequestStatus,
+      paymentStatus,
+      activateLicense, fetchLicenses, resetLicenseDevice,
+      isDeviceLicensed,
+      licenseExpiry,
+      isTrialExpired,
+      isLicensed: () => isDeviceLicensed,
       loginWithUsername,
       restoreCompany,
       isAdmin,
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
-      session, signOut, isOnline, deviceId,
+      session, signOut, isOnline,
       manualSyncLogin,
       confirmSyncLogin,
-      sendInvitation,
-      respondToInvitation,
-      getInvitations,
-      getCompanyUsers,
-      removeUser,
-      requestHRTransfer,
-      approveHRTransfer,
-      getHRTransferRequests,
-      getSharedCompanies,
-      isDeviceLicensed,
-      isLicensed,
-      licenseExpiry
+      shareCompany,
+      revokeCompanyAccess,
+      getSharedCompanies
     }}>
       {children}
     </AppContext.Provider>
