@@ -262,7 +262,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
   }, []);
 
   const hasInitialSynced = React.useRef<Record<string, boolean>>({});

@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, Share2, ExternalLink, Save } from 'lucide-react';
 import { cn } from '../lib/utils';
 

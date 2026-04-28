@@ -35,7 +35,7 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from './contexts/AppContext';
 import { useTheme } from './contexts/ThemeContext';
 import { cn } from './lib/utils';
@@ -221,7 +221,7 @@ export default function App() {
     hasSettings: !!settings, 
     hasCompany: !!currentCompany, 
     isOnline, 
-    syncStatus: syncStatus.status 
+    syncStatus: syncStatus?.success || syncStatus?.loading ? 'pending' : 'idle'
   });
   const { theme, toggleTheme } = useTheme();
 

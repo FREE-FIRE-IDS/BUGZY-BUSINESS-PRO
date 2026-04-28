@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, formatBalance, cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { BankAccount as Bank, Transaction, TransactionType } from '../types';
 import { generateBankStatement } from '../lib/pdfGenerator';
 

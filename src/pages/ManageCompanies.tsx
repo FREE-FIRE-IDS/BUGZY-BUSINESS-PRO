@@ -18,7 +18,7 @@ import {
   Share2
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 

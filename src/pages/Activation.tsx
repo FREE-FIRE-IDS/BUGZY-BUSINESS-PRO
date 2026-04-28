@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Key, ShieldCheck, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 

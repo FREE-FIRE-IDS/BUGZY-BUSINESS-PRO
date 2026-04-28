@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, cn } from '../lib/utils';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 
 export default function Dashboard() {
   const { transactions, parties, items, settings, currentCompany } = useApp();

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Party, Transaction, TransactionType } from '../types';
 import { generatePartyStatement } from '../lib/pdfGenerator';
 
