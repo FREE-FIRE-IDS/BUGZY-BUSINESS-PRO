@@ -214,27 +214,22 @@ export default function App() {
     isOnline,
     session,
     syncStatus
-  } = useApp();
+  } = useApp() || {};
 
-  console.log('[DEBUG] App State:', { 
-    activeTab, 
-    hasSettings: !!settings, 
-    hasCompany: !!currentCompany, 
-    isOnline, 
-    syncStatus: syncStatus?.success || syncStatus?.loading ? 'pending' : 'idle'
-  });
-  const { theme, toggleTheme } = useTheme();
+  const themeContext = useTheme();
+  const theme = themeContext?.theme || 'light';
+  const toggleTheme = themeContext?.toggleTheme || (() => {});
 
-  const isOwner = !currentCompany || !currentCompany.owner_email || 
-    (session?.user?.email && currentCompany.owner_email.toLowerCase() === session.user.email.toLowerCase());
+  const isOwner = !currentCompany || !currentCompany?.owner_email || 
+    (session?.user?.email && currentCompany?.owner_email?.toLowerCase() === session?.user?.email?.toLowerCase());
   const [showSplash, setShowSplash] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return localStorage.getItem('onboarding_complete') !== 'true';
   });
 
   useEffect(() => {
-    if (!currentCompany && companies.length > 0) {
-      setCurrentCompany(companies[0]);
+    if (!currentCompany && companies?.length > 0) {
+      setCurrentCompany?.(companies[0]);
     }
   }, [currentCompany, companies, setCurrentCompany]);
 
@@ -274,11 +269,11 @@ export default function App() {
     return <Onboarding onComplete={() => updateSettings({ onboarding_completed: true })} />;
   }
 
-  if (!currentCompany && companies.length === 0) {
+  if (!currentCompany && (companies?.length === 0 || !companies)) {
     return <SetupCompany />;
   }
 
-  if (!currentCompany && companies.length > 0) {
+  if (!currentCompany && companies?.length > 0) {
     // This state should be transient as useEffect will set it
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950">

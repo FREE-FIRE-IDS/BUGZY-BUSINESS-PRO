@@ -1,23 +1,26 @@
 import React from 'react';
-import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
+import { createRoot } from 'react-dom/client';
+import App from './App';
 import './index.css';
 import { AppProvider } from './contexts/AppContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { registerSW } from 'virtual:pwa-register';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-// Register service worker removed to debug white screen issues
-// registerSW({ immediate: true });
-
-console.log('[DEBUG] main.tsx init');
+console.log('[App] Starting initialization...');
 
 const container = document.getElementById('root');
-console.log('[DEBUG] root container found:', !!container);
 
-if (container) {
+if (!container) {
+  console.error('[Fatal] Root container not found in index.html');
+  document.body.innerHTML = `
+    <div style="background: #0f172a; color: white; height: 100vh; display: flex; align-items: center; justify-content: center; font-family: sans-serif;">
+      <h1 style="color: #f87171;">Fatal Error: #root element missing</h1>
+    </div>
+  `;
+} else {
   try {
-    createRoot(container).render(
+    const root = createRoot(container);
+    root.render(
       <React.StrictMode>
         <ErrorBoundary>
           <ThemeProvider>
@@ -28,17 +31,8 @@ if (container) {
         </ErrorBoundary>
       </React.StrictMode>
     );
-    console.log('[DEBUG] createRoot.render called');
-  } catch (err) {
-    console.error('[DEBUG] createRoot.render failed fatal:', err);
-    container.innerHTML = `
-      <div style="background: #0f172a; color: #f87171; padding: 20px; font-family: monospace; height: 100vh;">
-        <h1>Fatal Startup Error</h1>
-        <pre>${err instanceof Error ? err.stack : String(err)}</pre>
-      </div>
-    `;
+    console.log('[App] Rendered successfully');
+  } catch (error) {
+    console.error('[Fatal] Failed to render app:', error);
   }
-} else {
-  console.error('[DEBUG] root container not found');
-  document.body.innerHTML = '<h1 style="color:red">Error: #root element missing in index.html</h1>';
 }

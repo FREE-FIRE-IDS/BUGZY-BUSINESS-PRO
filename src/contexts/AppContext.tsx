@@ -134,7 +134,9 @@ const safeParse = (str: string | null, fallback: any) => {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   console.log('[DEBUG] AppProvider init');
   
-  const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
+  const [currentUser, setCurrentUser] = useState<string | null>(() => {
+    try { return localStorage.getItem('currentUser'); } catch { return null; }
+  });
   const isTrialExpired = false;
   
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -186,7 +188,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [currentCompany, currentUser]);
 
   const [settings, setSettings] = useState<AppSettings>(() => {
-    const saved = localStorage.getItem('app_settings');
     const defaultSettings: AppSettings = {
       theme: 'light',
       currency: 'PKR',
@@ -194,7 +195,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sync_enabled: true,
       onboarding_completed: true, 
     };
-    return saved ? { ...defaultSettings, ...safeParse(saved, {}) } : defaultSettings;
+    try {
+      const saved = localStorage.getItem('app_settings');
+      return saved ? { ...defaultSettings, ...safeParse(saved, {}) } : defaultSettings;
+    } catch {
+      return defaultSettings;
+    }
   });
   const [syncStatus, setSyncStatus] = useState<{ loading: boolean; error: string | null; success: string | null }>({
     loading: false,
@@ -213,15 +219,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!userId) return;
 
     const checkLicense = async () => {
-      const currentKey = localStorage.getItem('active_license_key');
-      if (currentKey === '16897463890072') {
-        setIsDeviceLicensed(true);
-        return;
-      }
-      
-      // Basic check for existing license state if offline/no cloud sync needed
-      if (localStorage.getItem('device_license') === 'true') {
-        setIsDeviceLicensed(true);
+      try {
+        const currentKey = localStorage.getItem('active_license_key');
+        if (currentKey === '16897463890072') {
+          setIsDeviceLicensed(true);
+          return;
+        }
+        
+        if (localStorage.getItem('device_license') === 'true') {
+          setIsDeviceLicensed(true);
+        }
+      } catch (err) {
+        console.warn('License check error:', err);
       }
     };
 
@@ -277,12 +286,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      refreshData(undefined, true); // Pull fresh data when coming back online
+      if (settings?.sync_enabled) {
+        refreshData(undefined, true).catch(console.error);
+      }
     };
     const handleOffline = () => setIsOnline(false);
     const handleFocus = () => {
-      if (navigator.onLine) {
-        refreshData(undefined, true); // Refresh when user returns to tab
+      if (navigator.onLine && settings?.sync_enabled) {
+        refreshData(undefined, true).catch(console.error);
       }
     };
 
