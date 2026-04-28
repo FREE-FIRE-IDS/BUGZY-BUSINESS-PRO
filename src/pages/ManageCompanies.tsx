@@ -25,7 +25,7 @@ export default function ManageCompanies() {
   const { 
     companies, currentCompany, setCurrentCompany, addCompany, deleteCompany,
     syncStatus, isLicensed, isDeviceLicensed, settings, shareCompany, revokeCompanyAccess,
-    getSharedCompanies, refreshData
+    getSharedCompanies, refreshData, session
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'my' | 'shared' | 'hr'>('my');
@@ -91,6 +91,9 @@ export default function ManageCompanies() {
   const renderCompanyCard = (company: any, isShared = false) => {
     const isActive = currentCompany?.id === company.id;
     const isHR = company.company_type === 'hr';
+    const myEmail = settings.user_email?.toLowerCase() || session?.user?.email?.toLowerCase();
+    const ownerEmail = (company.owner_email || company.user_email)?.toLowerCase();
+    const isOwner = !ownerEmail || myEmail === ownerEmail;
 
     return (
       <motion.div
@@ -120,7 +123,7 @@ export default function ManageCompanies() {
             {isHR ? <Briefcase size={20} /> : <Building2 size={20} />}
           </div>
           <div className="flex items-center gap-2">
-            {!isShared && (
+            {!isShared && isOwner && (
                <button 
                 onClick={(e) => {
                     e.stopPropagation();
@@ -134,18 +137,20 @@ export default function ManageCompanies() {
                 <Share2 size={16} />
                </button>
             )}
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsDeleteModalOpen(company.id);
-              }}
-              className={cn(
-                "p-2 rounded-xl transition-all",
-                isActive ? "hover:bg-white/20 text-white/70" : "hover:bg-rose-50 text-slate-400 hover:text-rose-600"
-              )}
-            >
-              <Trash2 size={16} />
-            </button>
+            {!isShared && isOwner && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsDeleteModalOpen(company.id);
+                }}
+                className={cn(
+                  "p-2 rounded-xl transition-all",
+                  isActive ? "hover:bg-white/20 text-white/70" : "hover:bg-rose-50 text-slate-400 hover:text-rose-600"
+                )}
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
           </div>
         </div>
 

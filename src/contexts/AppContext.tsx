@@ -73,6 +73,11 @@ interface AppContextType {
   shareCompany: (companyId: string, shareWithEmail: string) => Promise<void>;
   revokeCompanyAccess: (companyId: string, sharedEmail: string) => Promise<void>;
   getSharedCompanies: () => Promise<Company[]>;
+  invitations: any[];
+  fetchInvitations: () => Promise<void>;
+  updateInvitationStatus: (inviteId: string, status: 'accepted' | 'rejected') => Promise<void>;
+  sentInvitations: any[];
+  fetchSentInvitations: (companyId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -206,6 +211,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
+  const [invitations, setInvitations] = useState<any[]>([]);
+  const [sentInvitations, setSentInvitations] = useState<any[]>([]);
 
   // Real-time license listener
   useEffect(() => {
@@ -1559,7 +1566,21 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
       // 2. Save to cloud ONLY if it's NOT an HR company
       if (newCompany.company_type !== 'hr') {
-        const { error } = await supabase.from('companies').insert(newCompany);
+        const performInsert = async (payload: any): Promise<{ error: any }> => {
+          const { error: insertError } = await supabase.from('companies').insert(payload);
+          if (insertError && insertError.message.includes('column')) {
+             const match = insertError.message.match(/column "(.*?)"/);
+             const missingCol = match ? match[1] : null;
+             if (missingCol) {
+               console.warn(`[AddCompany Robustness] Stripping missing column "${missingCol}" and retrying...`);
+               const { [missingCol]: _, ...rest } = payload;
+               return performInsert(rest);
+             }
+          }
+          return { error: insertError };
+        };
+
+        const { error } = await performInsert(newCompany);
         if (error) {
           if (error.message.includes('unique constraint') || error.code === '23505') {
             throw new Error(`Username "${targetUsername}" is already in use by another account ❌. Please choose a different username.`);
@@ -2175,22 +2196,77 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const shareCompany = async (companyId: string, shareWithEmail: string) => {
     if (!currentCompany || currentCompany.id !== companyId) throw new Error('Company not selected');
+    
+    // Restriction: Only owner can share
+    const myEmail = settings.user_email?.toLowerCase() || session?.user?.email?.toLowerCase();
+    const ownerEmail = currentCompany.owner_email?.toLowerCase() || currentCompany.user_email?.toLowerCase();
+    
+    if (ownerEmail && myEmail !== ownerEmail) {
+      throw new Error('Only the company owner can invite people ❌');
+    }
+
     const email = shareWithEmail.toLowerCase().trim();
     if (!email) throw new Error('Email is required');
 
     const { error } = await supabase.from('company_access').insert({
       company_id: companyId,
-      owner_email: currentCompany.owner_email || settings.user_email,
+      owner_email: ownerEmail || myEmail,
       shared_email: email,
       permission: 'view',
       status: 'pending'
     });
 
-    if (error) throw error;
+    if (error) {
+      if (error.message.includes('unique constraint') || error.code === '23505') {
+        throw new Error('Invitation already sent to this user ✉️');
+      }
+      throw error;
+    }
     
-    // Also update linked_emails for faster join queries if needed, though company_access is cleaner
+    // Also update linked_emails for faster join queries
     const updatedEmails = Array.from(new Set([...(currentCompany.linked_emails || []), email]));
     await updateCompany(companyId, { linked_emails: updatedEmails });
+    await fetchSentInvitations(companyId);
+  };
+
+  const fetchInvitations = async () => {
+    const email = settings.user_email || session?.user?.email;
+    if (!email) return;
+
+    const { data, error } = await supabase
+      .from('company_access')
+      .select('*, companies(*)')
+      .eq('shared_email', email.toLowerCase())
+      .eq('status', 'pending');
+
+    if (!error && data) {
+      setInvitations(data);
+    }
+  };
+
+  const fetchSentInvitations = async (companyId: string) => {
+    const { data, error } = await supabase
+      .from('company_access')
+      .select('*')
+      .eq('company_id', companyId);
+
+    if (!error && data) {
+      setSentInvitations(data);
+    }
+  };
+
+  const updateInvitationStatus = async (inviteId: string, status: 'accepted' | 'rejected') => {
+    const { error } = await supabase
+      .from('company_access')
+      .update({ status })
+      .eq('id', inviteId);
+
+    if (error) throw error;
+    
+    setInvitations(prev => prev.filter(i => i.id !== inviteId));
+    if (status === 'accepted') {
+      await refreshData(undefined, true);
+    }
   };
 
   const revokeCompanyAccess = async (companyId: string, sharedEmail: string) => {
@@ -2260,7 +2336,12 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       confirmSyncLogin,
       shareCompany,
       revokeCompanyAccess,
-      getSharedCompanies
+      getSharedCompanies,
+      invitations,
+      fetchInvitations,
+      updateInvitationStatus,
+      sentInvitations,
+      fetchSentInvitations
     }}>
       {children}
     </AppContext.Provider>

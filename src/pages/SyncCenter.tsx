@@ -11,7 +11,8 @@ import {
   History,
   Lock,
   Loader2,
-  Trash2
+  Trash2,
+  Plus
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -19,7 +20,10 @@ import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 
 export default function SyncCenter() {
-  const { settings, updateSettings, refreshData, manualSyncLogin, confirmSyncLogin, isOnline, syncStatus, signOut, session } = useApp();
+  const { 
+    settings, updateSettings, refreshData, manualSyncLogin, confirmSyncLogin, isOnline, syncStatus, signOut, session,
+    currentCompany, shareCompany, invitations, fetchInvitations, updateInvitationStatus, sentInvitations, fetchSentInvitations
+  } = useApp();
   const [email, setEmail] = useState(settings.user_email || '');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState(settings.sync_enabled || session ? 'active' : 'intro');
@@ -27,6 +31,8 @@ export default function SyncCenter() {
   const [error, setError] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [isInviting, setIsInviting] = useState(false);
 
   // Auto-transition if session becomes active (e.g. magic link clicked)
   React.useEffect(() => {
@@ -37,6 +43,45 @@ export default function SyncCenter() {
       }
     }
   }, [session, step]);
+
+  React.useEffect(() => {
+    if (step === 'active') {
+      fetchInvitations();
+      if (currentCompany) {
+        fetchSentInvitations(currentCompany.id);
+      }
+    }
+  }, [step, currentCompany?.id]);
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteEmail || !currentCompany) return;
+    setIsInviting(true);
+    try {
+      await shareCompany(currentCompany.id, inviteEmail);
+      setInviteEmail('');
+      alert('Invitation sent successfully! 🚀');
+    } catch (err: any) {
+      alert(err.message || 'Failed to send invitation');
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleUpdateStatus = async (id: string, status: 'accepted' | 'rejected') => {
+    try {
+      await updateInvitationStatus(id, status);
+      alert(status === 'accepted' ? 'Company added to your Shared list! ✅' : 'Invitation rejected.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to update status');
+    }
+  };
+
+  const isOwner = currentCompany && (
+    currentCompany.user_email?.toLowerCase() === settings.user_email?.toLowerCase() ||
+    currentCompany.owner_email?.toLowerCase() === settings.user_email?.toLowerCase() ||
+    !currentCompany.owner_email
+  );
 
   React.useEffect(() => {
     let timer: any;
@@ -326,6 +371,107 @@ export default function SyncCenter() {
                 </div>
               </div>
             </motion.div>
+
+            {/* Invitations Received */}
+            <AnimatePresence>
+              {invitations.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="bg-indigo-600 rounded-[2rem] p-8 text-white space-y-6 overflow-hidden"
+                >
+                  <div className="flex items-center gap-3">
+                    <Mail size={24} />
+                    <h3 className="text-xl font-black italic tracking-tight">New Invitations ({invitations.length})</h3>
+                  </div>
+                  <div className="space-y-4">
+                    {invitations.map(invite => (
+                      <div key={invite.id} className="bg-white/10 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                          <p className="font-black text-lg">{invite.companies?.name}</p>
+                          <p className="text-xs font-bold opacity-70">From: {invite.owner_email}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => handleUpdateStatus(invite.id, 'accepted')}
+                            className="bg-white text-indigo-600 px-6 py-2 rounded-xl font-black text-sm hover:bg-indigo-50 transition-all"
+                          >
+                            Accept
+                          </button>
+                          <button 
+                            onClick={() => handleUpdateStatus(invite.id, 'rejected')}
+                            className="bg-indigo-700 text-white px-6 py-2 rounded-xl font-black text-sm hover:bg-indigo-800 transition-all"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Invite New User (Owner only) */}
+            {isOwner && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm space-y-6"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-600">
+                    <Mail size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 dark:text-slate-50 tracking-tight">Invite Team Member</h3>
+                    <p className="text-xs text-slate-500 font-medium">Shared users can view and sync this company's data</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleInvite} className="flex flex-col md:flex-row gap-3">
+                  <input 
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="teammate@gmail.com"
+                    className="flex-1 p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 font-bold"
+                  />
+                  <button 
+                    disabled={isInviting || !inviteEmail.includes('@')}
+                    className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                  >
+                    {isInviting ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
+                    Invite User
+                  </button>
+                </form>
+
+                {sentInvitations.length > 0 && (
+                  <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sent Invitations</h4>
+                    <div className="grid gap-3">
+                      {sentInvitations.map(sent => (
+                        <div key={sent.id} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black">
+                              {sent.shared_email.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{sent.shared_email}</span>
+                          </div>
+                          <div className={cn(
+                            "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                            sent.status === 'pending' ? "bg-amber-100 text-amber-600" : 
+                            sent.status === 'accepted' ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"
+                          )}>
+                            {sent.status}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
           </div>
         )}
       </AnimatePresence>
