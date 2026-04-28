@@ -21,7 +21,26 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function Inventory() {
-  const { items, addItem, updateItem, deleteItem, addTransaction, settings, currentCompany, isLicensed } = useApp();
+  const app = useApp();
+  
+  if (!app) {
+    return (
+      <div className="p-8 text-center animate-pulse">
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Loading Inventory...</p>
+      </div>
+    );
+  }
+
+  const { 
+    items = [], 
+    addItem = async () => {}, 
+    updateItem = async () => {}, 
+    deleteItem = async () => {}, 
+    addTransaction = async () => {}, 
+    settings = { currency: 'PKR' }, 
+    currentCompany = null, 
+    isLicensed = () => false 
+  } = app;
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);

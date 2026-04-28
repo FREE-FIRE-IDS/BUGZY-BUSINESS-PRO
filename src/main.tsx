@@ -5,14 +5,19 @@ import './index.css';
 import { AppProvider } from './contexts/AppContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { registerSW } from 'virtual:pwa-register';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Register service worker
 registerSW({ immediate: true });
 
 createRoot(document.getElementById('root')!).render(
-  <ThemeProvider>
-    <AppProvider>
-      <App />
-    </AppProvider>
-  </ThemeProvider>,
+  <StrictMode>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AppProvider>
+          <App />
+        </AppProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
+  </StrictMode>
 );

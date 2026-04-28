@@ -61,6 +61,9 @@ interface AppContextType {
   approveHRTransfer: (requestId: string) => Promise<void>;
   getHRTransferRequests: () => Promise<HRTransferRequest[]>;
   getSharedCompanies: () => Promise<Company[]>;
+  isDeviceLicensed: boolean;
+  isLicensed: () => boolean;
+  licenseExpiry: string | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -132,7 +135,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     return id;
   });
-  const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
+  const [currentUser, setCurrentUser] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('currentUser');
+    } catch (e) {
+      console.error('Error reading currentUser from localStorage:', e);
+      return null;
+    }
+  });
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -145,19 +155,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   
   // Load data when user or company changes
   useEffect(() => {
+    console.log('[App Startup] Initializing User Data...', { currentUser });
     if (!currentUser) {
       setCompanies([]);
       setCurrentCompany(null);
       return;
     }
 
-    const savedCompanies = localStorage.getItem(`companies_${currentUser}`);
-    const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
-    setCompanies(loadedCompanies);
+    try {
+      const savedCompanies = localStorage.getItem(`companies_${currentUser}`);
+      const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
+      setCompanies(loadedCompanies);
 
-    const savedCurrent = localStorage.getItem(`currentCompany_${currentUser}`);
-    const loadedCurrent = savedCurrent ? JSON.parse(savedCurrent) : (loadedCompanies[0] || null);
-    setCurrentCompany(loadedCurrent);
+      const savedCurrent = localStorage.getItem(`currentCompany_${currentUser}`);
+      const loadedCurrent = savedCurrent ? JSON.parse(savedCurrent) : (loadedCompanies[0] || null);
+      setCurrentCompany(loadedCurrent);
+      console.log('[App Startup] Loaded Companies:', loadedCompanies.length);
+    } catch (e) {
+      console.error('Error parsing company data:', e);
+      setCompanies([]);
+      setCurrentCompany(null);
+    }
   }, [currentUser]);
 
   useEffect(() => {
@@ -172,8 +190,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const id = currentCompany.id;
     const load = (key: string) => {
-      const saved = localStorage.getItem(`${key}_${id}`);
-      return saved ? JSON.parse(saved) : [];
+      try {
+        const saved = localStorage.getItem(`${key}_${id}`);
+        return saved ? JSON.parse(saved) : [];
+      } catch (e) {
+        console.error(`Error parsing ${key} for company ${id}:`, e);
+        return [];
+      }
     };
 
     setParties(load('parties'));
@@ -181,18 +204,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setItems(load('items'));
     setTransactions(load('transactions'));
     setInvoices(load('invoices'));
-  }, [currentCompany, currentUser]);
+    console.log('[App Status] Switched context to company:', currentCompany.name);
+  }, [currentCompany?.id, currentUser]);
 
   const [settings, setSettings] = useState<AppSettings>(() => {
-    const saved = localStorage.getItem('app_settings');
-    const defaultSettings: AppSettings = {
-      theme: 'light',
-      currency: 'PKR',
-      pdf_theme: 'standard',
-      sync_enabled: true,
-      onboarding_completed: false,
-    };
-    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
+    try {
+      const saved = localStorage.getItem('app_settings');
+      const defaultSettings: AppSettings = {
+        theme: 'light',
+        currency: 'PKR',
+        pdf_theme: 'standard',
+        sync_enabled: true,
+        onboarding_completed: false,
+      };
+      return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
+    } catch (e) {
+      console.error('Error parsing app_settings:', e);
+      return {
+        theme: 'light',
+        currency: 'PKR',
+        pdf_theme: 'standard',
+        sync_enabled: true,
+        onboarding_completed: false,
+      };
+    }
   });
   const [syncStatus, setSyncStatus] = useState<{ loading: boolean; error: string | null; success: string | null }>({
     loading: false,
@@ -686,16 +721,21 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   useEffect(() => {
     const init = async () => {
-      // Load current company from localStorage initially just to have a starting point
-      const saved = localStorage.getItem('currentCompany');
-      if (saved) {
-        const company = JSON.parse(saved);
-        setCurrentCompany(company);
-      }
-      
-      // Then pull companies from cloud
-      if (settings.user_email || currentUser) {
-        await refreshData(undefined, true);
+      try {
+        console.log('[App Startup] Running Context Initialization...');
+        // Load current company from localStorage initially just to have a starting point
+        const saved = localStorage.getItem('currentCompany');
+        if (saved) {
+          const company = JSON.parse(saved);
+          setCurrentCompany(company);
+        }
+        
+        // Then pull companies from cloud
+        if (settings.user_email || currentUser) {
+          await refreshData(undefined, true);
+        }
+      } catch (e) {
+        console.error('[App Startup] Context Init Failure:', e);
       }
     };
     init();
@@ -1948,6 +1988,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
 
+  const isLicensed = () => true;
+
   return (
     <AppContext.Provider value={{
       companies, 
@@ -1976,7 +2018,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       requestHRTransfer,
       approveHRTransfer,
       getHRTransferRequests,
-      getSharedCompanies
+      getSharedCompanies,
+      isDeviceLicensed,
+      isLicensed,
+      licenseExpiry
     }}>
       {children}
     </AppContext.Provider>

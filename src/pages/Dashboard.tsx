@@ -38,7 +38,29 @@ import { getBusinessInsights } from '../services/geminiService';
 import { differenceInDays, addDays } from 'date-fns';
 
 export default function Dashboard() {
-  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData, isDeviceLicensed, isLicensed, isTrialExpired } = useApp();
+  const app = useApp();
+  
+  if (!app) {
+    return (
+      <div className="p-8 text-center animate-pulse">
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Loading Dashboard...</p>
+      </div>
+    );
+  }
+
+  const { 
+    transactions = [], 
+    parties = [], 
+    banks = [], 
+    settings = { currency: 'PKR' }, 
+    items = [], 
+    invoices = [], 
+    currentCompany = null, 
+    backupData, 
+    restoreData, 
+    isLicensed = () => false, 
+    isTrialExpired = false 
+  } = app;
   const [aiInsights, setAiInsights] = useState<string[]>([]);
   const [aiError, setAiError] = useState<string | null>(null);
 

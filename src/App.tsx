@@ -28,7 +28,8 @@ import {
   BarChart3,
   Wifi,
   WifiOff,
-  ShieldCheck
+  ShieldCheck,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './contexts/AppContext';
@@ -243,29 +244,53 @@ function LockedCompanyPage({ company, deviceId }: { company: Company, deviceId: 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // Safe Context Access
+  const app = useApp();
+  const themeContext = useTheme();
+
+  if (!app || !themeContext) {
+    console.error('[Critical] App or Theme context missing at startup');
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-white font-mono text-[10px] uppercase tracking-widest p-10 text-center">
+        Context Initialization Failure. Please refresh.
+      </div>
+    );
+  }
+
   const { 
     currentCompany, 
-    companies, 
+    companies = [], 
     setCurrentCompany, 
     addCompany, 
     updateCompany, 
-    settings, 
+    settings = { onboarding_completed: false }, 
     updateSettings, 
-    isAdmin, 
-    isOnline,
-    session,
-    syncStatus,
-    deviceId
-  } = useApp();
-  const { theme, toggleTheme } = useTheme();
+    isAdmin = false, 
+    isOnline = true,
+    session = null,
+    syncStatus = { loading: false, error: null },
+    deviceId = ''
+  } = app;
+  const { theme = 'light', toggleTheme } = themeContext;
 
   const isOwner = !currentCompany || currentCompany.my_role === 'OWNER';
-  const isLocked = currentCompany?.company_type === 'hr' && currentCompany.device_id && currentCompany.device_id !== deviceId;
+  const isLocked = currentCompany?.company_type === 'hr' && currentCompany?.device_id && currentCompany?.device_id !== deviceId;
 
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    if (!currentCompany && companies.length > 0) {
+    console.log('[App Life] Mounted. Start Logging...', { 
+      hasCompany: !!currentCompany, 
+      companyCount: companies.length,
+      tab: activeTab,
+      isOnline
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!currentCompany && companies.length > 0 && setCurrentCompany) {
+      console.log('[App Life] Setting initial company fallback');
       setCurrentCompany(companies[0]);
     }
   }, [currentCompany, companies, setCurrentCompany]);
@@ -375,11 +400,11 @@ export default function App() {
     return <SplashScreen />;
   }
 
-  if (!settings.onboarding_completed) {
-    return <Onboarding onComplete={() => updateSettings({ onboarding_completed: true })} />;
+  if (!settings?.onboarding_completed) {
+    return <Onboarding onComplete={() => updateSettings?.({ onboarding_completed: true })} />;
   }
 
-  if (!currentCompany && companies.length === 0) {
+  if (!currentCompany && companies?.length === 0) {
     return <SetupCompany />;
   }
 
@@ -409,27 +434,27 @@ export default function App() {
       )}>
         <div className="h-16 flex items-center px-6 border-b border-transparent shrink-0">
           <div className="flex items-center gap-3">
-            {currentCompany?.logo_url ? (
-              <img src={currentCompany.logo_url} alt="Logo" className="w-10 h-10 object-contain rounded-xl" referrerPolicy="no-referrer" />
-            ) : (
-              <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-bold text-xl relative overflow-hidden group shrink-0">
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-indigo-800 opacity-90" />
-                <svg className="relative z-10 w-6 h-6" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M50 25 L50 75 M35 45 L35 75 M65 45 L65 75" stroke="white" strokeWidth="8" strokeLinecap="round"/>
-                  <path d="M30 75 L70 75" stroke="white" strokeWidth="4"/>
-                  <path d="M40 45 L50 35 L60 45" fill="#fbbf24"/>
-                </svg>
-              </div>
-            )}
-            {isSidebarOpen && (
-              <motion.span 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="font-bold text-lg tracking-tight text-slate-900 dark:text-white truncate"
-              >
-                {currentCompany?.name || 'Bugzy Pro'}
-              </motion.span>
-            )}
+              {currentCompany?.logo_url ? (
+                <img src={currentCompany.logo_url} alt="Logo" className="w-10 h-10 object-contain rounded-xl" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-bold text-xl relative overflow-hidden group shrink-0">
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-indigo-800 opacity-90" />
+                  <svg className="relative z-10 w-6 h-6" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M50 25 L50 75 M35 45 L35 75 M65 45 L65 75" stroke="white" strokeWidth="8" strokeLinecap="round"/>
+                    <path d="M30 75 L70 75" stroke="white" strokeWidth="4"/>
+                    <path d="M40 45 L50 35 L60 45" fill="#fbbf24"/>
+                  </svg>
+                </div>
+              )}
+              {isSidebarOpen && (
+                <motion.span 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="font-bold text-lg tracking-tight text-slate-900 dark:text-white truncate"
+                >
+                  {currentCompany?.name || 'Bugzy Pro'}
+                </motion.span>
+              )}
           </div>
         </div>
 

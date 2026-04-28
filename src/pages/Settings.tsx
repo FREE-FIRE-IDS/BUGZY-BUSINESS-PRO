@@ -30,14 +30,26 @@ import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function Settings() {
+  const app = useApp();
+  const themeContext = useTheme();
+
+  if (!app || !themeContext) {
+    return (
+      <div className="p-8 text-center animate-pulse">
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Loading Settings...</p>
+      </div>
+    );
+  }
+
   const { 
-    settings, updateSettings, companies, currentCompany, setCurrentCompany, 
-    refreshData, addCompany, deleteCompany, pullCompanies, syncStatus,
-    linkDevice, signOut, updateCompany, isAdmin, backupData, restoreData,
-    isDeviceLicensed, isLicensed, licenseExpiry
-  } = useApp();
-  const { theme, toggleTheme } = useTheme();
-  const [emailInput, setEmailInput] = React.useState(settings.user_email || '');
+    settings = {}, updateSettings, companies = [], currentCompany = null, setCurrentCompany, 
+    refreshData, addCompany, deleteCompany, pullCompanies, syncStatus = { loading: false, error: null },
+    linkDevice, signOut, updateCompany, isAdmin = false, backupData, restoreData,
+    isLicensed = () => false, licenseExpiry = null, isDeviceLicensed = true
+  } = app;
+  const { theme, toggleTheme } = themeContext;
+
+  const [emailInput, setEmailInput] = React.useState(settings?.user_email || '');
   const [linkEmailInput, setLinkEmailInput] = React.useState('');
   const [emailError, setEmailError] = React.useState('');
   const [linkEmailError, setLinkEmailError] = React.useState('');

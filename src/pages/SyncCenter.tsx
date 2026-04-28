@@ -27,17 +27,39 @@ import { format } from 'date-fns';
 import { Invitation, CompanyAccess, HRTransferRequest } from '../types';
 
 export default function SyncCenter() {
-  const { 
-    settings, updateSettings, refreshData, manualSyncLogin, confirmSyncLogin, 
-    isOnline, syncStatus, session, currentCompany,
-    getInvitations, respondToInvitation, sendInvitation,
-    getCompanyUsers, removeUser,
-    getHRTransferRequests, approveHRTransfer, requestHRTransfer
-  } = useApp();
+  const app = useApp();
+  
+  if (!app) {
+    return (
+      <div className="p-8 text-center animate-pulse">
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Loading Sync Center...</p>
+      </div>
+    );
+  }
 
-  const [email, setEmail] = useState(settings.user_email || '');
+  const { 
+    settings = {}, 
+    updateSettings, 
+    refreshData, 
+    manualSyncLogin = async () => {}, 
+    confirmSyncLogin = async () => {}, 
+    isOnline = true, 
+    syncStatus = { loading: false, error: null }, 
+    session = null, 
+    currentCompany = null,
+    getInvitations = async () => [], 
+    respondToInvitation = async () => {}, 
+    sendInvitation = async () => {},
+    getCompanyUsers = async () => [], 
+    removeUser = async () => {},
+    getHRTransferRequests = async () => [], 
+    approveHRTransfer = async () => {}, 
+    requestHRTransfer = async () => ''
+  } = app;
+
+  const [email, setEmail] = useState(settings?.user_email || '');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState(settings.sync_enabled || session ? 'active' : 'intro');
+  const [step, setStep] = useState(settings?.sync_enabled || session ? 'active' : 'intro');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
