@@ -132,7 +132,10 @@ const safeParse = (str: string | null, fallback: any) => {
 };
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
+  console.log('[DEBUG] AppProvider init');
+  
+  try {
+    const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
   const isTrialExpired = false;
   
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -203,6 +206,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
+  const [isDeviceLicensed, setIsDeviceLicensed] = useState(true);
 
   // Real-time license listener
   useEffect(() => {
@@ -1958,7 +1962,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   // Licensing - system removed as requested
-  const [isDeviceLicensed, setIsDeviceLicensed] = useState(true);
 
   useEffect(() => {
     if (!isDeviceLicensed) {
@@ -2139,6 +2142,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       {children}
     </AppContext.Provider>
   );
+  } catch (err) {
+    console.error('[DEBUG] AppProvider internal error:', err);
+    throw err; // Let ErrorBoundary catch it
+  }
 }
 
 export function useApp() {

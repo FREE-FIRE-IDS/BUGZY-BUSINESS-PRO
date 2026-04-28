@@ -9,22 +9,23 @@ interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
+export class ErrorBoundary extends React.Component<any, any> {
+  constructor(props: any) {
     super(props);
-    this.state = { hasError: false, error: null };
+    (this as any).state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: any, errorInfo: any) {
     console.error('ErrorBoundary caught an error', error, errorInfo);
   }
 
   render() {
-    if (this.state.hasError) {
+    const self = this as any;
+    if (self.state.hasError) {
       return (
         <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#0f172a', color: 'white', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <h1 style={{ color: '#008ba3' }}>Something went wrong.</h1>
@@ -35,15 +36,15 @@ export class ErrorBoundary extends Component<Props, State> {
           >
             Reset Application Data
           </button>
-          {this.state.error && (
+          {self.state.error && (
             <pre style={{ marginTop: '20px', padding: '10px', backgroundColor: '#1e293b', borderRadius: '8px', maxWidth: '80%', overflow: 'auto', fontSize: '12px', color: '#fda4af' }}>
-              {this.state.error.message}
+              {self.state.error.message}
             </pre>
           )}
         </div>
       );
     }
 
-    return this.props.children;
+    return self.props.children;
   }
 }
