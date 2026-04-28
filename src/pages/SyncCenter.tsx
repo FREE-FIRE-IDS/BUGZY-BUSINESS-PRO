@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Cloud, 
   Mail, 
@@ -11,10 +11,7 @@ import {
   History,
   Lock,
   Loader2,
-  Trash2,
-  UserPlus,
-  ArrowRight,
-  Clock
+  Trash2
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -22,12 +19,7 @@ import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 
 export default function SyncCenter() {
-  const { 
-    settings, updateSettings, refreshData, manualSyncLogin, confirmSyncLogin, 
-    isOnline, syncStatus, signOut, session, currentCompany, shareCompany, 
-    revokeCompanyAccess, getSharedUsers 
-  } = useApp();
-  
+  const { settings, updateSettings, refreshData, manualSyncLogin, confirmSyncLogin, isOnline, syncStatus, signOut, session } = useApp();
   const [email, setEmail] = useState(settings.user_email || '');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState(settings.sync_enabled || session ? 'active' : 'intro');
@@ -35,16 +27,9 @@ export default function SyncCenter() {
   const [error, setError] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [sharedUsers, setSharedUsers] = useState<any[]>([]);
-
-  const isOwner = !currentCompany || !currentCompany.owner_email || 
-    (session?.user?.email && currentCompany.owner_email.toLowerCase() === session.user.email.toLowerCase());
 
   // Auto-transition if session becomes active (e.g. magic link clicked)
-  useEffect(() => {
+  React.useEffect(() => {
     if (session && step !== 'active') {
       setStep('active');
       if (!settings.sync_enabled) {
@@ -53,7 +38,7 @@ export default function SyncCenter() {
     }
   }, [session, step]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     let timer: any;
     if (cooldown > 0) {
       timer = setInterval(() => {
@@ -62,22 +47,6 @@ export default function SyncCenter() {
     }
     return () => clearInterval(timer);
   }, [cooldown]);
-
-  useEffect(() => {
-    if (step === 'active' && currentCompany && isOwner) {
-      loadSharedUsers();
-    }
-  }, [step, currentCompany?.id]);
-
-  const loadSharedUsers = async () => {
-    if (!currentCompany) return;
-    try {
-      const users = await getSharedUsers(currentCompany.id);
-      setSharedUsers(users);
-    } catch (err) {
-      console.error('Failed to load shared users:', err);
-    }
-  };
 
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,55 +85,12 @@ export default function SyncCenter() {
     }
   };
 
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentCompany || !inviteEmail.trim()) return;
-    
-    setInviteLoading(true);
-    try {
-      await shareCompany(currentCompany.id, inviteEmail);
-      setInviteEmail('');
-      await loadSharedUsers();
-      alert('Invitation sent! 🚀');
-    } catch (err: any) {
-      alert(err.message || 'Failed to send invite');
-    } finally {
-      setInviteLoading(false);
-    }
-  };
-
-  const handleRevoke = async (sharedEmail: string) => {
-    if (!currentCompany || !window.confirm(`Revoke access for ${sharedEmail}?`)) return;
-    try {
-      await revokeCompanyAccess(currentCompany.id, sharedEmail);
-      await loadSharedUsers();
-    } catch (err: any) {
-      alert(err.message || 'Failed to revoke access');
-    }
-  };
-
   const handleDisableSync = async () => {
     if (window.confirm('Are you sure you want to disable sync? Your data will remain only on this device.')) {
       updateSettings({ sync_enabled: false });
       setStep('intro');
     }
   };
-
-  if (!isOwner && step === 'active') {
-    return (
-      <div className="max-w-4xl mx-auto p-10 text-center space-y-6">
-        <div className="w-20 h-20 bg-amber-50 rounded-[2.5rem] flex items-center justify-center mx-auto text-amber-600">
-           <Lock size={40} />
-        </div>
-        <h2 className="text-2xl font-black text-slate-900">Access Restricted</h2>
-        <p className="text-slate-500 font-medium">Secondary devices cannot manage sync settings. Only the company owner can manage invites and backups.</p>
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm inline-block">
-          <p className="text-sm font-bold text-slate-400">Sync with:</p>
-          <p className="text-lg font-black text-indigo-600">{settings.user_email}</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -397,78 +323,6 @@ export default function SyncCenter() {
                 </button>
                 <div className="text-center">
                   <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Only "Normal" companies are synced. HR companies remain local.</p>
-                </div>
-              </div>
-
-              {/* Shared Users / Invite Section */}
-              <div className="pt-10 border-t border-slate-100 dark:border-slate-800 space-y-8">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-black text-slate-900 dark:text-slate-50 tracking-tight">Invite Users</h3>
-                    <p className="text-slate-500 text-xs font-medium">Share access to this company with other Gmail users</p>
-                  </div>
-                  <UserPlus className="text-indigo-500" size={24} />
-                </div>
-
-                <form onSubmit={handleInvite} className="flex gap-3">
-                  <div className="relative flex-1">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input 
-                      type="email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="Enter user's gmail"
-                      className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold"
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    disabled={inviteLoading || !inviteEmail.includes('@')}
-                    className="px-8 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {inviteLoading ? <Loader2 className="animate-spin" size={18} /> : <ArrowRight size={18} />}
-                    Invite
-                  </button>
-                </form>
-
-                <div className="space-y-4">
-                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Shared Users ({sharedUsers.length})</p>
-                  <div className="grid grid-cols-1 gap-3">
-                    {sharedUsers.length === 0 ? (
-                      <div className="p-8 text-center bg-slate-50 dark:bg-slate-950/50 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
-                        <p className="text-sm text-slate-400 font-bold">No users invited yet</p>
-                      </div>
-                    ) : (
-                      sharedUsers.map((user) => (
-                        <div key={user.id} className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between group">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-600 font-bold">
-                              {user.shared_email.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <p className="text-sm font-black text-slate-900 dark:text-slate-50">{user.shared_email}</p>
-                              <div className="flex items-center gap-2">
-                                <span className={cn(
-                                  "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
-                                  user.status === 'active' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
-                                )}>
-                                  {user.status === 'active' ? 'Joined' : 'Invitation Pending ⏳'}
-                                </span>
-                                <span className="text-[9px] text-slate-400 font-bold">•</span>
-                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">View access</span>
-                              </div>
-                            </div>
-                          </div>
-                          <button 
-                            onClick={() => handleRevoke(user.shared_email)}
-                            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl opacity-0 group-hover:opacity-100 transition-all"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
                 </div>
               </div>
             </motion.div>

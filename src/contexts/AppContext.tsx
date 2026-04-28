@@ -2215,27 +2215,20 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     const { data, error } = await supabase
       .from('company_access')
-      .select('company_id, status')
+      .select('company_id')
       .eq('shared_email', settings.user_email.toLowerCase().trim());
 
     if (error) throw error;
     if (!data || data.length === 0) return [];
 
-    const accessInfo = data;
-    const companyIds = accessInfo.map(d => d.company_id);
-    
-    const { data: companiesData, error: cError } = await supabase
+    const companyIds = data.map(d => d.company_id);
+    const { data: sharedCompanies, error: cError } = await supabase
       .from('companies')
       .select('*')
       .in('id', companyIds);
 
     if (cError) throw cError;
-    
-    // Merge status into company object
-    return (companiesData || []).map(c => ({
-        ...c,
-        status: accessInfo.find(a => a.company_id === c.id)?.status || 'pending'
-    }));
+    return sharedCompanies || [];
   };
 
   return (

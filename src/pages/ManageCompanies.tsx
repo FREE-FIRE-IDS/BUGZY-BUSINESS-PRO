@@ -20,7 +20,6 @@ import {
 import { useApp } from '../contexts/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { supabase } from '../lib/supabase';
 
 export default function ManageCompanies() {
   const { 
@@ -105,19 +104,8 @@ export default function ManageCompanies() {
             ? "bg-indigo-600 text-white shadow-xl shadow-indigo-500/20 border-indigo-600" 
             : "bg-white border-slate-100 hover:border-indigo-200 shadow-sm"
         )}
-        onClick={async () => {
+        onClick={() => {
             setCurrentCompany(company);
-            if (isShared && company.status === 'pending') {
-                try {
-                    await supabase
-                        .from('company_access')
-                        .update({ status: 'active', accepted_at: new Date().toISOString() })
-                        .eq('company_id', company.id)
-                        .eq('shared_email', settings.user_email?.toLowerCase().trim());
-                } catch (e) {
-                    console.error('Failed to update invite status:', e);
-                }
-            }
             if (company.company_type === 'normal' || isShared) {
                 // Shared or normal companies can trigger a refresh if online
                 refreshData(undefined, true).catch(console.error);
