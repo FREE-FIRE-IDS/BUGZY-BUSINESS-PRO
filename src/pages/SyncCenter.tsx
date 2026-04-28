@@ -17,7 +17,7 @@ import {
   Clock
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 

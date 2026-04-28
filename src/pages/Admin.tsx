@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { PaymentRequest, License } from '../types';
 import { formatCurrency, cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Check, X, Clock, Building2, Mail, DollarSign, Key, RefreshCw, ShieldCheck, ShieldAlert } from 'lucide-react';
 
 export default function Admin() {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Key, ShieldCheck, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -120,10 +120,20 @@ export default function Activation() {
         )}
 
         <div className="mt-10 pt-8 border-t border-slate-100 dark:border-slate-800">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Support & Help</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">No License Key?</p>
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 mb-6 text-left">
-            <p className="text-sm text-slate-600 dark:text-slate-400 font-bold text-center italic">Please contact your system administrator for license support.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">Pay <span className="font-bold text-indigo-600">Rs. 5,000</span> to:</p>
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold">JazzCash Only</span>
+              <span className="font-mono font-bold text-indigo-600">0332-7373104</span>
+            </div>
           </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="text-sm font-bold text-indigo-600 hover:underline"
+          >
+            I Have Paid, Send Request
+          </button>
         </div>
       </div>
     </div>

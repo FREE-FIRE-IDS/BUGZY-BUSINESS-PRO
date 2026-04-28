@@ -27,7 +27,7 @@ import { useApp } from '../contexts/AppContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function Settings() {
   const { 
@@ -480,55 +480,151 @@ NOTIFY pgrst, 'reload schema';
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 px-4 md:px-0">
-      {/* Data Management Section */}
+      {/* Licensing Section */}
+      {isLicensed() && (
       <section>
-        <h3 className="text-xl font-bold flex items-center gap-2 mb-6">
-          <Database size={24} className="text-indigo-600" />
-          Data Management
+        <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
+          <Shield size={24} className="text-indigo-600" />
+          Licensing & Subscription
         </h3>
         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <button 
-              onClick={() => backupData()}
-              className="flex items-center gap-4 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-indigo-500 transition-all text-left"
-             >
-               <div className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm text-indigo-600">
-                 <Download size={24} />
-               </div>
-               <div>
-                 <p className="font-bold text-slate-900 dark:text-white">Backup Data</p>
-                 <p className="text-xs text-slate-500">Download all your records to a JSON file</p>
-               </div>
-             </button>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-4">
+                <div className={cn(
+                  "p-3 rounded-2xl",
+                  isLicensed() ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600" : "bg-amber-50 dark:bg-amber-900/20 text-amber-600"
+                )}>
+                  {isLicensed() ? <Shield size={24} /> : <ShieldAlert size={24} />}
+                </div>
+                <div>
+                  <h4 className="font-black text-lg text-slate-900 dark:text-white">
+                    {isLicensed() ? 'Premium Pro' : 'Trial Version'}
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Status: <span className={cn("font-bold", isLicensed() ? "text-emerald-600" : "text-amber-600")}>
+                      {isLicensed() ? 'Active' : 'Basic/Trial'}
+                    </span>
+                  </p>
+                </div>
+              </div>
 
-             <button 
-              onClick={() => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.json';
-                input.onchange = (e: any) => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (res) => restoreData(res.target?.result as string);
-                    reader.readAsText(file);
-                  }
-                };
-                input.click();
-              }}
-              className="flex items-center gap-4 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-rose-500 transition-all text-left"
-             >
-               <div className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm text-rose-600">
-                 <Upload size={24} />
-               </div>
-               <div>
-                 <p className="font-bold text-slate-900 dark:text-white">Restore Data</p>
-                 <p className="text-xs text-slate-500">Restore your records from a backup file</p>
-               </div>
-             </button>
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active License Key</span>
+                    {isLicensed() && <span className="text-[10px] font-bold text-emerald-600">AUTHORIZED</span>}
+                  </div>
+                  <p className="font-mono text-sm font-bold text-slate-700 dark:text-slate-300">
+                    {(() => {
+                      const key = localStorage.getItem('active_license_key');
+                      if (!key) return 'NO-ACTIVE-KEY';
+                      if (key.length <= 10) return key;
+                      return `${key.substring(0, 4)}••••••••${key.substring(key.length - 4)}`;
+                    })()}
+                  </p>
+                </div>
+
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">License Expiry Date</span>
+                    {licenseExpiry && isLicensed() && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">
+                        {Math.max(0, Math.ceil((new Date(licenseExpiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))} Days Left
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-bold text-slate-700 dark:text-slate-300">
+                    {licenseExpiry ? format(new Date(licenseExpiry), 'dd MMMM yyyy') : (isLicensed() ? 'Registered Permanent' : 'N/A')}
+                  </p>
+                </div>
+              </div>
+            </div>
+            {!isDeviceLicensed && (
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'activation' }))}
+                  className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 text-sm uppercase tracking-widest"
+                >
+                  Activate License
+                </button>
+                <button 
+                   onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'dashboard' }))}
+                   className="px-8 py-4 bg-slate-100 dark:bg-white text-slate-600 rounded-2xl font-black hover:bg-slate-200 transition-all text-sm uppercase tracking-widest"
+                >
+                  Get Support
+                </button>
+              </div>
+            )}
+             {isLicensed() && (
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={() => {
+                    const key = localStorage.getItem('active_license_key') || 'MASTER';
+                    const text = `My Bugzy App License Key: ${key}`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="w-full px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus size={18} />
+                  Share WhatsApp
+                </button>
+                <button 
+                  onClick={() => {
+                    const key = localStorage.getItem('active_license_key') || 'MASTER';
+                    const subject = 'Bugzy App License Key';
+                    const body = `My Bugzy App License Key is: ${key}`;
+                    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                  }}
+                  className="w-full px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <FileText size={18} />
+                  Send Email
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </section>
+      )}
+
+      {/* Recovery Code Section */}
+      {currentCompany && (
+        <section>
+          <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
+            <Shield size={24} className="text-indigo-600" />
+            Security & Recovery
+          </h3>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div>
+                <p className="font-bold mb-1 text-slate-900 dark:text-white text-sm md:text-base">Recovery Code</p>
+                <p className="text-[10px] md:text-xs text-slate-500">Use this code to restore your company data on any device.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <input 
+                  type="text"
+                  value={currentCompany.recovery_code || ''}
+                  onChange={(e) => updateCompany(currentCompany.id, { recovery_code: e.target.value.toLowerCase() })}
+                  className="flex-1 md:flex-none px-4 md:px-6 py-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 font-mono font-bold text-indigo-600 dark:text-indigo-400 text-center outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
+                  placeholder="custom-code"
+                />
+                <button 
+                  onClick={() => {
+                    if (currentCompany.recovery_code) {
+                      navigator.clipboard.writeText(currentCompany.recovery_code);
+                      setToast({ message: 'Recovery code copied!', type: 'success' });
+                    }
+                  }}
+                  className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all text-slate-400 hover:text-indigo-600"
+                >
+                  <Link2 size={20} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Branding Section */}
       <section>
@@ -879,7 +975,46 @@ NOTIFY pgrst, 'reload schema';
               )}
             </div>
 
-            {/* Appearance */}
+            {/* License Status */}
+            <div className="p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <p className="font-bold">License Status</p>
+                  <p className="text-xs text-slate-500">
+                    {isDeviceLicensed ? (
+                      (() => {
+                        const key = localStorage.getItem('active_license_key');
+                        const expiry = localStorage.getItem('license_expiry');
+                        if (key === 'MASTER-KEY' || key === '16897463890072') return 'Lifetime Pro Access ⚡';
+                        if (expiry) {
+                          const daysLeft = Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                          return `Pro Version Active • ${daysLeft} days left`;
+                        }
+                        return 'Pro Version Active';
+                      })()
+                    ) : 'Free Version'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {isDeviceLicensed ? (
+                  <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-xl text-xs font-bold border border-emerald-100 dark:border-emerald-800/50 flex items-center gap-2">
+                    <CheckCircle2 size={14} />
+                    Licensed
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'payment' }))}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+                  >
+                    Upgrade to Pro
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -951,7 +1086,7 @@ NOTIFY pgrst, 'reload schema';
         </div>
       </section>
 
-      {isAdmin && (
+      {isAdmin ? (
         <section>
           <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-indigo-600">
             <Shield size={24} />
@@ -972,6 +1107,16 @@ NOTIFY pgrst, 'reload schema';
               </button>
             </div>
           </div>
+        </section>
+      ) : settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com' && (
+        <section className="bg-amber-50 dark:bg-amber-900/10 p-6 rounded-3xl border border-amber-200 dark:border-amber-800">
+          <p className="text-amber-800 dark:text-amber-200 font-bold flex items-center gap-2">
+            <ShieldAlert size={18} />
+            Admin Email Detected
+          </p>
+          <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+            You are using the admin email but the dashboard is hidden. Try refreshing the page or re-linking your device.
+          </p>
         </section>
       )}
 

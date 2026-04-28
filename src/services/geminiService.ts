@@ -2,8 +2,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Transaction, Party, BankAccount as Bank } from "../types";
 
 export async function getBusinessInsights(transactions: Transaction[], parties: Party[], banks: Bank[]) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+  const apiKey = (process.env as any).API_KEY || (process.env as any).GEMINI_API_KEY;
+  const ai = new GoogleGenAI({ apiKey });
   
   const summary = {
     totalSales: transactions.filter(t => t.type === 'Sale').reduce((sum, t) => sum + t.amount, 0),
@@ -18,89 +18,61 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
   const maxRetries = 3;
   let retryCount = 0;
 
-  const executeWithRetry = async (): Promise<string[]> => {
-    if (!apiKey) {
-      console.warn('Gemini API Key missing, using fallback insights.');
-      return [
-        "Provide more transaction data to get personalized AI business insights.",
-        "Ensure your bank balances are up to date for accurate financial tracking.",
-        "Categorize your expenses to visualize spending patterns more effectively."
-      ];
-    }
-
+  const executeWithRetry = async (): Promise<any> => {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-flash-latest", 
+        model: "gemini-3-flash-preview",
         contents: prompt,
         config: {
-          responseMimeType: "application/json"
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.STRING,
+            },
+            description: "A list of 3 short, actionable business insights."
+          }
         }
       });
       
       const text = response.text || '[]';
       try {
-        const parsed = JSON.parse(text);
-        let result: string[] = [];
-        if (Array.isArray(parsed)) {
-          result = parsed;
-        } else if (typeof parsed === 'object' && parsed !== null) {
-          result = Object.values(parsed).filter(v => typeof v === 'string') as string[];
-        }
-        
-        if (result.length > 0) return result;
-        throw new Error('Empty insights from model');
+        return JSON.parse(text);
       } catch (e) {
-        // Fallback parsing for partial JSON
-        const jsonMatch = text.match(/\[.*\]/s);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          if (Array.isArray(parsed)) return parsed;
-        }
-        return ["Review monthly spending habits.", "Monitor party receivables regularly.", "Ensure bank reconciliations are accurate."];
+        // Fallback for cases where JSON might have extra formatting
+        const jsonStr = text.substring(text.indexOf('['), text.lastIndexOf(']') + 1) || text;
+        return JSON.parse(jsonStr);
       }
     } catch (error: any) {
-      let errorMessage = '';
-      let errorCode = 0;
-
-      if (typeof error === 'string') {
-        errorMessage = error;
-      } else if (error?.message) {
-        errorMessage = error.message;
-      } else if (error?.error?.message) {
-        errorMessage = error.error.message;
-      } else {
-        errorMessage = JSON.stringify(error);
-      }
-
-      const lowerMsg = errorMessage.toLowerCase();
-      if (error?.code) errorCode = error.code;
-      else if (error?.error?.code) errorCode = error.error.code;
-
-      const isRetryable = 
-        errorCode === 429 || 
-        errorCode >= 500 ||
-        lowerMsg.includes('quota') || 
-        lowerMsg.includes('rate limit') ||
-        lowerMsg.includes('rpc failed') ||
-        lowerMsg.includes('xhr error') ||
-        lowerMsg.includes('proxyunarycall') ||
-        lowerMsg.includes('unknown') ||
-        lowerMsg.includes('internal error');
+      const errorMessage = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
       
-      if (isRetryable && retryCount < maxRetries) {
+      // Retry for rate limits OR RPC/Connection issues
+      const shouldRetry = 
+        errorMessage.includes('429') || 
+        errorMessage.includes('RESOURCE_EXHAUSTED') || 
+        errorMessage.toLowerCase().includes('quota') ||
+        errorMessage.toLowerCase().includes('rate limit') ||
+        errorMessage.toLowerCase().includes('rpc failed') ||
+        errorMessage.toLowerCase().includes('xhr error') ||
+        errorMessage.includes('ProxyUnaryCall');
+      
+      if (shouldRetry && retryCount < maxRetries) {
         retryCount++;
-        const delay = Math.pow(2, retryCount) * 1000 + (Math.random() * 1000);
-        console.warn(`Gemini API retry attempt ${retryCount}/${maxRetries} due to: ${errorMessage.substring(0, 50)}`);
+        const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 2s, 4s, 8s
+        console.warn(`Gemini API error or rate limit. Retrying in ${delay}ms (Attempt ${retryCount}/${maxRetries})...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return executeWithRetry();
       }
       
-      console.error('Gemini Business Insights Error:', errorMessage);
+      if (shouldRetry && (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED'))) {
+        throw new Error('RATE_LIMIT_EXCEEDED');
+      }
       
+      console.error('AI Insight error:', error);
       return [
-        "Monitor high-balance accounts to ensure your collections stay on track.",
-        "Your operating expenses are stable; looking for small efficiencies could boost margins.",
-        "Sales activity is showing positive momentum for the upcoming period."
+        "Keep an eye on your high-balance parties to ensure timely collections.",
+        "Your expenses are consistent; consider a 5% reduction in non-essential costs.",
+        "Sales are trending positively. It might be a good time to expand your inventory."
       ];
     }
   };

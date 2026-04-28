@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Party, Transaction, TransactionType } from '../types';
 import { generatePartyStatement } from '../lib/pdfGenerator';
 
@@ -131,6 +131,20 @@ export default function Parties() {
 
   return (
     <div className="space-y-6">
+      {!isLicensed() && (
+        <div className="bg-amber-500 text-white p-4 rounded-3xl flex items-center justify-between shadow-lg mb-6">
+          <div className="flex items-center gap-3">
+             <Sparkles size={20} className="animate-pulse" />
+             <span className="font-bold text-sm uppercase">Upgrade to Premium for Party Management</span>
+          </div>
+          <button 
+            onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'settings' }))}
+            className="bg-white text-amber-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase"
+          >
+            Upgrade
+          </button>
+        </div>
+      )}
       {currentSelectedParty ? (
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
@@ -592,7 +606,7 @@ export default function Parties() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Phone Number</label>
-                    <input name="phone" defaultValue={editingParty?.phone} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. 0300 1234567" />
+                    <input name="phone" defaultValue={editingParty?.phone} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. +92 300 1234567" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-500 mb-1">Party Type</label>

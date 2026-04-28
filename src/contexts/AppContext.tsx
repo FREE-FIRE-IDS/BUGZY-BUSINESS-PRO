@@ -15,8 +15,10 @@ interface AppContextType {
   settings: AppSettings;
   syncStatus: { loading: boolean; error: string | null; success: string | null };
   updateSettings: (settings: Partial<AppSettings>) => void;
-  refreshData: (emailOverride?: string, forceRemote?: boolean) => Promise<void>;
+  refreshData: (emailOverride?: string) => Promise<void>;
   pullCompanies: (email: string) => Promise<boolean>;
+  generateVerificationCode: (email: string) => Promise<string>;
+  verifyCode: (code: string) => Promise<boolean>;
   linkDevice: (email: string) => Promise<boolean>;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'created_at'>) => Promise<void>;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => Promise<void>;
@@ -37,10 +39,24 @@ interface AppContextType {
   addInvoice: (invoice: Omit<Invoice, 'id' | 'created_at'>) => Promise<void>;
   updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
+  submitPaymentRequest: (data: {
+    user_name: string;
+    username?: string;
+    account_name: string;
+    phone: string;
+    amount: number;
+    plan: 'monthly' | 'yearly';
+    screenshot_url?: string;
+  }) => Promise<void>;
+  fetchPaymentRequests: () => Promise<PaymentRequest[]>;
+  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected', companyId: string) => Promise<void>;
+  paymentStatus: 'none' | 'pending' | 'approved' | 'rejected';
   activateLicense: (key: string) => Promise<void>;
   fetchLicenses: () => Promise<License[]>;
   resetLicenseDevice: (id: string) => Promise<void>;
   isDeviceLicensed: boolean;
+  licenseExpiry: string | null;
+  isTrialExpired: boolean;
   isLicensed: () => boolean;
   loginWithUsername: (username: string, isLogin?: boolean) => Promise<boolean>;
   isAdmin: boolean;
@@ -54,11 +70,9 @@ interface AppContextType {
   isOnline: boolean;
   manualSyncLogin: (email: string) => Promise<string>;
   confirmSyncLogin: (email: string, token: string) => Promise<boolean>;
-  deleteCompany: (id: string) => Promise<void>;
   shareCompany: (companyId: string, shareWithEmail: string) => Promise<void>;
   revokeCompanyAccess: (companyId: string, sharedEmail: string) => Promise<void>;
   getSharedCompanies: () => Promise<Company[]>;
-  getSharedUsers: (companyId: string) => Promise<any[]>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -121,23 +135,8 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
   };
 };
 
-const safeParse = (str: string | null, fallback: any) => {
-  if (!str) return fallback;
-  try {
-    return JSON.parse(str);
-  } catch (e) {
-    console.error('Safe JSON Parse Error:', e, 'for string:', str);
-    return fallback;
-  }
-};
-
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  console.log('[DEBUG] AppProvider init');
-  
-  const [currentUser, setCurrentUser] = useState<string | null>(() => {
-    try { return localStorage.getItem('currentUser'); } catch { return null; }
-  });
-  const isTrialExpired = false;
+  const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
   
   const [companies, setCompanies] = useState<Company[]>([]);
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
@@ -156,11 +155,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const savedCompanies = localStorage.getItem(`companies_${currentUser}`);
-    const loadedCompanies = safeParse(savedCompanies, []);
+    const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
     setCompanies(loadedCompanies);
 
     const savedCurrent = localStorage.getItem(`currentCompany_${currentUser}`);
-    const loadedCurrent = safeParse(savedCurrent, loadedCompanies[0] || null);
+    const loadedCurrent = savedCurrent ? JSON.parse(savedCurrent) : (loadedCompanies[0] || null);
     setCurrentCompany(loadedCurrent);
   }, [currentUser]);
 
@@ -177,7 +176,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const id = currentCompany.id;
     const load = (key: string) => {
       const saved = localStorage.getItem(`${key}_${id}`);
-      return safeParse(saved, []);
+      return saved ? JSON.parse(saved) : [];
     };
 
     setParties(load('parties'));
@@ -188,19 +187,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [currentCompany, currentUser]);
 
   const [settings, setSettings] = useState<AppSettings>(() => {
+    const saved = localStorage.getItem('app_settings');
     const defaultSettings: AppSettings = {
       theme: 'light',
       currency: 'PKR',
       pdf_theme: 'standard',
       sync_enabled: true,
-      onboarding_completed: true, 
+      onboarding_completed: false,
     };
-    try {
-      const saved = localStorage.getItem('app_settings');
-      return saved ? { ...defaultSettings, ...safeParse(saved, {}) } : defaultSettings;
-    } catch {
-      return defaultSettings;
-    }
+    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
   });
   const [syncStatus, setSyncStatus] = useState<{ loading: boolean; error: string | null; success: string | null }>({
     loading: false,
@@ -211,7 +206,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedPartyId, setSelectedPartyId] = useState<string | null>(null);
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
-  const [isDeviceLicensed, setIsDeviceLicensed] = useState(true);
 
   // Real-time license listener
   useEffect(() => {
@@ -219,18 +213,99 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!userId) return;
 
     const checkLicense = async () => {
+      // Do not perform license check if offline to prevent incorrect deactivation
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        console.log('Skipping license check: Device is offline');
+        return;
+      }
+
       try {
         const currentKey = localStorage.getItem('active_license_key');
-        if (currentKey === '16897463890072') {
+        
+        // Master key bypass - never check/deactivate if master key is used
+        if (currentKey === 'MASTER-KEY' || currentKey === '16897463890072') {
           setIsDeviceLicensed(true);
           return;
         }
-        
-        if (localStorage.getItem('device_license') === 'true') {
-          setIsDeviceLicensed(true);
+
+        // Select specific fields for maximum compatibility
+        const { data, error } = await supabase
+          .from('licenses')
+          .select('id, user_id, license_key, status, expiry_at, devices')
+          .eq('status', 'active')
+          .filter('user_id', 'eq', userId)
+          .maybeSingle();
+
+        if (error) {
+          console.log('Error checking license with user_id, trying fallback...');
+          // Fallback check: If user_id column fails, maybe try checking by key from local storage
+          if (currentKey) {
+             const { data: fallbackData } = await supabase
+               .from('licenses')
+               .select('*')
+               .eq('license_key', currentKey)
+               .maybeSingle();
+             if (fallbackData) { 
+               setIsDeviceLicensed(true); 
+               if (fallbackData.expiry_at) {
+                 setLicenseExpiry(fallbackData.expiry_at);
+                 localStorage.setItem('license_expiry', fallbackData.expiry_at);
+               }
+               return; 
+             }
+          }
+          return;
+        }
+
+        if (data) {
+          // Always set license expiry info if license exists in cloud, regardless of device authorization
+          if (data.expiry_at) {
+              setLicenseExpiry(data.expiry_at);
+              localStorage.setItem('license_expiry', data.expiry_at);
+          }
+
+          // Check if expired
+          if (data.expiry_at && new Date(data.expiry_at) < new Date()) {
+            console.log('License expired in cloud');
+            localStorage.removeItem('device_license');
+            localStorage.removeItem('active_license_key');
+            localStorage.removeItem('license_expiry');
+            setIsDeviceLicensed(false);
+            setLicenseExpiry(null);
+            return;
+          }
+
+          // STRICT DEVICE ENFORCEMENT
+          // Only auto-activate if the current device is ALREADY in the authorized list
+          const deviceId = localStorage.getItem('device_id');
+          const devices = Array.isArray(data.devices) ? data.devices : [];
+          
+          if (deviceId && devices.includes(deviceId)) {
+            localStorage.setItem('device_license', 'true');
+            localStorage.setItem('active_license_key', data.license_key);
+            setIsDeviceLicensed(true);
+          } else {
+            // New device or device limit reached - USER MUST ACTIVATE MANUALLY
+            // This prevents auto-licensing on login, as requested
+            console.log('Manual activation required for this device');
+            setIsDeviceLicensed(false);
+            localStorage.removeItem('device_license');
+            // Do NOT clear expiry here, as the user wants to see it even on unauthorized devices
+          }
+        } else {
+          // Only deactivate if explicitly NOT FOUND in cloud and we are ONLINE
+          // If data is null, it means there's no active license for this user in cloud
+          if (currentKey === 'MASTER-KEY') {
+            setIsDeviceLicensed(true);
+          } else {
+            console.log('No active license found in cloud for this user');
+            setIsDeviceLicensed(false);
+            localStorage.removeItem('device_license');
+            setLicenseExpiry(null);
+          }
         }
       } catch (err) {
-        console.warn('License check error:', err);
+        console.error('License check error:', err);
       }
     };
 
@@ -274,9 +349,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
     });
 
-    return () => {
-      if (subscription) subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const hasInitialSynced = React.useRef<Record<string, boolean>>({});
@@ -286,14 +359,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      if (settings?.sync_enabled) {
-        refreshData(undefined, true).catch(console.error);
-      }
+      refreshData(undefined, true); // Pull fresh data when coming back online
     };
     const handleOffline = () => setIsOnline(false);
     const handleFocus = () => {
-      if (navigator.onLine && settings?.sync_enabled) {
-        refreshData(undefined, true).catch(console.error);
+      if (navigator.onLine) {
+        refreshData(undefined, true); // Refresh when user returns to tab
       }
     };
 
@@ -461,7 +532,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
             
             const localKey = `${table}_${comp.id}`;
-            const localData = safeParse(localStorage.getItem(localKey), []);
+            const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
             const { merged, toUpload } = mergeData(localData, data || []);
             
             localStorage.setItem(localKey, JSON.stringify(merged));
@@ -744,8 +815,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       // Load current company from localStorage initially just to have a starting point
       const saved = localStorage.getItem('currentCompany');
       if (saved) {
-        const company = safeParse(saved, null);
-        if (company) setCurrentCompany(company);
+        const company = JSON.parse(saved);
+        setCurrentCompany(company);
       }
       
       // Then pull companies from cloud
@@ -823,7 +894,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
                             : Array.from(managedCompanyIds);
 
                         targetIds.forEach(targetId => {
-                            const localAll = safeParse(localStorage.getItem(`${key}_${targetId}`), []);
+                            const localAll = JSON.parse(localStorage.getItem(`${key}_${targetId}`) || '[]');
                             if (!Array.isArray(localAll)) return;
                             
                             let updatedAll = [...localAll];
@@ -873,7 +944,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
                     else if (table === 'companies') {
                         isInternalUpdate.current = true;
                         setCompanies(prev => {
-                            const localAll = safeParse(localStorage.getItem(`companies_${currentUser}`), []);
+                            const localAll = JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]');
                             let updatedAll = [...localAll];
                             if (eventType === 'INSERT' || eventType === 'UPDATE') {
                                 const index = updatedAll.findIndex(c => c.id === record.id);
@@ -924,7 +995,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [transactions, invoices, currentCompany?.id]);
+  }, [transactions, parties, banks, items, invoices, currentCompany?.id]);
 
   const recalculateBalances = async (allTransactions: Transaction[], allParties: Party[], allBanks: BankAccount[], allItems: Item[], allInvoices: Invoice[]) => {
     if (!currentCompany) return;
@@ -1322,7 +1393,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       const updatedTransactions = transactions.filter(t => t.id !== id);
       setTransactions(updatedTransactions);
 
-      const localAll = safeParse(localStorage.getItem(`transactions_${currentCompany.id}`), []);
+      const localAll = JSON.parse(localStorage.getItem(`transactions_${currentCompany.id}`) || '[]');
       
       if (hard) {
         const filteredAll = localAll.filter((t: any) => t.id !== id);
@@ -1356,7 +1427,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       // 1. Check local storage first (for offline support)
       const localCompaniesStr = localStorage.getItem(`companies_${normalizedUsername}`);
       if (localCompaniesStr) {
-        const localData = safeParse(localCompaniesStr, []);
+        const localData = JSON.parse(localCompaniesStr);
         if (isLogin) {
           localStorage.setItem('currentUser', normalizedUsername);
           setCurrentUser(normalizedUsername);
@@ -1477,9 +1548,16 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     };
     
     try {
-      const targetUsername = (newCompany.username || '').toLowerCase().trim();
-      
-      // Save to cloud ONLY if it's NOT an HR company
+      // 1. Mandatory License Check for FIRST company creation
+      if (companies.length === 0 && !isDeviceLicensed) {
+        throw new Error('LICENSE_REQUIRED');
+      }
+
+      // 2. Check if username is taken by ANOTHER account
+      const targetUsername = (company.username || currentUser || '').toLowerCase().trim();
+      if (!targetUsername) throw new Error('Username is required');
+
+      // 2. Save to cloud ONLY if it's NOT an HR company
       if (newCompany.company_type !== 'hr') {
         const { error } = await supabase.from('companies').insert(newCompany);
         if (error) {
@@ -1520,8 +1598,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     const data: any = {
       username: currentUser,
-      companies: safeParse(localStorage.getItem(`companies_${currentUser}`), []),
-      settings: safeParse(localStorage.getItem('app_settings'), {}),
+      companies: JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]'),
+      settings: JSON.parse(localStorage.getItem('app_settings') || '{}'),
       device_license: localStorage.getItem('device_license'),
       active_license_key: localStorage.getItem('active_license_key'),
       companyData: {}
@@ -1529,11 +1607,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     data.companies.forEach((c: any) => {
       data.companyData[c.id] = {
-        parties: safeParse(localStorage.getItem(`parties_${c.id}`), []),
-        banks: safeParse(localStorage.getItem(`banks_${c.id}`), []),
-        items: safeParse(localStorage.getItem(`items_${c.id}`), []),
-        transactions: safeParse(localStorage.getItem(`transactions_${c.id}`), []),
-        invoices: safeParse(localStorage.getItem(`invoices_${c.id}`), []),
+        parties: JSON.parse(localStorage.getItem(`parties_${c.id}`) || '[]'),
+        banks: JSON.parse(localStorage.getItem(`banks_${c.id}`) || '[]'),
+        items: JSON.parse(localStorage.getItem(`items_${c.id}`) || '[]'),
+        transactions: JSON.parse(localStorage.getItem(`transactions_${c.id}`) || '[]'),
+        invoices: JSON.parse(localStorage.getItem(`invoices_${c.id}`) || '[]'),
       };
     });
 
@@ -1748,7 +1826,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const updatedInvoices = invoices.filter(i => i.id !== id);
     setInvoices(updatedInvoices);
 
-    const localAll = safeParse(localStorage.getItem(`invoices_${currentCompany.id}`), []);
+    const localAll = JSON.parse(localStorage.getItem(`invoices_${currentCompany.id}`) || '[]');
     
     if (hard) {
       const filteredAll = localAll.filter((i: any) => i.id !== id);
@@ -1946,6 +2024,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     localStorage.setItem('active_license_key', key.toUpperCase());
     if (license.expiry_at) {
       localStorage.setItem('license_expiry', license.expiry_at);
+      setLicenseExpiry(license.expiry_at);
     }
     setIsDeviceLicensed(true);
   };
@@ -1971,12 +2050,59 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (error) handleSupabaseError(error, 'Reset License Device');
   };
 
-  // Licensing - system removed as requested
+  const getInitialLicenseState = () => {
+    const licensed = localStorage.getItem('device_license') === 'true';
+    const expiry = localStorage.getItem('license_expiry');
+    if (licensed && expiry && new Date(expiry) < new Date()) {
+      localStorage.removeItem('device_license');
+      localStorage.removeItem('active_license_key');
+      localStorage.removeItem('license_expiry');
+      return false;
+    }
+    return licensed;
+  };
+
+  const [isDeviceLicensed, setIsDeviceLicensed] = useState(getInitialLicenseState);
+  const [licenseExpiry, setLicenseExpiry] = useState<string | null>(() => localStorage.getItem('license_expiry'));
+
+  const isTrialExpired = React.useMemo(() => {
+    // License required ONLY on first company creation or activation
+    if (isDeviceLicensed) return false;
+    
+    // If they already have a company, we assume they passed the initial check 
+    // unless the user specifically wants to block ALL companies if trial expires.
+    // The prompt says "if trial KTM hojati ha tb magar ab mujhe wo nhi me chata humble app me new company create krne or login krne ke waqt first time license key require ho"
+    // This means license is checked ONLY when creating first company.
+    
+    return false; // By default don't block via isTrialExpired anymore, handle in Creation logic
+  }, [currentCompany, isDeviceLicensed]);
 
   useEffect(() => {
-    if (!isDeviceLicensed) {
-      setIsDeviceLicensed(true);
+    const licensed = localStorage.getItem('device_license') === 'true';
+    const expiry = localStorage.getItem('license_expiry');
+    
+    let stillValid = licensed;
+    if (licensed && expiry) {
+      if (new Date(expiry) < new Date()) {
+        stillValid = false;
+        localStorage.removeItem('device_license');
+        localStorage.removeItem('active_license_key');
+        localStorage.removeItem('license_expiry');
+      }
     }
+
+    if (stillValid !== isDeviceLicensed) {
+      setIsDeviceLicensed(stillValid);
+    }
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'device_license') {
+        setIsDeviceLicensed(e.newValue === 'true');
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, [isDeviceLicensed]);
 
   const isAdmin = (settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') || 
@@ -2084,15 +2210,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     }
   };
 
-  const getSharedUsers = async (companyId: string) => {
-    const { data, error } = await supabase
-      .from('company_access')
-      .select('*')
-      .eq('company_id', companyId);
-    if (error) throw error;
-    return data || [];
-  };
-
   const getSharedCompanies = async () => {
     if (!settings.user_email) return [];
     
@@ -2134,8 +2251,12 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       addCompany, updateCompany, deleteCompany,
       backupData, restoreData,
       addInvoice, updateInvoice, deleteInvoice,
+      submitPaymentRequest, fetchPaymentRequests, updatePaymentRequestStatus,
+      paymentStatus,
       activateLicense, fetchLicenses, resetLicenseDevice,
       isDeviceLicensed,
+      licenseExpiry,
+      isTrialExpired,
       isLicensed: () => isDeviceLicensed,
       loginWithUsername,
       restoreCompany,
@@ -2146,8 +2267,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       confirmSyncLogin,
       shareCompany,
       revokeCompanyAccess,
-      getSharedCompanies,
-      getSharedUsers
+      getSharedCompanies
     }}>
       {children}
     </AppContext.Provider>
