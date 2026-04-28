@@ -25,7 +25,8 @@ export interface Subscription {
 }
 
 export type CompanyType = 'normal' | 'hr';
-export type SharePermission = 'view' | 'edit';
+export type UserRole = 'OWNER' | 'MEMBER';
+export type InvitationStatus = 'Pending' | 'Accepted' | 'Rejected';
 
 export interface Company {
   id: string;
@@ -36,16 +37,44 @@ export interface Company {
   currency: string;
   user_id: string;
   user_email?: string;
-  company_type?: CompanyType;
-  trial_start?: string; // ISO date
-  is_paid?: boolean;
-  subscription?: Subscription;
+  company_type: CompanyType;
   created_at: string;
   updated_at?: string;
   deleted_at?: string;
-  linked_emails?: string[]; // Emails of other accounts linked to this company
-  owner_email?: string; // Email of the real owner if it's shared
-  permission?: SharePermission; // My permission for this company
+  my_role?: UserRole;
+  owner_email?: string;
+  device_id?: string; // For HR device lock
+}
+
+export interface Invitation {
+  id: string;
+  company_id: string;
+  company_name: string;
+  inviter_email: string;
+  invitee_email: string;
+  status: InvitationStatus;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface CompanyAccess {
+  id: string;
+  company_id: string;
+  user_email: string;
+  role: UserRole;
+  created_at: string;
+}
+
+export interface HRTransferRequest {
+  id: string;
+  company_id: string;
+  company_name: string;
+  owner_email: string;
+  requester_email: string;
+  new_device_id: string;
+  transfer_code: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  created_at: string;
 }
 
 export interface Party {

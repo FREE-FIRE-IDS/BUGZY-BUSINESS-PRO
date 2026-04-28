@@ -24,7 +24,7 @@ import { cn } from '../lib/utils';
 export default function ManageCompanies() {
   const { 
     companies, currentCompany, setCurrentCompany, addCompany, deleteCompany,
-    syncStatus, isLicensed, isDeviceLicensed, settings, shareCompany, revokeCompanyAccess,
+    syncStatus, settings, sendInvitation,
     getSharedCompanies, refreshData
   } = useApp();
 
@@ -67,16 +67,14 @@ export default function ManageCompanies() {
       setIsAddModalOpen(false);
       setNewCompanyName('');
     } catch (e: any) {
-      if (e.message === 'LICENSE_REQUIRED') {
-        window.dispatchEvent(new CustomEvent('navigate', { detail: 'activation' }));
-      }
+      alert(e.message || 'Failed to add company');
     }
   };
 
   const handleShare = async () => {
     if (!isShareModalOpen) return;
     try {
-      await shareCompany(isShareModalOpen, shareEmail);
+      await sendInvitation(shareEmail);
       setIsShareModalOpen(null);
       setShareEmail('');
       alert('Invitation sent! 🚀');
@@ -91,6 +89,7 @@ export default function ManageCompanies() {
   const renderCompanyCard = (company: any, isShared = false) => {
     const isActive = currentCompany?.id === company.id;
     const isHR = company.company_type === 'hr';
+    const isOwner = company.my_role === 'OWNER';
 
     return (
       <motion.div
@@ -104,11 +103,14 @@ export default function ManageCompanies() {
             ? "bg-indigo-600 text-white shadow-xl shadow-indigo-500/20 border-indigo-600" 
             : "bg-white border-slate-100 hover:border-indigo-200 shadow-sm"
         )}
-        onClick={() => {
-            setCurrentCompany(company);
-            if (company.company_type === 'normal' || isShared) {
-                // Shared or normal companies can trigger a refresh if online
-                refreshData(undefined, true).catch(console.error);
+        onClick={async () => {
+            try {
+              await setCurrentCompany(company);
+              if (company.company_type === 'normal' || isShared) {
+                  refreshData(undefined).catch(console.error);
+              }
+            } catch (err: any) {
+              alert(err.message);
             }
         }}
       >
@@ -120,7 +122,7 @@ export default function ManageCompanies() {
             {isHR ? <Briefcase size={20} /> : <Building2 size={20} />}
           </div>
           <div className="flex items-center gap-2">
-            {!isShared && (
+            {!isShared && isOwner && (
                <button 
                 onClick={(e) => {
                     e.stopPropagation();
@@ -134,18 +136,20 @@ export default function ManageCompanies() {
                 <Share2 size={16} />
                </button>
             )}
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsDeleteModalOpen(company.id);
-              }}
-              className={cn(
-                "p-2 rounded-xl transition-all",
-                isActive ? "hover:bg-white/20 text-white/70" : "hover:bg-rose-50 text-slate-400 hover:text-rose-600"
-              )}
-            >
-              <Trash2 size={16} />
-            </button>
+            {isOwner && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsDeleteModalOpen(company.id);
+                }}
+                className={cn(
+                  "p-2 rounded-xl transition-all",
+                  isActive ? "hover:bg-white/20 text-white/70" : "hover:bg-rose-50 text-slate-400 hover:text-rose-600"
+                )}
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
           </div>
         </div>
 
