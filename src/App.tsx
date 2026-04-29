@@ -646,6 +646,43 @@ function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onU
   );
 }
 
+class ErrorBoundary extends (React.Component as any) {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(_error: any) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] text-center bg-slate-50 dark:bg-slate-900 rounded-[2.5rem]">
+          <div className="w-20 h-20 bg-rose-100 dark:bg-rose-900/30 text-rose-600 rounded-3xl flex items-center justify-center mb-6">
+            <X size={40} />
+          </div>
+          <h2 className="text-2xl font-black mb-2">Something went wrong</h2>
+          <p className="text-slate-500 mb-8 max-w-xs mx-auto">This section crashed. Try refreshing or going back.</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-500/20 active:scale-95 transition-all"
+          >
+            Refresh App
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children; 
+  }
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -721,13 +758,13 @@ export default function App() {
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'parties', label: 'Parties', icon: Users, premium: true },
     { id: 'banks', label: 'Banks', icon: Landmark, premium: true },
+    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
     { id: 'reports', label: 'Reports', icon: History, premium: true },
     { id: 'more', label: 'More', icon: Menu },
   ];
 
   const moreItems = [
-    ...(isOwner ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : []),
     { id: 'companies', label: 'Companies', icon: Building2 },
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
@@ -1083,7 +1120,11 @@ export default function App() {
                         </button>
                       ))}
                     </div>
-                  ) : renderPage()}
+                  ) : (
+                    <ErrorBoundary key={activeTab} name={activeTab}>
+                      {renderPage()}
+                    </ErrorBoundary>
+                  )}
                 </motion.div>
               </AnimatePresence>
             </div>

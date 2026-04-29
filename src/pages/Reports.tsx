@@ -71,7 +71,7 @@ type ReportType =
   | 'Cash Flow';
 
 export default function Reports() {
-  const { transactions, parties, banks, items, invoices, settings, updateSettings, currentCompany, refreshData, pullCompanies } = useApp();
+  const { transactions, parties, banks, items, invoices, settings, updateSettings, currentCompany, refreshData, pullCompanies, getPartyBalance } = useApp();
   const [isSyncing, setIsSyncing] = useState(false);
 
   // PDF Preview State
@@ -157,9 +157,9 @@ export default function Reports() {
   const reportOptions = [
     { id: 'Cash in Hand', label: 'Cash in Hand Report', icon: Building2 },
     { id: 'Single Party', label: 'Party Statement', icon: Users },
-    { id: 'All Parties', label: 'All Parties Balance', icon: Users },
+    { id: 'All Parties', label: 'All Party Statement', icon: Users },
     { id: 'Single Bank', label: 'Bank Statement', icon: Building2 },
-    { id: 'All Banks', label: 'All Banks Balance', icon: Building2 },
+    { id: 'All Banks', label: 'All Bank Statement', icon: Building2 },
     { id: 'Combined Statement', label: 'Combined Statement', icon: FileSpreadsheet },
     { id: 'Stock', label: 'Stock Report', icon: Package },
     { id: 'Purchase', label: 'Purchase Report', icon: Receipt },
@@ -242,18 +242,22 @@ export default function Reports() {
       case 'All Parties':
         result = companyParties
           .filter(p => selectedCategory === 'All' || p.type === selectedCategory)
-          .filter(p => !hideZeroBalances || p.balance !== 0)
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((p, index) => ({ 
-            '#': index + 1,
-            'Name': p.name, 
-            'Receivable Balance': p.balance > 0 ? p.balance : 0,
-            'Payable Balance': p.balance < 0 ? Math.abs(p.balance) : 0,
-            'Debit': p.balance > 0 ? p.balance : 0,
-            'Credit': p.balance < 0 ? Math.abs(p.balance) : 0,
-            'Net Balance': p.balance,
-            'Balance': p.balance
-          }));
+          .map(p => {
+            const balance = getPartyBalance(p.id);
+            return {
+              '#': 0, // Placeholder for map index later
+              'Name': p.name,
+              'Receivable Balance': balance > 0.01 ? balance : 0,
+              'Payable Balance': balance < -0.01 ? Math.abs(balance) : 0,
+              'Debit': balance > 0.01 ? balance : 0,
+              'Credit': balance < -0.01 ? Math.abs(balance) : 0,
+              'Net Balance': balance,
+              'Balance': balance
+            };
+          })
+          .filter(p => !hideZeroBalances || Math.abs(p.Balance) > 0.01)
+          .sort((a, b) => a.Name.localeCompare(b.Name))
+          .map((p, index) => ({ ...p, '#': index + 1 }));
         break;
       case 'Single Party':
         const selectedParty = parties.find(p => p.id === selectedEntity);
@@ -789,7 +793,11 @@ export default function Reports() {
       
       doc.setFontSize(14);
       doc.setTextColor(79, 70, 229);
-      const title = 'All Parties Balance';
+      const title = activeReport === 'All Parties' ? 'All Party Statement' : 
+                    activeReport === 'Single Party' ? 'Party Statement' :
+                    activeReport === 'Single Bank' ? 'Bank Statement' :
+                    activeReport === 'All Banks' ? 'All Bank Statement' :
+                    activeReport;
       doc.text(title, pageWidth - doc.getTextWidth(title) - 20, 25);
       
       const genText = `Generated: ${format(new Date(), 'dd MMM yyyy')}`;

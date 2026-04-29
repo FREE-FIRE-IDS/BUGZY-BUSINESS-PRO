@@ -228,12 +228,17 @@ export default function GlobalTransactionModal() {
                   <option value="Income">Income</option>
                   <option value="Cash Adjustment In">Adjust Cash (In)</option>
                   <option value="Cash Adjustment Out">Reduce Cash (Out)</option>
-                  <option value="Deposit">Deposit (To Bank)</option>
-                  <option value="Withdraw">Withdraw (From Bank)</option>
+                  <option value="Deposit">Deposit (Cash to Bank)</option>
+                  <option value="Withdraw">Withdraw (Bank to Cash)</option>
                   <option value="Bank To Bank">Bank to Bank</option>
                   <option value="Bank To Party">Bank to Party</option>
                   <option value="Party To Bank">Party to Bank</option>
                   <option value="Party To Party">Party to Party</option>
+                  <option value="Bank To Cash">Bank to Cash</option>
+                  <option value="Cash To Bank">Cash to Bank</option>
+                  <option value="Adjust Cash">Adjust Cash</option>
+                  <option value="Party To Cash">Party to Cash</option>
+                  <option value="Cash To Party">Cash to Party</option>
                 </select>
               </div>
 
@@ -249,10 +254,10 @@ export default function GlobalTransactionModal() {
               </div>
 
               {/* Party Selection */}
-              {(type.includes('Party') || ['Payment In', 'Payment Out', 'Sale', 'Purchase', 'Income'].includes(type)) && (
+              {(type.includes('Party') || ['Payment In', 'Payment Out', 'Sale', 'Purchase', 'Income', 'Party To Cash', 'Cash To Party'].includes(type)) && (
                 <div>
                   <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
-                    {type.startsWith('Bank To') ? 'To Party' : (type === 'Party To Party' || type === 'Party To Bank' ? 'From Party' : 'Party')}
+                    {type.startsWith('Bank To') || type === 'Cash To Party' ? 'To Party' : (type === 'Party To Party' || type === 'Party To Bank' || type === 'Party To Cash' ? 'From Party' : 'Party')}
                   </label>
                   <select 
                     value={partyId} 
@@ -267,21 +272,21 @@ export default function GlobalTransactionModal() {
               )}
 
               {/* Bank Selection */}
-              {(type.includes('Bank') || ['Payment In', 'Payment Out', 'Expense', 'Sale', 'Purchase', 'Income', 'Cash Adjustment In', 'Cash Adjustment Out'].includes(type)) && (
+              {(type.includes('Bank') || ['Payment In', 'Payment Out', 'Expense', 'Sale', 'Purchase', 'Income', 'Cash Adjustment In', 'Cash Adjustment Out', 'Bank To Cash', 'Cash To Bank'].includes(type)) && (
                 <div>
                   <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
-                    {type === 'Deposit' || type === 'Bank To Bank' ? 'From Bank' : (type === 'Withdraw' ? 'From Bank' : 'Bank (Optional for Cash)')}
+                    {type === 'Deposit' || type === 'Bank To Bank' || type === 'Bank To Cash' || type === 'Bank To Party' ? 'From Bank' : (type === 'Withdraw' || type === 'Cash To Bank' ? 'To Bank' : 'Bank (Optional for Cash)')}
                   </label>
                   <select 
                     value={bankId} 
                     onChange={(e) => setBankId(e.target.value)}
-                    disabled={type === 'Cash Adjustment In' || type === 'Cash Adjustment Out'}
+                    disabled={type === 'Cash Adjustment In' || type === 'Cash Adjustment Out' || type === 'Adjust Cash'}
                     className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                   >
                     <option value="">Cash</option>
                     {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
-                  {(type === 'Cash Adjustment In' || type === 'Cash Adjustment Out') && (
+                  {(type === 'Cash Adjustment In' || type === 'Cash Adjustment Out' || type === 'Adjust Cash') && (
                     <p className="text-[10px] text-indigo-500 mt-1 font-bold">Adjustments apply directly to Cash in Hand.</p>
                   )}
                 </div>

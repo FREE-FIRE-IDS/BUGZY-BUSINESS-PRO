@@ -247,6 +247,8 @@ CREATE POLICY "Invoices access" ON invoices FOR ALL USING (
 );
 
 -- Company Access Policies
+ALTER TABLE company_access ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS "Owners can manage access to their companies" ON company_access;
 CREATE POLICY "Owners can manage access to their companies"
 ON company_access FOR ALL
@@ -266,6 +268,11 @@ WITH CHECK (
     AND (LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(owner_email) = LOWER(auth.jwt() ->> 'email'))
   )
 );
+
+DROP POLICY IF EXISTS "Public access for guest invitations" ON company_access;
+CREATE POLICY "Public access for guest invitations"
+ON company_access FOR INSERT
+WITH CHECK (true); -- We rely on the owner_email being verified against auth email in SELECT/UPDATE but allow invitation creation 
 
 DROP POLICY IF EXISTS "Users can view invitations sent to them" ON company_access;
 CREATE POLICY "Users can view invitations sent to them"

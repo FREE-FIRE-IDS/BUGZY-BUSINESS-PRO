@@ -80,6 +80,7 @@ interface AppContextType {
   fetchSentInvitations: (companyId: string) => Promise<void>;
   joinCompanyByCode: (code: string) => Promise<boolean>;
   getPartyBalance: (partyId: string) => number;
+  getBankBalance: (bankId: string) => number;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -2453,8 +2454,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     // Process transactions
     transactions.filter(t => t && (t.party_id === partyId || t.to_party_id === partyId)).forEach(tx => {
       if (tx.party_id === partyId) {
-        if (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party') balance += tx.amount || 0;
-        if (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party') balance -= tx.amount || 0;
+        if (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party' || tx.type === 'Cash To Party') balance += tx.amount || 0;
+        if (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party' || tx.type === 'Party To Cash') balance -= tx.amount || 0;
       }
       if (tx.to_party_id === partyId) {
         balance += tx.amount || 0;
@@ -2463,6 +2464,40 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     // Process invoices
     invoices.filter(i => i && i.party_id === partyId).forEach(inv => {
+      if (inv.type === 'Sale') balance += inv.total || 0;
+      if (inv.type === 'Purchase') balance -= inv.total || 0;
+    });
+
+    return balance;
+  };
+
+  const getBankBalance = (bankId: string) => {
+    if (!bankId || !Array.isArray(banks) || !Array.isArray(transactions) || !Array.isArray(invoices)) return 0;
+    
+    const bank = banks.find(b => b && b.id === bankId);
+    if (!bank) return 0;
+    
+    let balance = bank.opening_balance || 0;
+    
+    // Process transactions
+    transactions.filter(t => t && (t.bank_id === bankId || t.to_bank_id === bankId)).forEach(tx => {
+      if (tx.bank_id === bankId) {
+        // Money leaving bank
+        if (tx.type === 'Bank To Bank' || tx.type === 'Bank To Party' || tx.type === 'Withdraw' || tx.type === 'Bank To Cash' || tx.type === 'Expense' || tx.type === 'Purchase') {
+          balance -= tx.amount || 0;
+        }
+        // Money entering bank
+        if (tx.type === 'Deposit' || tx.type === 'Income' || tx.type === 'Sale' || tx.type === 'Cash To Bank' || tx.type === 'Adjust Cash') {
+          balance += tx.amount || 0;
+        }
+      }
+      if (tx.to_bank_id === bankId) {
+        balance += tx.amount || 0;
+      }
+    });
+
+    // Process invoices paid via this bank
+    invoices.filter(i => i && i.bank_id === bankId).forEach(inv => {
       if (inv.type === 'Sale') balance += inv.total || 0;
       if (inv.type === 'Purchase') balance -= inv.total || 0;
     });
@@ -2506,7 +2541,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       sentInvitations,
       fetchSentInvitations,
       joinCompanyByCode,
-      getPartyBalance
+      getPartyBalance,
+      getBankBalance
     }}>
       {children}
     </AppContext.Provider>
