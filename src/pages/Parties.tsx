@@ -24,10 +24,11 @@ import { Party, Transaction, TransactionType } from '../types';
 import { generatePartyStatement } from '../lib/pdfGenerator';
 
 export default function Parties() {
-  const { parties, transactions, invoices, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany, setSelectedPartyId, isLicensed } = useApp();
+  const { parties, transactions, invoices, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany, setSelectedPartyId, isLicensed, getPartyBalance } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [amountFilter, setAmountFilter] = useState<'all' | 'positive' | 'negative'>('all');
+  const [hideZero, setHideZero] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   
   const partyTypes = useMemo(() => {
@@ -52,17 +53,20 @@ export default function Parties() {
 
   const filteredParties = useMemo(() => {
     return parties.filter(p => {
+      const balance = getPartyBalance(p.id);
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            p.phone?.includes(searchTerm);
       const matchesType = filterType === 'All' || p.type === filterType;
       
       let matchesAmount = true;
-      if (amountFilter === 'positive') matchesAmount = p.balance > 0;
-      else if (amountFilter === 'negative') matchesAmount = p.balance < 0;
+      if (amountFilter === 'positive') matchesAmount = balance > 0;
+      else if (amountFilter === 'negative') matchesAmount = balance < 0;
 
-      return matchesSearch && matchesType && matchesAmount;
+      const matchesZero = hideZero ? Math.abs(balance) > 0.01 : true;
+      
+      return matchesSearch && matchesType && matchesAmount && matchesZero;
     });
-  }, [parties, searchTerm, filterType, amountFilter]);
+  }, [parties, searchTerm, filterType, amountFilter, hideZero, transactions]);
 
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [isLedgerSearchOpen, setIsLedgerSearchOpen] = useState(false);
@@ -369,64 +373,82 @@ export default function Parties() {
       ) : (
         <div className="space-y-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex-1 flex flex-col sm:flex-row gap-3 max-w-2xl">
+            <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 max-w-2xl">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
                   type="text" 
-                  placeholder="Search parties by name/phone..."
+                  placeholder="Search parties..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-12 pr-4 py-3 bg-white dark:bg-white border border-slate-200 dark:border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm font-bold text-sm"
                 />
               </div>
 
-              <div className="relative shrink-0">
-                <button 
-                  onClick={() => setShowFilterMenu(!showFilterMenu)}
-                  className={cn(
-                    "w-full sm:w-auto px-6 py-3 bg-white dark:bg-white border text-[10px] font-black uppercase tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm",
-                    amountFilter !== 'all' ? "border-indigo-600 text-indigo-600 ring-4 ring-indigo-500/10" : "border-slate-100 text-slate-600"
-                  )}
-                >
-                  <Filter size={14} />
-                  <span>{amountFilter === 'all' ? 'All Balances' : amountFilter === 'positive' ? 'Receivable' : 'Payable'}</span>
-                </button>
+              <div className="flex items-center gap-2">
+                <div className="relative shrink-0 flex-1 sm:flex-none">
+                  <button 
+                    onClick={() => setShowFilterMenu(!showFilterMenu)}
+                    className={cn(
+                      "w-full px-4 py-3 bg-white dark:bg-white border text-[10px] font-black uppercase tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm whitespace-nowrap",
+                      amountFilter !== 'all' ? "border-indigo-600 text-indigo-600 ring-4 ring-indigo-500/10" : "border-slate-100 text-slate-600"
+                    )}
+                  >
+                    <Filter size={14} />
+                    <span>{amountFilter === 'all' ? 'Filter' : amountFilter === 'positive' ? 'Receivable' : 'Payable'}</span>
+                  </button>
 
-                <AnimatePresence>
-                  {showFilterMenu && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowFilterMenu(false)} />
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                        className="absolute top-full right-0 mt-2 w-48 bg-white border border-slate-100 rounded-2xl shadow-2xl z-50 p-2"
-                      >
-                        {[
-                          { id: 'all', label: 'All Balances', icon: Users },
-                          { id: 'positive', label: 'Receivable (>0)', icon: ArrowUpRight, color: 'text-emerald-600' },
-                          { id: 'negative', label: 'Payable (<0)', icon: ArrowDownLeft, color: 'text-rose-600' },
-                        ].map((opt) => (
-                          <button
-                            key={opt.id}
-                            onClick={() => {
-                              setAmountFilter(opt.id as any);
-                              setShowFilterMenu(false);
-                            }}
-                            className={cn(
-                              "w-full flex items-center gap-3 p-3 rounded-xl transition-all",
-                              amountFilter === opt.id ? "bg-indigo-50 text-indigo-600" : "hover:bg-slate-50 text-slate-600"
-                            )}
-                          >
-                            <opt.icon size={16} className={opt.color} />
-                            <span className="text-xs font-bold">{opt.label}</span>
-                          </button>
-                        ))}
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
+                  <AnimatePresence>
+                    {showFilterMenu && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowFilterMenu(false)} />
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                          className="absolute top-full right-0 mt-2 w-48 bg-white border border-slate-100 rounded-2xl shadow-2xl z-50 p-2"
+                        >
+                          {[
+                            { id: 'all', label: 'All Balances', icon: Users },
+                            { id: 'positive', label: 'Receivable (>0)', icon: ArrowUpRight, color: 'text-emerald-600' },
+                            { id: 'negative', label: 'Payable (<0)', icon: ArrowDownLeft, color: 'text-rose-600' },
+                          ].map((opt) => (
+                            <button
+                              key={opt.id}
+                              onClick={() => {
+                                setAmountFilter(opt.id as any);
+                                setShowFilterMenu(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center gap-3 p-3 rounded-xl transition-all",
+                                amountFilter === opt.id ? "bg-indigo-50 text-indigo-600" : "hover:bg-slate-50 text-slate-600"
+                              )}
+                            >
+                              <opt.icon size={16} className={opt.color} />
+                              <span className="text-xs font-bold">{opt.label}</span>
+                            </button>
+                          ))}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="flex items-center gap-2 bg-white dark:bg-white px-3 py-3 rounded-2xl border border-slate-100 shadow-sm shrink-0">
+                  <span className="text-[9px] font-black uppercase text-slate-400">Hide 0</span>
+                  <button 
+                    onClick={() => setHideZero(!hideZero)}
+                    className={cn(
+                      "relative w-8 h-4 rounded-full transition-all duration-300 shrink-0",
+                      hideZero ? "bg-red-500" : "bg-slate-200"
+                    )}
+                  >
+                    <div className={cn(
+                      "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-300 shadow-sm",
+                      hideZero ? "left-4.5" : "left-0.5"
+                    )} />
+                  </button>
+                </div>
               </div>
             </div>
             <div className="flex gap-3">

@@ -78,6 +78,7 @@ interface AppContextType {
   updateInvitationStatus: (inviteId: string, status: 'accepted' | 'rejected') => Promise<void>;
   sentInvitations: any[];
   fetchSentInvitations: (companyId: string) => Promise<void>;
+  joinCompanyByCode: (code: string) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -2291,8 +2292,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const myEmail = settings.user_email?.toLowerCase() || session?.user?.email?.toLowerCase();
     const ownerEmail = (currentCompany.owner_email || currentCompany.user_email || '').toLowerCase();
     
-    // If we have an ownerEmail and it's not us, we can't share. 
-    // If ownerEmail is empty, it means we might be the creator (legacy), so we allow.
     if (ownerEmail && myEmail !== ownerEmail) {
       throw new Error('Only the company owner can invite people ❌');
     }
@@ -2301,11 +2300,15 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (!email) throw new Error('Email is required');
     if (email === myEmail) throw new Error('You cannot invite yourself ❌');
 
+    // Generate a 6-digit code
+    const joinCode = Math.floor(100000 + Math.random() * 900000).toString();
+
     // Use upsert to avoid blocking on existing invitations but also allowing updates
     const { error } = await supabase.from('company_access').upsert({
       company_id: companyId,
       owner_email: ownerEmail || myEmail || '',
       shared_email: email,
+      join_code: joinCode,
       permission: 'edit',
       status: 'pending',
       updated_at: new Date().toISOString()
@@ -2325,6 +2328,33 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     }
     
     await fetchSentInvitations(companyId);
+  };
+
+  const joinCompanyByCode = async (code: string) => {
+    const email = settings.user_email || session?.user?.email;
+    if (!email) throw new Error('Please login first to join ❌');
+
+    const { data, error } = await supabase
+      .from('company_access')
+      .select('*, companies(*)')
+      .eq('join_code', code)
+      .eq('shared_email', email.toLowerCase())
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) throw new Error('Invalid code or not invited ❌');
+
+    // Accept it
+    const { error: upError } = await supabase
+      .from('company_access')
+      .update({ status: 'accepted' })
+      .eq('id', data.id);
+
+    if (upError) throw upError;
+
+    await refreshData(undefined, true);
+    return true;
   };
 
   const fetchInvitations = async () => {
@@ -2439,7 +2469,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       fetchInvitations,
       updateInvitationStatus,
       sentInvitations,
-      fetchSentInvitations
+      fetchSentInvitations,
+      joinCompanyByCode
     }}>
       {children}
     </AppContext.Provider>

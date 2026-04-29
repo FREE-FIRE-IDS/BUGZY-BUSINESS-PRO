@@ -139,12 +139,20 @@ export default function Reports() {
   }), [viewMode]);
 
   useEffect(() => {
-    if (settings.report_customization?.[activeReport]) {
-      setSelectedColumns(settings.report_customization[activeReport]);
-    } else {
-      setSelectedColumns(allColumns[activeReport]);
+    const defaultCols = allColumns[activeReport];
+    const saved = settings.report_customization?.[activeReport];
+    
+    if (saved && Array.isArray(saved)) {
+      // Filter out columns that don't exist in the current view mode (to prevent crash/empty columns)
+      const validSaved = saved.filter(c => defaultCols.includes(c));
+      if (validSaved.length > 0) {
+        setSelectedColumns(validSaved);
+        return;
+      }
     }
-  }, [activeReport, allColumns, settings.report_customization]);
+    
+    setSelectedColumns(defaultCols);
+  }, [activeReport, viewMode, allColumns, settings.report_customization]);
 
   const reportOptions = [
     { id: 'Cash in Hand', label: 'Cash in Hand Report', icon: Building2 },
@@ -1343,68 +1351,18 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* Card View - Optimized for anything smaller than large desktops */}
-          <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-800">
-            {filteredData.map((row, idx) => (
-              <div key={idx} className="p-4 space-y-3 bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  {activeColumns.map(colId => (
-                    <div key={colId} className={cn(
-                      "flex flex-col gap-1 w-full",
-                      (colId === 'Party Name' || colId === 'Description' || colId === 'Bank Name') ? "sm:col-span-2" : "col-span-1"
-                    )}>
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">{colId.replace(/_/g, ' ')}</span>
-                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 break-words leading-tight">
-                        {formatValue(colId, row[colId])}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {filteredData.length === 0 && (
-              <div className="px-6 py-16 text-center">
-                <Search size={40} className="mx-auto mb-4 text-slate-200 opacity-40 shrink-0" />
-                <p className="text-sm font-bold text-slate-400 italic">No records found.</p>
-              </div>
-            )}
-            
-            {/* Total Summary Card for Mobile */}
-            {tableTotals && filteredData.length > 0 && (
-              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t-4 border-indigo-500/20 shadow-inner">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Report Totals</span>
-                  <div className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[8px] font-bold uppercase rounded">Final Summary</div>
-                </div>
-                <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-                  {Object.entries(tableTotals).map(([key, val]) => (
-                    <div key={key} className="flex flex-col gap-1">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">{key}</span>
-                      <span className={cn(
-                        "text-sm font-black",
-                        key.includes('Debit') || key.includes('In (+)') || key.includes('Receivable') ? "text-emerald-600 dark:text-emerald-400" : (key.includes('Credit') || key.includes('Out (-)') || key.includes('Payable') ? "text-rose-600 dark:text-rose-400" : "text-indigo-600 dark:text-indigo-400")
-                      )}>
-                        {formatValue(key, val, true)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Table View - Desktop and Tablet */}
-          <div className="hidden lg:block overflow-x-auto no-scrollbar">
+          {/* Table View - Horizontal Scroll for Mobile too */}
+          <div className="overflow-x-auto no-scrollbar">
             <div className="inline-block min-w-full align-middle">
               <div className="p-0">
-                <table className="min-w-full divide-y divide-slate-50 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                <table className="min-w-full divide-y divide-slate-50 dark:divide-slate-800 bg-white dark:bg-slate-900 border-separate border-spacing-0">
                   <thead className={cn(
-                    "text-left",
+                    "text-left sticky top-0 z-10",
                     activeReport === 'All Parties' ? "bg-indigo-50/50 dark:bg-indigo-900/20" : "bg-slate-50/50 dark:bg-slate-800/50"
                   )}>
                     <tr>
                       {activeColumns.map(colId => (
-                        <th key={colId} className="px-6 py-4 text-[10px] uppercase tracking-wider font-black text-slate-400 whitespace-nowrap">
+                        <th key={colId} className="px-4 sm:px-6 py-3 sm:py-4 text-[9px] sm:text-[10px] uppercase tracking-wider font-black text-slate-400 whitespace-nowrap bg-inherit">
                           {colId.replace(/_/g, ' ')}
                         </th>
                       ))}
@@ -1415,8 +1373,8 @@ export default function Reports() {
                       <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
                         {activeColumns.map(colId => (
                           <td key={colId} className={cn(
-                            "px-6 py-4 text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap",
-                            (colId === 'Party Name' || colId === 'Description' || colId === 'Item Name') && "truncate max-w-[200px]"
+                            "px-4 sm:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap",
+                            (colId === 'Party Name' || colId === 'Description' || colId === 'Item Name') && "max-w-[150px] sm:max-w-[200px] truncate"
                           )}>
                             {formatValue(colId, row[colId])}
                           </td>
@@ -1435,24 +1393,24 @@ export default function Reports() {
                     )}
                   </tbody>
                   {tableTotals && filteredData.length > 0 && (
-                    <tfoot className="bg-slate-100/80 dark:bg-slate-800/80 border-t-2 border-slate-200 dark:border-slate-700 backdrop-blur-sm sticky bottom-0">
+                    <tfoot className="bg-slate-100/80 dark:bg-slate-800/80 border-t-2 border-slate-200 dark:border-slate-700 backdrop-blur-sm sticky bottom-0 z-10">
                       <tr>
                         {activeColumns.map(colId => {
                           const totalVal = (tableTotals as any)[colId];
                           return (
-                            <td key={colId} className="px-6 py-5">
+                            <td key={colId} className="px-4 sm:px-6 py-4 sm:py-5 bg-inherit">
                               {totalVal !== undefined ? (
                                 <div className="flex flex-col">
-                                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{colId}</span>
+                                  <span className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{colId}</span>
                                   <span className={cn(
-                                    "text-[13px] font-black",
+                                    "text-[11px] sm:text-[13px] font-black",
                                     colId.includes('Debit') || colId.includes('In (+)') || colId.includes('Receivable') ? "text-emerald-700 dark:text-emerald-400" : (colId.includes('Credit') || colId.includes('Out (-)') || colId.includes('Payable') ? "text-rose-700 dark:text-rose-400" : "text-indigo-700 dark:text-indigo-400")
                                   )}>
                                     {formatValue(colId, totalVal, true)}
                                   </span>
                                 </div>
                               ) : colId === activeColumns[0] ? (
-                                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Totals</span>
+                                <span className="text-[9px] sm:text-xs font-black text-slate-400 uppercase tracking-widest">Totals</span>
                               ) : null}
                             </td>
                           );

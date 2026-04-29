@@ -6,6 +6,7 @@ import {
   LayoutDashboard, 
   Users, 
   Building2, 
+  Landmark,
   Package, 
   Receipt, 
   History, 
@@ -718,24 +719,24 @@ export default function App() {
 
   const menuItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-    { id: 'companies', label: 'Companies', icon: Building2 },
+    { id: 'parties', label: 'Parties', icon: Users, premium: true },
+    { id: 'banks', label: 'Banks', icon: Landmark, premium: true },
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
-    ...(isOwner ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : []),
+    { id: 'reports', label: 'Reports', icon: History, premium: true },
     { id: 'more', label: 'More', icon: Menu },
   ];
 
-    const moreItems = [
-      { id: 'parties', label: 'Parties', icon: Users, premium: true },
-      { id: 'banks', label: 'Banks', icon: Building2, premium: true },
-      { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
-      { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
-      { id: 'business-status', label: 'Business Status', icon: BarChart3, premium: true },
-      { id: 'reports', label: 'Reports', icon: History, premium: true },
-      { id: 'customization', label: 'Themes', icon: Sun, premium: true },
-      { id: 'settings', label: 'App Settings', icon: SettingsIcon, premium: true },
-      ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Premium Status', icon: Sparkles, premium: true }] : []),
-      ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
-    ];
+  const moreItems = [
+    ...(isOwner ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : []),
+    { id: 'companies', label: 'Companies', icon: Building2 },
+    { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
+    { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
+    { id: 'business-status', label: 'Business Status', icon: BarChart3, premium: true },
+    { id: 'customization', label: 'Themes', icon: Sun, premium: true },
+    { id: 'settings', label: 'App Settings', icon: SettingsIcon, premium: true },
+    ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Premium Status', icon: Sparkles, premium: true }] : []),
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
+  ];
 
   const renderPage = () => {
     const tab = activeTab === 'more' ? 'settings' : activeTab;

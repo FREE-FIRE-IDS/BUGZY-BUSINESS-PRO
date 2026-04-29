@@ -32,7 +32,9 @@ export default function SyncCenter() {
   const [otpSent, setOtpSent] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [joinCode, setJoinCode] = useState('');
   const [isInviting, setIsInviting] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
   // Auto-transition if session becomes active (e.g. magic link clicked)
   React.useEffect(() => {
@@ -74,6 +76,23 @@ export default function SyncCenter() {
       alert(status === 'accepted' ? 'Company added to your Shared list! ✅' : 'Invitation rejected.');
     } catch (err: any) {
       alert(err.message || 'Failed to update status');
+    }
+  };
+
+  const handleJoinByCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinCode) return;
+    setIsJoining(true);
+    try {
+      const { joinCompanyByCode } = useApp() as any; // Temporary cast if type isn't updated yet in current context
+      // But I already updated the context type in the previous step, so it should be fine.
+      await useApp().joinCompanyByCode(joinCode);
+      setJoinCode('');
+      alert('Successfully joined the company! 🎉');
+    } catch (err: any) {
+      alert(err.message || 'Invalid code or join failed');
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -373,103 +392,172 @@ export default function SyncCenter() {
             </motion.div>
 
             {/* Invitations Received */}
-            <AnimatePresence>
-              {invitations.length > 0 && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="bg-indigo-600 rounded-[2rem] p-8 text-white space-y-6 overflow-hidden"
-                >
-                  <div className="flex items-center gap-3">
-                    <Mail size={24} />
-                    <h3 className="text-xl font-black italic tracking-tight">New Invitations ({invitations.length})</h3>
-                  </div>
-                  <div className="space-y-4">
-                    {invitations.map(invite => (
-                      <div key={invite.id} className="bg-white/10 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                          <p className="font-black text-lg">{invite.companies?.name}</p>
-                          <p className="text-xs font-bold opacity-70">From: {invite.owner_email}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <AnimatePresence>
+                {invitations.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="bg-indigo-600 rounded-[2rem] p-8 text-white space-y-6 overflow-hidden col-span-1 md:col-span-2"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Mail size={24} />
+                      <h3 className="text-xl font-black italic tracking-tight">New Invitations ({invitations.length})</h3>
+                    </div>
+                    <div className="space-y-4">
+                      {invitations.map(invite => (
+                        <div key={invite.id} className="bg-white/10 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div>
+                            <p className="font-black text-lg">{invite.companies?.name}</p>
+                            <p className="text-xs font-bold opacity-70">From: {invite.owner_email}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => handleUpdateStatus(invite.id, 'accepted')}
+                              className="bg-white text-indigo-600 px-6 py-2 rounded-xl font-black text-sm hover:bg-indigo-50 transition-all"
+                            >
+                              Accept
+                            </button>
+                            <button 
+                              onClick={() => handleUpdateStatus(invite.id, 'rejected')}
+                              className="bg-indigo-700 text-white px-6 py-2 rounded-xl font-black text-sm hover:bg-indigo-800 transition-all"
+                            >
+                              Reject
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => handleUpdateStatus(invite.id, 'accepted')}
-                            className="bg-white text-indigo-600 px-6 py-2 rounded-xl font-black text-sm hover:bg-indigo-50 transition-all"
-                          >
-                            Accept
-                          </button>
-                          <button 
-                            onClick={() => handleUpdateStatus(invite.id, 'rejected')}
-                            className="bg-indigo-700 text-white px-6 py-2 rounded-xl font-black text-sm hover:bg-indigo-800 transition-all"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            {/* Invite New User (Owner only) */}
-            {isOwner && (
+              {/* Join by Code */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm space-y-6"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-600">
-                    <Mail size={20} />
+                  <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex items-center justify-center text-amber-600">
+                    <ShieldCheck size={20} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-slate-900 dark:text-slate-50 tracking-tight">Invite Team Member</h3>
-                    <p className="text-xs text-slate-500 font-medium">Shared users can view and sync this company's data</p>
+                    <h3 className="text-lg font-black text-slate-900 dark:text-slate-50 tracking-tight">Join Company</h3>
+                    <p className="text-xs text-slate-500 font-medium">Enter a 6-digit join code to access a company</p>
                   </div>
                 </div>
 
-                <form onSubmit={handleInvite} className="flex flex-col md:flex-row gap-3">
+                <form onSubmit={handleJoinByCode} className="space-y-4">
                   <input 
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="teammate@gmail.com"
-                    className="flex-1 p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 font-bold"
+                    type="text"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Enter 6-digit code"
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-amber-500 font-black text-2xl tracking-[0.3em] text-center"
                   />
                   <button 
-                    disabled={isInviting || !inviteEmail.includes('@')}
-                    className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                    disabled={isJoining || joinCode.length < 6}
+                    className="w-full bg-amber-500 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-amber-600 transition-all disabled:opacity-50 shadow-lg shadow-amber-500/20"
                   >
-                    {isInviting ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
-                    Invite User
+                    {isJoining ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                    Join with Code
                   </button>
                 </form>
+              </motion.div>
 
-                {sentInvitations.length > 0 && (
-                  <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sent Invitations</h4>
-                    <div className="grid gap-3">
-                      {sentInvitations.map(sent => (
-                        <div key={sent.id} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black">
-                              {sent.shared_email.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{sent.shared_email}</span>
-                          </div>
-                          <div className={cn(
-                            "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                            sent.status === 'pending' ? "bg-amber-100 text-amber-600" : 
-                            sent.status === 'accepted' ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"
-                          )}>
-                            {sent.status}
-                          </div>
-                        </div>
-                      ))}
+              {/* Invite New User (Owner only) */}
+              {isOwner && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm space-y-6"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-600">
+                      <Mail size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-slate-50 tracking-tight">Invite Team Member</h3>
+                      <p className="text-xs text-slate-500 font-medium">Shared users can view and sync data</p>
                     </div>
                   </div>
-                )}
+
+                  <form onSubmit={handleInvite} className="space-y-4">
+                    <input 
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="teammate@gmail.com"
+                      className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 font-bold"
+                    />
+                    <button 
+                      disabled={isInviting || !inviteEmail.includes('@')}
+                      className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                    >
+                      {isInviting ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
+                      Invite User
+                    </button>
+                  </form>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Sent Invitations List */}
+            {isOwner && sentInvitations.length > 0 && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sent Invitations</h4>
+                  <span className="text-[10px] font-bold text-slate-400">Click a code to copy</span>
+                </div>
+                <div className="grid gap-3">
+                  {sentInvitations.map(sent => (
+                    <div key={sent.id} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black leading-none shrink-0">
+                          {sent.shared_email.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">{sent.shared_email}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
+                              sent.status === 'pending' ? "bg-amber-100 text-amber-600" : 
+                              sent.status === 'accepted' ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"
+                            )}>
+                              {sent.status}
+                            </span>
+                            {sent.join_code && (
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(sent.join_code);
+                                  alert(`Code ${sent.join_code} copied!`);
+                                }}
+                                className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                              >
+                                Code: {sent.join_code}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          const { revokeCompanyAccess } = useApp() as any;
+                          revokeCompanyAccess(currentCompany!.id, sent.shared_email);
+                        }}
+                        className="p-2 text-slate-400 hover:text-rose-500 self-end sm:self-auto"
+                        title="Revoke Access"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             )}
           </div>

@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS company_access (
   company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
   owner_email TEXT NOT NULL,
   shared_email TEXT NOT NULL,
+  join_code TEXT,
   permission TEXT DEFAULT 'view',
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
