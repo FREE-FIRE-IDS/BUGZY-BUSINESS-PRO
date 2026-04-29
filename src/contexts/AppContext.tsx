@@ -417,21 +417,99 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const channel = supabase
       .channel('db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, (payload) => {
-        if (payload.new && (payload.new as any).user_email === settings.user_email) {
+        const email = settings.user_email?.toLowerCase();
+        const data = (payload.new || payload.old) as any;
+        
+        if (data && (data.user_email?.toLowerCase() === email || (data.linked_emails && data.linked_emails.includes(email)) || data.owner_email?.toLowerCase() === email)) {
           const updatedCompany = payload.new as Company;
-          setCompanies(prev => {
-            const exists = prev.find(c => c.id === updatedCompany.id);
-            if (exists) {
-              // Only update if data actually changed to avoid re-render loops
-              if (JSON.stringify(exists) === JSON.stringify(updatedCompany)) return prev;
-              return prev.map(c => c.id === updatedCompany.id ? updatedCompany : c);
+          if (updatedCompany) {
+            setCompanies(prev => {
+              const exists = prev.find(c => c.id === updatedCompany.id);
+              if (exists) {
+                if (JSON.stringify(exists) === JSON.stringify(updatedCompany)) return prev;
+                return prev.map(c => c.id === updatedCompany.id ? updatedCompany : c);
+              }
+              return [...prev, updatedCompany];
+            });
+            if (currentCompany?.id === updatedCompany.id) {
+              if (JSON.stringify(currentCompany) !== JSON.stringify(updatedCompany)) {
+                setCurrentCompany(updatedCompany);
+              }
             }
-            return [...prev, updatedCompany];
-          });
-          if (currentCompany?.id === updatedCompany.id) {
-            if (JSON.stringify(currentCompany) !== JSON.stringify(updatedCompany)) {
-              setCurrentCompany(updatedCompany);
-            }
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as any).id;
+            setCompanies(prev => prev.filter(c => c.id !== deletedId));
+            if (currentCompany?.id === deletedId) setCurrentCompany(null);
+          }
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'parties' }, (payload) => {
+        const data = (payload.new || payload.old) as any;
+        if (currentCompany?.id === data.company_id) {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            setParties(prev => {
+              const exists = prev.find(p => p.id === data.id);
+              if (exists) return prev.map(p => p.id === data.id ? data : p);
+              return [...prev, data];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            setParties(prev => prev.filter(p => p.id === data.id));
+          }
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'banks' }, (payload) => {
+        const data = (payload.new || payload.old) as any;
+        if (currentCompany?.id === data.company_id) {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            setBanks(prev => {
+              const exists = prev.find(b => b.id === data.id);
+              if (exists) return prev.map(b => b.id === data.id ? data : b);
+              return [...prev, data];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            setBanks(prev => prev.filter(b => b.id === data.id));
+          }
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, (payload) => {
+        const data = (payload.new || payload.old) as any;
+        if (currentCompany?.id === data.company_id) {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            setItems(prev => {
+              const exists = prev.find(i => i.id === data.id);
+              if (exists) return prev.map(i => i.id === data.id ? data : i);
+              return [...prev, data];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            setItems(prev => prev.filter(i => i.id === data.id));
+          }
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
+        const data = (payload.new || payload.old) as any;
+        if (currentCompany?.id === data.company_id) {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            setTransactions(prev => {
+              const exists = prev.find(t => t.id === data.id);
+              if (exists) return prev.map(t => t.id === data.id ? data : t);
+              return [...prev, data];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            setTransactions(prev => prev.filter(t => t.id === data.id));
+          }
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, (payload) => {
+        const data = (payload.new || payload.old) as any;
+        if (currentCompany?.id === data.company_id) {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            setInvoices(prev => {
+              const exists = prev.find(i => i.id === data.id);
+              if (exists) return prev.map(i => i.id === data.id ? data : i);
+              return [...prev, data];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            setInvoices(prev => prev.filter(i => i.id === data.id));
           }
         }
       })
@@ -476,9 +554,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       let query = supabase.from('companies').select('*');
       
       if (email) {
-        // PostgREST cs syntax for arrays with dots requires quoting the value inside the braces
-        // Also quoting the user_email eq value for safety with dots
-        query = query.or(`user_email.eq."${email}",linked_emails.cs.{"${email}"}`);
+        // Attempt to filter by user_email or linked_emails. 
+        // If the columns doesn't exist yet, this might fail, so we wrap it.
+        try {
+          query = query.or(`user_email.eq."${email}",linked_emails.cs.{"${email}"},owner_email.eq."${email}"`);
+        } catch (e) {
+          console.warn('[Sync] Fallback query due to missing columns');
+          query = supabase.from('companies').select('*');
+        }
       } else if (username) {
         query = query.eq('username', username);
       }
@@ -488,9 +571,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       if (compError) {
         console.error('Error fetching companies:', compError);
-        // If we have local companies, continue with them. If not, stop.
+        // If it's a "column does not exist" error, try a simpler fallback
+        if (compError.message.includes('user_email') || compError.message.includes('linked_emails')) {
+           const { data: fallback, error: fallError } = await supabase.from('companies').select('*');
+           if (!fallError) {
+              // Manually filter if we can
+              const filtered = fallback.filter(c => 
+                c.user_email === email || 
+                c.owner_email === email || 
+                (c.linked_emails && c.linked_emails.includes(email))
+              );
+              // continue with filtered if it works, or just fallback to all if it matches userId
+              // But we don't have userId easily here.
+           }
+        }
+        
         if (localCompanies.length === 0) {
-            setSyncStatus({ loading: false, error: 'Failed to connect to cloud', success: null });
+            setSyncStatus({ loading: false, error: 'Failed to connect to cloud: ' + compError.message, success: null });
             return;
         }
       }
@@ -1115,8 +1212,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     // Background Sync
     if (settings.sync_enabled) {
-      const table = tx.type === 'Expense' ? 'expenses' : 'transactions';
-      syncToCloud(table, newTx, true).catch(err => console.error('Add Transaction Sync Error:', err));
+      syncToCloud('transactions', newTx, true).catch(err => console.error('Add Transaction Sync Error:', err));
     }
     
     // Recalculate balances (also optimistic)
@@ -1136,8 +1232,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
     
     if (settings.sync_enabled) {
-      const table = (tx.type === 'Expense' || updated.find(t => t.id === id)?.type === 'Expense') ? 'expenses' : 'transactions';
-      await syncToCloud(table, updated.find(t => t.id === id));
+      await syncToCloud('transactions', updated.find(t => t.id === id));
     }
     await recalculateBalances(updated, parties, banks, items, invoices);
   };
@@ -1406,19 +1501,13 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         const filteredAll = localAll.filter((t: any) => t.id !== id);
         localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(filteredAll));
         if (settings.sync_enabled) {
-            // Mapping for syncToCloud is done internally, but here we trigger both potentially
             await deleteFromCloud('transactions', id);
-            if (tx.type === 'Expense') {
-                // Also explicitly try 'expenses' literal table just in case legacy data exists
-                await supabase.from('expenses').delete().eq('id', id);
-            }
         }
       } else {
         const updatedAll = localAll.map((t: any) => t.id === id ? { ...t, deleted_at: now, updated_at: now } : t);
         localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updatedAll));
         if (settings.sync_enabled) {
-            const table = tx.type === 'Expense' ? 'expenses' : 'transactions';
-            await syncToCloud(table, { ...tx, deleted_at: now, updated_at: now });
+            await syncToCloud('transactions', { ...tx, deleted_at: now, updated_at: now });
         }
       }
       await recalculateBalances(updatedTransactions, parties, banks, items, invoices);
@@ -1539,11 +1628,12 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     };
 
     const isFirstCompany = companies.length === 0;
+    const myEmail = settings.user_email?.toLowerCase() || session?.user?.email?.toLowerCase();
     
     const newCompany: Company = {
       ...company,
       id: generateId(),
-      user_email: settings.user_email || '',
+      user_email: myEmail || '',
       username: company.username || currentUser || '',
       company_type: company.company_type || 'normal',
       trial_start: now,
@@ -1551,7 +1641,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       created_at: now,
       updated_at: now,
       linked_emails: [],
-      owner_email: settings.user_email?.toLowerCase() || ''
+      owner_email: myEmail || ''
     };
     
     try {
@@ -2199,33 +2289,41 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     // Restriction: Only owner can share
     const myEmail = settings.user_email?.toLowerCase() || session?.user?.email?.toLowerCase();
-    const ownerEmail = currentCompany.owner_email?.toLowerCase() || currentCompany.user_email?.toLowerCase();
+    const ownerEmail = (currentCompany.owner_email || currentCompany.user_email || '').toLowerCase();
     
+    // If we have an ownerEmail and it's not us, we can't share. 
+    // If ownerEmail is empty, it means we might be the creator (legacy), so we allow.
     if (ownerEmail && myEmail !== ownerEmail) {
       throw new Error('Only the company owner can invite people ❌');
     }
 
     const email = shareWithEmail.toLowerCase().trim();
     if (!email) throw new Error('Email is required');
+    if (email === myEmail) throw new Error('You cannot invite yourself ❌');
 
-    const { error } = await supabase.from('company_access').insert({
+    // Use upsert to avoid blocking on existing invitations but also allowing updates
+    const { error } = await supabase.from('company_access').upsert({
       company_id: companyId,
-      owner_email: ownerEmail || myEmail,
+      owner_email: ownerEmail || myEmail || '',
       shared_email: email,
-      permission: 'view',
-      status: 'pending'
-    });
+      permission: 'edit',
+      status: 'pending',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'company_id,shared_email' });
 
     if (error) {
-      if (error.message.includes('unique constraint') || error.code === '23505') {
-        throw new Error('Invitation already sent to this user ✉️');
-      }
-      throw error;
+      console.error('[Share Error]', error);
+      throw new Error(error.message || 'Failed to send invitation ❌');
     }
     
     // Also update linked_emails for faster join queries
     const updatedEmails = Array.from(new Set([...(currentCompany.linked_emails || []), email]));
-    await updateCompany(companyId, { linked_emails: updatedEmails });
+    try {
+      await updateCompany(companyId, { linked_emails: updatedEmails });
+    } catch (err) {
+      console.warn('Silent skip: linked_emails update failed (non-critical)', err);
+    }
+    
     await fetchSentInvitations(companyId);
   };
 

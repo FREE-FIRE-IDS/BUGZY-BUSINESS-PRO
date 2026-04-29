@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
+
 import { Company } from './types';
 import { supabase } from './lib/supabase';
 import { 
@@ -29,6 +30,7 @@ import {
   Check,
   ArrowLeft,
   ShieldCheck,
+  ShieldAlert,
   Upload,
   Crown,
   BarChart3,
@@ -722,17 +724,18 @@ export default function App() {
     { id: 'more', label: 'More', icon: Menu },
   ];
 
-  const moreItems = [
-    { id: 'parties', label: 'Parties', icon: Users, premium: true },
-    { id: 'banks', label: 'Banks', icon: Building2, premium: true },
-    { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
-    { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
-    { id: 'business-status', label: 'Business Status', icon: BarChart3, premium: true },
-    { id: 'reports', label: 'Reports', icon: History, premium: true },
-    { id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true },
-    ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Premium Status', icon: Sparkles, premium: true }] : []),
-    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
-  ];
+    const moreItems = [
+      { id: 'parties', label: 'Parties', icon: Users, premium: true },
+      { id: 'banks', label: 'Banks', icon: Building2, premium: true },
+      { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
+      { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
+      { id: 'business-status', label: 'Business Status', icon: BarChart3, premium: true },
+      { id: 'reports', label: 'Reports', icon: History, premium: true },
+      { id: 'customization', label: 'Themes', icon: Sun, premium: true },
+      { id: 'settings', label: 'App Settings', icon: SettingsIcon, premium: true },
+      ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Premium Status', icon: Sparkles, premium: true }] : []),
+      ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
+    ];
 
   const renderPage = () => {
     const tab = activeTab === 'more' ? 'settings' : activeTab;
@@ -838,9 +841,9 @@ export default function App() {
 
   return (
     <div className={cn(
-      "h-screen flex overflow-hidden transition-colors duration-300",
-      theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
-    )}>
+        "h-screen flex overflow-hidden transition-colors duration-300",
+        theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
+      )}>
       {/* PC Sidebar */}
       <aside className={cn(
         "h-full shrink-0 border-r hidden md:flex flex-col transition-all duration-300 relative z-30",

@@ -35,6 +35,8 @@ export default function ManageCompanies() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState<string | null>(null);
   const [shareEmail, setShareEmail] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [sharedCompanies, setSharedCompanies] = useState<any[]>([]);
   const [isLoadingShared, setIsLoadingShared] = useState(false);
 
@@ -57,6 +59,8 @@ export default function ManageCompanies() {
   };
 
   const handleAddCompany = async () => {
+    if (!newCompanyName.trim()) return;
+    setAdding(true);
     try {
       await addCompany({
         name: newCompanyName,
@@ -67,21 +71,30 @@ export default function ManageCompanies() {
       setIsAddModalOpen(false);
       setNewCompanyName('');
     } catch (e: any) {
+      console.error('[Add Company Error]', e);
       if (e.message === 'LICENSE_REQUIRED') {
         window.dispatchEvent(new CustomEvent('navigate', { detail: 'activation' }));
+      } else {
+        alert(e.message || 'Failed to create company ❌');
       }
+    } finally {
+      setAdding(false);
     }
   };
 
   const handleShare = async () => {
     if (!isShareModalOpen) return;
+    setSharing(true);
     try {
       await shareCompany(isShareModalOpen, shareEmail);
       setIsShareModalOpen(null);
       setShareEmail('');
       alert('Invitation sent! 🚀');
     } catch (e: any) {
-      alert(e.message || 'Failed to share');
+      console.error('[Share Error]', e);
+      alert(e.message || 'Failed to share ❌');
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -335,10 +348,11 @@ export default function ManageCompanies() {
                 </div>
                 <button 
                   onClick={handleAddCompany}
-                  disabled={!newCompanyName.trim()}
-                  className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                  disabled={!newCompanyName.trim() || adding}
+                  className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  Create Company
+                  {adding ? <RefreshCw className="animate-spin" size={18} /> : null}
+                  {adding ? 'Creating...' : 'Create Company'}
                 </button>
               </div>
             </motion.div>
@@ -377,11 +391,11 @@ export default function ManageCompanies() {
                  </div>
                  <button 
                    onClick={handleShare}
-                   disabled={!shareEmail.includes('@')}
+                   disabled={!shareEmail.includes('@') || sharing}
                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
                  >
-                   <Share2 size={18} />
-                   Send Invitation
+                   {sharing ? <RefreshCw className="animate-spin" size={18} /> : <Share2 size={18} />}
+                   {sharing ? 'Sending...' : 'Send Invitation'}
                  </button>
                </div>
              </motion.div>
