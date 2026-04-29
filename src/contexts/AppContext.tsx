@@ -79,6 +79,7 @@ interface AppContextType {
   sentInvitations: any[];
   fetchSentInvitations: (companyId: string) => Promise<void>;
   joinCompanyByCode: (code: string) => Promise<boolean>;
+  getPartyBalance: (partyId: string) => number;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -2435,6 +2436,32 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     return sharedCompanies || [];
   };
 
+  const getPartyBalance = (partyId: string) => {
+    const party = parties.find(p => p.id === partyId);
+    if (!party) return 0;
+    
+    let balance = party.opening_balance || 0;
+    
+    // Process transactions
+    transactions.filter(t => t.party_id === partyId || t.to_party_id === partyId).forEach(tx => {
+      if (tx.party_id === partyId) {
+        if (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party') balance += tx.amount;
+        if (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party') balance -= tx.amount;
+      }
+      if (tx.to_party_id === partyId) {
+        balance += tx.amount;
+      }
+    });
+
+    // Process invoices
+    invoices.filter(i => i.party_id === partyId).forEach(inv => {
+      if (inv.type === 'Sale') balance += inv.total;
+      if (inv.type === 'Purchase') balance -= inv.total;
+    });
+
+    return balance;
+  };
+
   return (
     <AppContext.Provider value={{
       companies, 
@@ -2470,7 +2497,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       updateInvitationStatus,
       sentInvitations,
       fetchSentInvitations,
-      joinCompanyByCode
+      joinCompanyByCode,
+      getPartyBalance
     }}>
       {children}
     </AppContext.Provider>

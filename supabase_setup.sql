@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS parties (
   address TEXT,
   opening_balance DOUBLE PRECISION DEFAULT 0,
   current_balance DOUBLE PRECISION DEFAULT 0,
+  balance DOUBLE PRECISION DEFAULT 0,
   type TEXT CHECK (type IN ('Customer', 'Supplier', 'Both')),
   user_email TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -246,9 +247,11 @@ CREATE POLICY "Invoices access" ON invoices FOR ALL USING (
 );
 
 -- Company Access Policies
+DROP POLICY IF EXISTS "Owners can manage access to their companies" ON company_access;
 CREATE POLICY "Owners can manage access to their companies"
 ON company_access FOR ALL
-USING (auth.jwt() ->> 'email' = owner_email);
+USING ( (auth.jwt() ->> 'email') = owner_email )
+WITH CHECK ( (auth.jwt() ->> 'email') = owner_email );
 
 CREATE POLICY "Users can view invitations sent to them"
 ON company_access FOR SELECT

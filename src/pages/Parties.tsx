@@ -15,7 +15,8 @@ import {
   Wallet,
   Users,
   X,
-  Sparkles
+  Sparkles,
+  Check
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn } from '../lib/utils';
@@ -385,18 +386,19 @@ export default function Parties() {
                 />
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className="relative shrink-0 flex-1 sm:flex-none">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="relative shrink-0 flex-1 sm:flex-none min-w-[120px]">
                   <button 
                     onClick={() => setShowFilterMenu(!showFilterMenu)}
                     className={cn(
                       "w-full px-4 py-3 bg-white dark:bg-white border text-[10px] font-black uppercase tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm whitespace-nowrap",
-                      amountFilter !== 'all' ? "border-indigo-600 text-indigo-600 ring-4 ring-indigo-500/10" : "border-slate-100 text-slate-600"
+                      (amountFilter !== 'all' || hideZero) ? "border-indigo-600 text-indigo-600 ring-4 ring-indigo-500/10" : "border-slate-100 text-slate-600"
                     )}
                   >
                     <Filter size={14} />
                     <span>{amountFilter === 'all' ? 'Filter' : amountFilter === 'positive' ? 'Receivable' : 'Payable'}</span>
                   </button>
+
 
                   <AnimatePresence>
                     {showFilterMenu && (
@@ -428,6 +430,22 @@ export default function Parties() {
                               <span className="text-xs font-bold">{opt.label}</span>
                             </button>
                           ))}
+                          <div className="mt-2 pt-2 border-t border-slate-50">
+                            <button
+                              onClick={() => {
+                                setHideZero(!hideZero);
+                                setShowFilterMenu(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between p-3 rounded-xl transition-all",
+                                hideZero ? "bg-indigo-50 text-indigo-600" : "hover:bg-slate-50 text-slate-600"
+                              )}
+                            >
+                              <span className="text-xs font-bold text-left">Hide 0 Balance</span>
+                              {hideZero && <Check size={14} />}
+                            </button>
+                          </div>
+                   
                         </motion.div>
                       </>
                     )}

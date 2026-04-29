@@ -668,7 +668,9 @@ export default function Reports() {
   }, [activeReport, selectedEntity, selectedCategory, dateRange, searchQuery, transactions, parties, banks, items, invoices, currentCompany]);
 
   const activeColumns = useMemo(() => {
-    return allColumns[activeReport].filter(col => selectedColumns.includes(col));
+    const currentAll = allColumns[activeReport];
+    const filtered = currentAll.filter(col => selectedColumns.includes(col));
+    return filtered.length > 0 ? filtered : currentAll;
   }, [activeReport, selectedColumns, allColumns]);
 
   const tableTotals = useMemo(() => {
@@ -1132,77 +1134,79 @@ export default function Reports() {
         <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
           {/* Responsive Header */}
           <div className="p-4 sm:p-6 border-b border-slate-50 dark:border-slate-800">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white leading-tight">{activeReport}</h2>
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">Export professional business statements</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'customization' }))}
-                    className="p-2.5 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl border border-slate-200 dark:border-slate-700 hover:text-indigo-600 transition-all shadow-sm"
-                    title="Customize Report Columns"
-                  >
-                    <SettingsIcon size={18} />
-                  </button>
-                  {(activeReport === 'Single Bank' || activeReport === 'Single Party' || activeReport === 'All Parties') && (
-                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 pointer-events-auto shrink-0 mr-2">
-                      <button 
-                        onClick={() => setViewMode('app')}
-                        className={cn(
-                          "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
-                          viewMode === 'app' ? "bg-white dark:bg-slate-600 text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
-                        )}
-                      >
-                        App
-                      </button>
-                      <button 
-                        onClick={() => setViewMode('accounting')}
-                        className={cn(
-                          "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
-                          viewMode === 'accounting' ? "bg-white dark:bg-slate-600 text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
-                        )}
-                      >
-                        Acc
-                      </button>
-                    </div>
-                  )}
-                  <button 
-                    onClick={handleSync}
-                    disabled={isSyncing}
-                    className={cn(
-                      "p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-indigo-600 transition-all",
-                      isSyncing && "animate-spin"
-                    )}
-                    title="Sync Data"
-                  >
-                    <RefreshCw size={16} />
-                  </button>
-                  <DrCrToggle 
-                    enabled={settings.show_dr_cr || false} 
-                    onToggle={(val) => updateSettings({ show_dr_cr: val })} 
-                  />
-                  {(activeReport === 'All Parties' || activeReport === 'All Banks' || activeReport === 'Balance Sheet') && (
-                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 pointer-events-auto shrink-0 transition-all hover:bg-slate-200 dark:hover:bg-slate-700">
-                      <span className="text-[9px] font-black uppercase text-slate-500 ml-1">Hide 0</span>
-                      <button 
-                        onClick={() => setHideZeroBalances(!hideZeroBalances)}
-                        className={cn(
-                          "relative w-8 h-4 rounded-full transition-all duration-300",
-                          hideZeroBalances ? "bg-red-500" : "bg-slate-300 dark:bg-slate-600"
-                        )}
-                      >
-                        <div className={cn(
-                          "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-300 shadow-sm",
-                          hideZeroBalances ? "left-4.5" : "left-0.5"
-                        )} />
-                      </button>
-                    </div>
-                  )}
-                </div>
+            <div className="flex flex-row items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-tight truncate">{activeReport}</h2>
+                <p className="hidden sm:block text-[10px] text-slate-500 dark:text-slate-400 mt-1">Export professional business statements</p>
               </div>
-
+              <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'customization' }))}
+                  className="p-1.5 sm:p-2 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-lg border border-slate-200 dark:border-slate-700 hover:text-indigo-600 transition-all shadow-sm"
+                  title="Customize Report Columns"
+                >
+                  <SettingsIcon size={14} />
+                </button>
+                {(activeReport === 'Single Bank' || activeReport === 'Single Party' || activeReport === 'All Parties') && (
+                  <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
+                    <button 
+                      onClick={() => setViewMode('app')}
+                      className={cn(
+                        "px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-wider transition-all",
+                        viewMode === 'app' ? "bg-white dark:bg-slate-600 text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                      )}
+                    >
+                      App
+                    </button>
+                    <button 
+                      onClick={() => setViewMode('accounting')}
+                      className={cn(
+                        "px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-wider transition-all",
+                        viewMode === 'accounting' ? "bg-white dark:bg-slate-600 text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                      )}
+                    >
+                      Audit
+                    </button>
+                  </div>
+                )}
+                <button 
+                  onClick={handleSync}
+                  disabled={isSyncing}
+                  className={cn(
+                    "p-1.5 sm:p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-indigo-600 transition-all shadow-sm",
+                    isSyncing && "animate-spin"
+                  )}
+                  title="Sync Data"
+                >
+                  <RefreshCw size={14} />
+                </button>
+                <DrCrToggle 
+                  enabled={settings.show_dr_cr || false} 
+                  onToggle={(val) => updateSettings({ show_dr_cr: val })} 
+                />
+                {(activeReport === 'All Parties' || activeReport === 'All Banks' || activeReport === 'Balance Sheet') && (
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0 transition-all">
+                    <span className="hidden sm:inline text-[8px] font-black uppercase text-slate-500 ml-1">Hide 0</span>
+                    <button 
+                      onClick={() => setHideZeroBalances(!hideZeroBalances)}
+                      className={cn(
+                        "relative w-7 h-3.5 rounded-full transition-all duration-300",
+                        hideZeroBalances ? "bg-red-500" : "bg-slate-300 dark:bg-slate-600"
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute top-0.5 w-2.5 h-2.5 bg-white rounded-full transition-all duration-300 shadow-sm",
+                        hideZeroBalances ? "left-4" : "left-0.5"
+                      )} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-4 sm:p-6 pb-20 sm:pb-8">
+            <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 {/* Primary Filters Row */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
