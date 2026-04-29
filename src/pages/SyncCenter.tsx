@@ -263,15 +263,15 @@ export default function SyncCenter() {
               </p>
               <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-2xl mx-6 space-y-3 border border-indigo-100 dark:border-indigo-800/30">
                 <p className="text-[12px] text-indigo-700 dark:text-indigo-300 font-bold leading-tight uppercase tracking-wider text-center">
-                  Enter the 6-digit code from your email
+                  Copy & Paste the 6-digit code below
                 </p>
                 <div className="h-px bg-indigo-100 dark:bg-indigo-800/40" />
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center italic">
-                  Tip: You can ignore the "Confirm your mail" link and just enter the code below.
+                  Note: If the "Magic Link" button in your email says "site can't be reached", please simply copy the 6-digit code from the email and paste it here.
                 </p>
               </div>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 px-6">
-                Please check <span className="text-rose-500">Inbox & Spam</span>. It can take 2 mins.
+                Please check <span className="text-rose-500">Inbox & Spam</span>.
               </p>
             </div>
 

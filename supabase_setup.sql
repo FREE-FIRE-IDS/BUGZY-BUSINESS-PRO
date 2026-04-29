@@ -184,25 +184,25 @@ DROP POLICY IF EXISTS "Users can view companies they own or are shared with" ON 
 CREATE POLICY "Users can view companies they own or are shared with"
 ON companies FOR SELECT
 USING (
-  (auth.jwt() ->> 'email') = user_email OR 
-  (auth.jwt() ->> 'email') = ANY(linked_emails) OR
-  (auth.jwt() ->> 'email') = owner_email
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  auth.jwt() ->> 'email' = ANY(linked_emails) OR
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
 );
 
 DROP POLICY IF EXISTS "Users can insert their own companies" ON companies;
 CREATE POLICY "Users can insert their own companies"
 ON companies FOR INSERT
 WITH CHECK (
-  (auth.jwt() ->> 'email') = user_email OR 
-  (auth.jwt() ->> 'email') = owner_email
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
 );
 
 DROP POLICY IF EXISTS "Owners can update their companies" ON companies;
 CREATE POLICY "Owners can update their companies"
 ON companies FOR UPDATE
 USING (
-  (auth.jwt() ->> 'email') = user_email OR 
-  (auth.jwt() ->> 'email') = owner_email
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
 );
 
 -- Policies for other tables to ensure real-time sync works
@@ -250,17 +250,33 @@ CREATE POLICY "Invoices access" ON invoices FOR ALL USING (
 DROP POLICY IF EXISTS "Owners can manage access to their companies" ON company_access;
 CREATE POLICY "Owners can manage access to their companies"
 ON company_access FOR ALL
-USING ( (auth.jwt() ->> 'email') = owner_email )
-WITH CHECK ( (auth.jwt() ->> 'email') = owner_email );
+USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+  EXISTS (
+    SELECT 1 FROM companies 
+    WHERE id = company_id 
+    AND (LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(owner_email) = LOWER(auth.jwt() ->> 'email'))
+  )
+)
+WITH CHECK (
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+  EXISTS (
+    SELECT 1 FROM companies 
+    WHERE id = company_id 
+    AND (LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(owner_email) = LOWER(auth.jwt() ->> 'email'))
+  )
+);
 
+DROP POLICY IF EXISTS "Users can view invitations sent to them" ON company_access;
 CREATE POLICY "Users can view invitations sent to them"
 ON company_access FOR SELECT
-USING (auth.jwt() ->> 'email' = shared_email);
+USING (LOWER(auth.jwt() ->> 'email') = LOWER(shared_email));
 
+DROP POLICY IF EXISTS "Users can update invitation status (accept/reject)" ON company_access;
 CREATE POLICY "Users can update invitation status (accept/reject)"
 ON company_access FOR UPDATE
-USING (auth.jwt() ->> 'email' = shared_email)
-WITH CHECK (auth.jwt() ->> 'email' = shared_email);
+USING (LOWER(auth.jwt() ->> 'email') = LOWER(shared_email))
+WITH CHECK (LOWER(auth.jwt() ->> 'email') = LOWER(shared_email));
 
 -- 7. Policies for payment_requests
 CREATE POLICY "Users can create their own payment requests" 

@@ -2239,15 +2239,14 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const manualSyncLogin = async (email: string) => {
-    console.log(`[Sync] Requesting OTP for: ${email}`);
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log(`[Sync] Requesting OTP for: ${normalizedEmail}`);
     
-    // In Electron or local file environments, redirecting to window.location.origin might fail
-    const redirectTo = window.location.protocol === 'http:' || window.location.protocol === 'https:' 
-      ? window.location.origin 
-      : undefined;
+    // In many environments, window.location.origin is the safest redirect
+    const redirectTo = window.location.origin;
 
     const { error } = await supabase.auth.signInWithOtp({
-      email,
+      email: normalizedEmail,
       options: {
         shouldCreateUser: true,
         emailRedirectTo: redirectTo,
@@ -2265,9 +2264,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const confirmSyncLogin = async (email: string, token: string) => {
-    console.log(`[Sync] Verifying OTP for: ${email}`);
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log(`[Sync] Verifying OTP for: ${normalizedEmail}`);
     const { data, error } = await supabase.auth.verifyOtp({
-      email,
+      email: normalizedEmail,
       token,
       type: 'email',
     });
@@ -2281,8 +2281,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       setSession(data.session);
     }
 
-    updateSettings({ user_email: email, sync_enabled: true });
-    await refreshData(email, true);
+    updateSettings({ user_email: normalizedEmail, sync_enabled: true });
+    await refreshData(normalizedEmail, true);
     return true;
   };
 
@@ -2290,10 +2290,16 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (!currentCompany || currentCompany.id !== companyId) throw new Error('Company not selected');
     
     // Restriction: Only owner can share
-    const myEmail = settings.user_email?.toLowerCase() || session?.user?.email?.toLowerCase();
+    const myAuthEmail = session?.user?.email?.toLowerCase();
+    const mySettingsEmail = settings.user_email?.toLowerCase();
+    const myEmail = myAuthEmail || mySettingsEmail;
+
     const ownerEmail = (currentCompany.owner_email || currentCompany.user_email || '').toLowerCase();
     
-    if (ownerEmail && myEmail !== ownerEmail) {
+    // If the RLS requires owner_email to match auth email, we must pass the auth email as owner_email if we are indeed the one logged in
+    const emailToPassAsOwner = myEmail || ownerEmail;
+
+    if (ownerEmail && myEmail && myEmail !== ownerEmail) {
       throw new Error('Only the company owner can invite people ❌');
     }
 
@@ -2307,7 +2313,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     // Use upsert to avoid blocking on existing invitations but also allowing updates
     const { error } = await supabase.from('company_access').upsert({
       company_id: companyId,
-      owner_email: ownerEmail || myEmail || '',
+      owner_email: emailToPassAsOwner,
       shared_email: email,
       join_code: joinCode,
       permission: 'edit',
@@ -2437,26 +2443,28 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const getPartyBalance = (partyId: string) => {
-    const party = parties.find(p => p.id === partyId);
+    if (!partyId || !Array.isArray(parties) || !Array.isArray(transactions) || !Array.isArray(invoices)) return 0;
+    
+    const party = parties.find(p => p && p.id === partyId);
     if (!party) return 0;
     
     let balance = party.opening_balance || 0;
     
     // Process transactions
-    transactions.filter(t => t.party_id === partyId || t.to_party_id === partyId).forEach(tx => {
+    transactions.filter(t => t && (t.party_id === partyId || t.to_party_id === partyId)).forEach(tx => {
       if (tx.party_id === partyId) {
-        if (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party') balance += tx.amount;
-        if (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party') balance -= tx.amount;
+        if (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party') balance += tx.amount || 0;
+        if (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party') balance -= tx.amount || 0;
       }
       if (tx.to_party_id === partyId) {
-        balance += tx.amount;
+        balance += tx.amount || 0;
       }
     });
 
     // Process invoices
-    invoices.filter(i => i.party_id === partyId).forEach(inv => {
-      if (inv.type === 'Sale') balance += inv.total;
-      if (inv.type === 'Purchase') balance -= inv.total;
+    invoices.filter(i => i && i.party_id === partyId).forEach(inv => {
+      if (inv.type === 'Sale') balance += inv.total || 0;
+      if (inv.type === 'Purchase') balance -= inv.total || 0;
     });
 
     return balance;

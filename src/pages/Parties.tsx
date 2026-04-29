@@ -33,18 +33,21 @@ export default function Parties() {
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   
   const partyTypes = useMemo(() => {
-    const types = new Set(parties.map(p => p.type));
+    if (!Array.isArray(parties)) return ['All'];
+    const types = new Set(parties.filter(p => p && p.type).map(p => p.type));
     return ['All', ...Array.from(types)];
   }, [parties]);
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
 
   React.useEffect(() => {
-    setSelectedPartyId(selectedParty?.id || null);
+    if (setSelectedPartyId) {
+      setSelectedPartyId(selectedParty?.id || null);
+    }
   }, [selectedParty, setSelectedPartyId]);
   
   const currentSelectedParty = useMemo(() => {
-    if (!selectedParty) return null;
-    return parties.find(p => p.id === selectedParty.id) || selectedParty;
+    if (!selectedParty || !Array.isArray(parties)) return null;
+    return parties.find(p => p && p.id === selectedParty.id) || selectedParty;
   }, [selectedParty, parties]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -53,56 +56,59 @@ export default function Parties() {
   const [editingParty, setEditingParty] = useState<Party | null>(null);
 
   const filteredParties = useMemo(() => {
+    if (!Array.isArray(parties)) return [];
     return parties.filter(p => {
+      if (!p) return false;
       const balance = getPartyBalance(p.id);
-      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           p.phone?.includes(searchTerm);
+      const matchesSearch = (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           (p.phone || '').includes(searchTerm);
       const matchesType = filterType === 'All' || p.type === filterType;
       
       let matchesAmount = true;
-      if (amountFilter === 'positive') matchesAmount = balance > 0;
-      else if (amountFilter === 'negative') matchesAmount = balance < 0;
+      if (amountFilter === 'positive') matchesAmount = balance > 0.01;
+      else if (amountFilter === 'negative') matchesAmount = balance < -0.01;
 
       const matchesZero = hideZero ? Math.abs(balance) > 0.01 : true;
       
       return matchesSearch && matchesType && matchesAmount && matchesZero;
     });
-  }, [parties, searchTerm, filterType, amountFilter, hideZero, transactions]);
+  }, [parties, searchTerm, filterType, amountFilter, hideZero, transactions, getPartyBalance]);
 
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [isLedgerSearchOpen, setIsLedgerSearchOpen] = useState(false);
   const [ledgerDateRange, setLedgerDateRange] = useState<'All' | 'This Month' | '7 Days'>('All');
 
   const partyLedger = useMemo(() => {
-    if (!currentSelectedParty) return [];
+    if (!currentSelectedParty || !Array.isArray(transactions) || !Array.isArray(invoices)) return [];
     
     // Start with opening balance
     const openingEntry = {
       id: 'opening',
-      date: currentSelectedParty.created_at,
+      date: currentSelectedParty.created_at || new Date().toISOString(),
       type: 'Opening Balance' as any,
-      amount: currentSelectedParty.opening_balance,
+      amount: currentSelectedParty.opening_balance || 0,
       description: 'Initial balance at account creation',
       source: 'opening'
     };
 
     const partyTransactions = transactions
-      .filter(t => t.party_id === currentSelectedParty.id || t.to_party_id === currentSelectedParty.id)
+      .filter(t => t && (t.party_id === currentSelectedParty.id || t.to_party_id === currentSelectedParty.id))
       .map(t => ({ ...t, source: 'transaction' }));
     
     const partyInvoices = invoices
-      .filter(i => i.party_id === currentSelectedParty.id)
+      .filter(i => i && i.party_id === currentSelectedParty.id)
       .map(i => ({
         id: i.id,
         date: i.date,
         type: i.type as any, // 'Sale' or 'Purchase'
-        amount: i.total,
+        amount: i.total || 0,
         description: `Invoice #${i.invoice_number}`,
         source: 'invoice'
       }));
 
     return [openingEntry, ...partyTransactions, ...partyInvoices]
       .filter(entry => {
+        if (!entry) return false;
         // Date Filter
         if (ledgerDateRange === 'This Month') {
           const date = new Date(entry.date);
@@ -118,9 +124,9 @@ export default function Parties() {
         if (!ledgerSearchTerm) return true;
         const lowSearch = ledgerSearchTerm.toLowerCase();
         return (
-          entry.description?.toLowerCase().includes(lowSearch) ||
-          entry.type?.toLowerCase().includes(lowSearch) ||
-          entry.amount.toString().includes(lowSearch)
+          (entry.description || '').toLowerCase().includes(lowSearch) ||
+          (entry.type || '').toLowerCase().includes(lowSearch) ||
+          (entry.amount || 0).toString().includes(lowSearch)
         );
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
