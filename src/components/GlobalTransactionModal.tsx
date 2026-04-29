@@ -228,8 +228,8 @@ export default function GlobalTransactionModal() {
                   <option value="Income">Income</option>
                   <option value="Cash Adjustment In">Adjust Cash (In)</option>
                   <option value="Cash Adjustment Out">Reduce Cash (Out)</option>
-                  <option value="Deposit">Cash Deposit (Cash to Bank)</option>
-                  <option value="Withdraw">Cash Withdraw (Bank to Cash)</option>
+                  <option value="Cash Deposit">Cash Deposit (Cash to Bank)</option>
+                  <option value="Cash Withdraw">Cash Withdraw (Bank to Cash)</option>
                   <option value="Bank To Bank">Bank to Bank</option>
                   <option value="Bank To Party">Bank to Party</option>
                   <option value="Party To Bank">Party to Bank</option>
@@ -275,7 +275,7 @@ export default function GlobalTransactionModal() {
               {(type.includes('Bank') || ['Payment In', 'Payment Out', 'Expense', 'Sale', 'Purchase', 'Income', 'Cash Adjustment In', 'Cash Adjustment Out', 'Bank To Cash', 'Cash To Bank'].includes(type)) && (
                 <div>
                   <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
-                    {type === 'Deposit' || type === 'Bank To Bank' || type === 'Bank To Cash' || type === 'Bank To Party' ? 'From Bank' : (type === 'Withdraw' || type === 'Cash To Bank' ? 'To Bank' : 'Bank (Optional for Cash)')}
+                    {type === 'Deposit' || type === 'Cash Deposit' || type === 'Bank To Bank' || type === 'Bank To Cash' || type === 'Bank To Party' ? 'From Bank' : (type === 'Withdraw' || type === 'Cash Withdraw' || type === 'Cash To Bank' ? 'To Bank' : 'Bank (Optional for Cash)')}
                   </label>
                   <select 
                     value={bankId} 

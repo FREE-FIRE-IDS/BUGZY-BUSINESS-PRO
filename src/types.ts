@@ -17,6 +17,8 @@ export type TransactionType =
   | 'Cash To Party'
   | 'Deposit' 
   | 'Withdraw'
+  | 'Cash Deposit'
+  | 'Cash Withdraw'
   | 'Stock In'
   | 'Stock Out'
   | 'Cash Adjustment In'

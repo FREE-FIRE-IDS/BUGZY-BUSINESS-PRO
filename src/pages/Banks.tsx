@@ -16,7 +16,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
-import { formatCurrency, formatDate, formatBalance, cn } from '../lib/utils';
+import { formatCurrency, formatDate, formatBalance, cn, getTransactionLabel } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { BankAccount as Bank, Transaction, TransactionType } from '../types';
 import { generateBankStatement } from '../lib/pdfGenerator';
@@ -414,18 +414,18 @@ export default function Banks() {
               </div>
               <div className="grid grid-cols-2 md:flex gap-2 md:gap-3">
               <button 
-                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Deposit' }))}
+                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Deposit' }))}
                 className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold text-sm"
               >
                 <ArrowDownLeft size={16} />
-                Receive
+                Cash Receive
               </button>
               <button 
-                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Withdraw' }))}
+                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Withdraw' }))}
                 className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 font-bold text-sm"
               >
                 <ArrowUpRight size={16} />
-                Pay Out
+                Cash Paid
               </button>
               <button 
                 onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Bank To Bank' }))}
@@ -535,7 +535,7 @@ export default function Banks() {
                           tx.type === 'Opening Balance' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
                           tx.to_bank_id === selectedBank.id ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                         )}>
-                          {tx.type}
+                          {getTransactionLabel(tx.type)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-500">{tx.description || '-'}</td>
@@ -584,7 +584,7 @@ export default function Banks() {
                       "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
                       tx.to_bank_id === selectedBank.id ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                     )}>
-                      {tx.type === 'Deposit' ? 'Cash Deposit' : tx.type === 'Withdraw' ? 'Cash Withdraw' : tx.type}
+                      {getTransactionLabel(tx.type)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">

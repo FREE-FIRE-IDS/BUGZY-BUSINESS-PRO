@@ -31,6 +31,8 @@ export default function ManageCompanies() {
   const [activeTab, setActiveTab] = useState<'my' | 'shared' | 'hr'>('my');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyUsername, setNewCompanyUsername] = useState('');
+  const [newCompanyLicense, setNewCompanyLicense] = useState('');
   const [newCompanyType, setNewCompanyType] = useState<'normal' | 'hr'>('normal');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState<string | null>(null);
@@ -58,18 +60,36 @@ export default function ManageCompanies() {
     }
   };
 
+  // Pre-fill username when opening modal
+  useEffect(() => {
+    if (isAddModalOpen && !newCompanyUsername) {
+      const currentUserLocal = localStorage.getItem('currentUser') || 'user';
+      // Sanitize username base (remove @ etc)
+      const base = currentUserLocal.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+      
+      if (companies.length > 0) {
+        setNewCompanyUsername(`${base}${companies.length + 1}`);
+      } else {
+        setNewCompanyUsername(base);
+      }
+    }
+  }, [isAddModalOpen, companies.length]);
+
   const handleAddCompany = async () => {
     if (!newCompanyName.trim()) return;
     setAdding(true);
     try {
       await addCompany({
         name: newCompanyName,
+        username: newCompanyUsername || undefined,
         company_type: newCompanyType,
         currency: settings.currency || 'PKR',
         address: '',
-      });
+      }, newCompanyLicense || undefined);
       setIsAddModalOpen(false);
       setNewCompanyName('');
+      setNewCompanyUsername('');
+      setNewCompanyLicense('');
     } catch (e: any) {
       console.error('[Add Company Error]', e);
       if (e.message === 'LICENSE_REQUIRED') {
@@ -315,6 +335,29 @@ export default function ManageCompanies() {
                     placeholder="e.g. Acme Corp"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-400 tracking-widest mb-2">Short Username (Unique)</label>
+                  <input 
+                    type="text"
+                    value={newCompanyUsername}
+                    onChange={(e) => setNewCompanyUsername(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                    className="w-full p-4 rounded-2xl border-2 border-slate-100 outline-none focus:border-indigo-500 font-bold transition-all"
+                    placeholder="e.g. acme_store"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1 font-medium italic">This will be your unique business identifier.</p>
+                </div>
+                {!isDeviceLicensed && (
+                  <div>
+                    <label className="block text-xs font-black uppercase text-slate-400 tracking-widest mb-2 text-indigo-600">Secret Activation Key (License)</label>
+                    <input 
+                      type="text"
+                      value={newCompanyLicense}
+                      onChange={(e) => setNewCompanyLicense(e.target.value.toUpperCase())}
+                      className="w-full p-4 rounded-2xl border-2 border-indigo-100 bg-indigo-50/30 outline-none focus:border-indigo-500 font-mono font-bold transition-all"
+                      placeholder="ENTER-LICENSE-KEY"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-black uppercase text-slate-400 tracking-widest mb-2">Company Type</label>
                   <div className="grid grid-cols-2 gap-4">

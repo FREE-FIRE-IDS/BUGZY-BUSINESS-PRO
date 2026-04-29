@@ -5,6 +5,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function getTransactionLabel(type: string) {
+  switch (type) {
+    case 'Deposit':
+    case 'Cash Deposit':
+      return 'Cash Deposit';
+    case 'Withdraw':
+    case 'Cash Withdraw':
+      return 'Cash Withdraw';
+    case 'Cash Adjustment In':
+      return 'Adjust Cash (In)';
+    case 'Cash Adjustment Out':
+      return 'Reduce Cash (Out)';
+    default:
+      return type;
+  }
+}
+
 export function formatCurrency(amount: number, currency: string = 'PKR') {
   if (currency === 'None') return amount.toLocaleString();
   return new Intl.NumberFormat('en-PK', {

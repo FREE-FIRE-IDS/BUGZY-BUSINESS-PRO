@@ -253,36 +253,13 @@ DROP POLICY IF EXISTS "Enable insert for everyone" ON company_access;
 CREATE POLICY "Enable insert for everyone" ON company_access FOR INSERT WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Enable select for related users" ON company_access;
-CREATE POLICY "Enable select for related users" ON company_access FOR SELECT USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
-  EXISTS (
-    SELECT 1 FROM companies 
-    WHERE id = company_id 
-    AND (LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(owner_email) = LOWER(auth.jwt() ->> 'email'))
-  )
-);
+CREATE POLICY "Enable select for related users" ON company_access FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Enable update for related users" ON company_access;
-CREATE POLICY "Enable update for related users" ON company_access FOR UPDATE USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
-  EXISTS (
-    SELECT 1 FROM companies 
-    WHERE id = company_id 
-    AND (LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(owner_email) = LOWER(auth.jwt() ->> 'email'))
-  )
-);
+CREATE POLICY "Enable update for related users" ON company_access FOR UPDATE USING (true);
 
 DROP POLICY IF EXISTS "Enable delete for owners" ON company_access;
-CREATE POLICY "Enable delete for owners" ON company_access FOR DELETE USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
-  EXISTS (
-    SELECT 1 FROM companies 
-    WHERE id = company_id 
-    AND (LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(owner_email) = LOWER(auth.jwt() ->> 'email'))
-  )
-);
+CREATE POLICY "Enable delete for owners" ON company_access FOR DELETE USING (true);
 
 
 -- 7. Policies for payment_requests

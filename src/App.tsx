@@ -580,6 +580,8 @@ function ShortcutHelper({ show }: { show: boolean }) {
             { key: 'ALT + Y', label: 'Party to Bank' },
             { key: 'ALT + B', label: 'Bank to Party' },
             { key: 'ALT + U', label: 'Bank to Bank' },
+            { key: 'ALT + C', label: 'Cash Deposit' },
+            { key: 'ALT + W', label: 'Cash Withdraw' },
             { key: 'ALT + D', label: 'Dashboard' },
             { key: 'ALT + P', label: 'Parties' },
           ].map((s) => (
@@ -646,13 +648,10 @@ function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onU
   );
 }
 
-class ErrorBoundary extends (React.Component as any) {
-  constructor(props: any) {
-    super(props);
-    this.state = { hasError: false };
-  }
+class ErrorBoundary extends React.Component<any, { hasError: boolean }> {
+  state = { hasError: false };
 
-  static getDerivedStateFromError(_error: any) {
+  static getDerivedStateFromError() {
     return { hasError: true };
   }
 
@@ -668,18 +667,29 @@ class ErrorBoundary extends (React.Component as any) {
             <X size={40} />
           </div>
           <h2 className="text-2xl font-black mb-2">Something went wrong</h2>
-          <p className="text-slate-500 mb-8 max-w-xs mx-auto">This section crashed. Try refreshing or going back.</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-500/20 active:scale-95 transition-all"
-          >
-            Refresh App
-          </button>
+          <p className="text-slate-500 mb-8 max-w-xs mx-auto">This section crashed. Try refreshing or going back to the dashboard.</p>
+          <div className="flex gap-4">
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-500/20 active:scale-95 transition-all"
+            >
+              Refresh App
+            </button>
+            <button 
+              onClick={() => {
+                (this as any).setState({ hasError: false });
+                window.dispatchEvent(new CustomEvent('navigate', { detail: 'dashboard' }));
+              }}
+              className="px-8 py-4 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl font-bold active:scale-95 transition-all"
+            >
+              Go Home
+            </button>
+          </div>
         </div>
       );
     }
 
-    return this.props.children; 
+    return (this as any).props.children; 
   }
 }
 
@@ -820,6 +830,8 @@ export default function App() {
           case 'y': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Party To Bank' })); break;
           case 'b': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Bank To Party' })); break;
           case 'u': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Bank To Bank' })); break;
+          case 'c': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Deposit' })); break;
+          case 'w': window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Withdraw' })); break;
           case 'd': setActiveTab('dashboard'); break;
           case 'p': setActiveTab('parties'); break;
         }
@@ -1118,9 +1130,11 @@ export default function App() {
                       ))}
                     </div>
                   ) : (
-                    <ErrorBoundary key={activeTab} name={activeTab}>
-                      {renderPage()}
-                    </ErrorBoundary>
+                    <div key={activeTab}>
+                      <ErrorBoundary>
+                        {renderPage()}
+                      </ErrorBoundary>
+                    </div>
                   )}
                 </motion.div>
               </AnimatePresence>
@@ -1235,7 +1249,8 @@ export default function App() {
                   onClick={() => {
                     setForceUpgrade(false);
                     setDismissedPayment(true);
-                    if (activeTab !== 'dashboard') setActiveTab('dashboard');
+                    // Do not auto-redirect if on Sync Center
+                    if (activeTab !== 'dashboard' && activeTab !== 'sync') setActiveTab('dashboard');
                   }}
                   className="absolute top-8 right-8 p-2 text-slate-400 hover:text-white transition-all z-20"
                 >

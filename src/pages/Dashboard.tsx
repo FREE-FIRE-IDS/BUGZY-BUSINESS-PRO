@@ -32,7 +32,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { useApp } from '../contexts/AppContext';
-import { formatCurrency, cn } from '../lib/utils';
+import { formatCurrency, cn, getTransactionLabel } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { getBusinessInsights } from '../services/geminiService';
 import { differenceInDays, addDays } from 'date-fns';
@@ -308,7 +308,7 @@ export default function Dashboard() {
                                   {t.amount >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                                 </div>
                                 <div className="text-left">
-                                  <span className="text-sm font-bold text-slate-700 dark:text-slate-200 block">{t.description || t.type}</span>
+                                  <span className="text-sm font-bold text-slate-700 dark:text-slate-200 block">{t.description || getTransactionLabel(t.type)}</span>
                                   <span className="text-[10px] text-slate-400 font-medium">{new Date(t.date).toLocaleDateString()}</span>
                                 </div>
                               </div>
