@@ -43,7 +43,7 @@ const DrCrToggle = ({ enabled, onToggle }: { enabled: boolean, onToggle: (val: b
 );
 
 export default function Banks() {
-  const { banks, transactions, invoices, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, updateSettings, parties, currentCompany, setSelectedBankId, refreshData } = useApp();
+  const { banks, transactions, invoices, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, updateSettings, parties, currentCompany, setSelectedBankId, refreshData, getBankBalance } = useApp();
   const [isSyncing, setIsSyncing] = useState(false);
 
   const handleSync = async () => {
@@ -63,20 +63,28 @@ export default function Banks() {
     const cashInHand = transactions
       .filter(t => t.company_id === currentCompany?.id)
       .reduce((sum, t) => {
-        if (t.type === 'Withdraw') return sum + t.amount;
-        if (t.type === 'Deposit') return sum - t.amount;
+        const amt = t.amount || 0;
+        // Money entering cash
+        if (t.type === 'Withdraw' || t.type === 'Bank To Cash' || t.type === 'Party To Cash' || t.type === 'Cash Adjustment In' || t.type === 'Adjust Cash') {
+          return sum + amt;
+        }
+        // Money leaving cash
+        if (t.type === 'Deposit' || t.type === 'Cash To Bank' || t.type === 'Cash To Party' || t.type === 'Cash Adjustment Out' || t.type === 'Party To Bank') {
+          return sum - amt;
+        }
+        // Direct cash entries
         if (!t.bank_id && !t.to_bank_id) {
-          if (['Sale', 'Income', 'Payment In', 'Stock In', 'Bank To Party', 'Cash Adjustment In'].includes(t.type)) return sum + t.amount;
-          if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank', 'Cash Adjustment Out'].includes(t.type)) return sum - t.amount;
+          if (['Sale', 'Income', 'Payment In', 'Stock In', 'Bank To Party'].includes(t.type)) return sum + amt;
+          if (['Expense', 'Payment Out', 'Purchase', 'Stock Out'].includes(t.type)) return sum - amt;
         }
         return sum;
       }, 0) + 
       invoices
         .filter(i => i.company_id === currentCompany?.id && i.status === 'Paid' && i.payment_type === 'Cash')
-        .reduce((sum, i) => i.type === 'Sale' ? sum + i.total : sum - i.total, 0);
-    const totalBankBalance = banks.reduce((sum, b) => sum + b.balance, 0);
+        .reduce((sum, i) => i.type === 'Sale' ? sum + (i.total || 0) : sum - (i.total || 0), 0);
+    const totalBankBalance = banks.reduce((sum, b) => sum + getBankBalance(b.id), 0);
     return { cashInHand, totalBankBalance };
-  }, [transactions, banks, invoices, currentCompany]);
+  }, [transactions, banks, invoices, currentCompany, getBankBalance]);
 
   React.useEffect(() => {
     setSelectedBankId(selectedBank?.id || null);
@@ -93,9 +101,9 @@ export default function Banks() {
       // Direct cash transactions
       if (!t.bank_id && !t.to_bank_id) return true;
       // Withdrawals bring cash in
-      if (t.type === 'Withdraw') return true;
+      if (t.type === 'Withdraw' || t.type === 'Bank To Cash' || t.type === 'Party To Cash' || t.type === 'Cash Adjustment In' || t.type === 'Adjust Cash') return true;
       // Deposits take cash out
-      if (t.type === 'Deposit') return true;
+      if (t.type === 'Deposit' || t.type === 'Cash To Bank' || t.type === 'Cash To Party' || t.type === 'Cash Adjustment Out' || t.type === 'Party To Bank') return true;
       return false;
     });
 
@@ -337,7 +345,7 @@ export default function Banks() {
                           "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
                           isIncome ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                         )}>
-                          {tx.type}
+                          {tx.type === 'Deposit' ? 'Cash Deposit' : tx.type === 'Withdraw' ? 'Cash Withdraw' : tx.type}
                         </span>
                      </div>
                      <div className="flex justify-between items-center">
@@ -576,7 +584,7 @@ export default function Banks() {
                       "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
                       tx.to_bank_id === selectedBank.id ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                     )}>
-                      {tx.type}
+                      {tx.type === 'Deposit' ? 'Cash Deposit' : tx.type === 'Withdraw' ? 'Cash Withdraw' : tx.type}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">

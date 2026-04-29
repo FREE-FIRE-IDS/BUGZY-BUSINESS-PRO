@@ -781,9 +781,6 @@ export default function App() {
     // Check if user is on a premium tab
     const isPremiumTab = [...menuItems, ...moreItems].find(i => i.id === tab)?.premium;
 
-    if (tab === 'sync' && !isOwner) {
-       return <Dashboard />;
-    }
     switch (tab) {
       case 'dashboard': return <Dashboard />;
       case 'companies': return <ManageCompanies />;

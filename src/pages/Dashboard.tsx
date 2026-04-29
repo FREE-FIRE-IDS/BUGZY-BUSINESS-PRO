@@ -38,7 +38,7 @@ import { getBusinessInsights } from '../services/geminiService';
 import { differenceInDays, addDays } from 'date-fns';
 
 export default function Dashboard() {
-  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData, isDeviceLicensed, isLicensed, isTrialExpired } = useApp();
+  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData, isDeviceLicensed, isLicensed, isTrialExpired, getBankBalance, getPartyBalance } = useApp();
   const [aiInsights, setAiInsights] = useState<string[]>([]);
   const [aiError, setAiError] = useState<string | null>(null);
 
@@ -90,25 +90,44 @@ export default function Dashboard() {
   }, [transactions, parties, banks]);
 
   const stats = useMemo(() => {
-    const sales = transactions.filter(t => t.type === 'Sale' || t.type === 'Income').reduce((sum, t) => sum + t.amount, 0);
-    const expenses = transactions.filter(t => t.type === 'Expense' || t.type === 'Payment Out').reduce((sum, t) => sum + t.amount, 0);
-    const toReceive = parties.reduce((sum, p) => sum + (p.balance > 0 ? p.balance : 0), 0);
-    const toPay = parties.reduce((sum, p) => sum + (p.balance < 0 ? Math.abs(p.balance) : 0), 0);
+    const sales = transactions.filter(t => t.type === 'Sale' || t.type === 'Income').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const expenses = transactions.filter(t => t.type === 'Expense' || t.type === 'Payment Out').reduce((sum, t) => sum + (t.amount || 0), 0);
+    
+    // Dynamic balance calculations for accuracy
+    const toReceive = parties.reduce((sum, p) => {
+      const balance = getPartyBalance(p.id);
+      return sum + (balance > 0 ? balance : 0);
+    }, 0);
+    
+    const toPay = parties.reduce((sum, p) => {
+      const balance = getPartyBalance(p.id);
+      return sum + (balance < 0 ? Math.abs(balance) : 0);
+    }, 0);
+
     const cashInHand = transactions
       .filter(t => t.company_id === currentCompany?.id)
       .reduce((sum, t) => {
-        if (t.type === 'Withdraw') return sum + t.amount;
-        if (t.type === 'Deposit') return sum - t.amount;
+        const amt = t.amount || 0;
+        // Money entering cash
+        if (t.type === 'Withdraw' || t.type === 'Bank To Cash' || t.type === 'Party To Cash' || t.type === 'Cash Adjustment In' || t.type === 'Adjust Cash') {
+          return sum + amt;
+        }
+        // Money leaving cash
+        if (t.type === 'Deposit' || t.type === 'Cash To Bank' || t.type === 'Cash To Party' || t.type === 'Cash Adjustment Out' || t.type === 'Party To Bank') {
+          return sum - amt;
+        }
+        // Direct cash entries
         if (!t.bank_id && !t.to_bank_id) {
-          if (['Sale', 'Income', 'Payment In', 'Stock In', 'Bank To Party'].includes(t.type)) return sum + t.amount;
-          if (['Expense', 'Payment Out', 'Purchase', 'Stock Out', 'Party To Bank'].includes(t.type)) return sum - t.amount;
+          if (['Sale', 'Income', 'Payment In', 'Stock In', 'Bank To Party'].includes(t.type)) return sum + amt;
+          if (['Expense', 'Payment Out', 'Purchase', 'Stock Out'].includes(t.type)) return sum - amt;
         }
         return sum;
       }, 0) + 
       invoices
         .filter(i => i.company_id === currentCompany?.id && i.status === 'Paid' && i.payment_type === 'Cash')
-        .reduce((sum, i) => i.type === 'Sale' ? sum + i.total : sum - i.total, 0);
-    const bankBalance = banks.reduce((sum, b) => sum + b.balance, 0);
+        .reduce((sum, i) => i.type === 'Sale' ? sum + (i.total || 0) : sum - (i.total || 0), 0);
+
+    const bankBalance = banks.reduce((sum, b) => sum + getBankBalance(b.id), 0);
 
     return {
       sales,
@@ -123,7 +142,7 @@ export default function Dashboard() {
       totalSales: invoices.filter(i => i.type === 'Sale').length,
       totalPurchases: invoices.filter(i => i.type === 'Purchase').length
     };
-  }, [transactions, parties, banks, items, invoices]);
+  }, [transactions, parties, banks, items, invoices, getPartyBalance, getBankBalance, currentCompany]);
 
   const chartData = useMemo(() => {
     const last7Days = Array.from({ length: 7 }, (_, i) => {

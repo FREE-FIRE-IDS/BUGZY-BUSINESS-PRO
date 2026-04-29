@@ -118,6 +118,8 @@ export default function Reports() {
   const companyBanks = banks.filter(b => b.company_id === currentCompany?.id);
   const companyItems = items.filter(i => i.company_id === currentCompany?.id);
   const companyInvoices = invoices.filter(i => i.company_id === currentCompany?.id);
+  const companyParties = parties.filter(p => p.company_id === currentCompany?.id);
+  const companyTransactions = transactions.filter(t => t.company_id === currentCompany?.id);
 
   const allColumns: Record<ReportType, string[]> = useMemo(() => ({
     'Cash in Hand': ['Date', 'Description', 'In (+)', 'Out (-)', 'Balance'],

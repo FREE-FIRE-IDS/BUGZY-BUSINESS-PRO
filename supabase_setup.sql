@@ -249,18 +249,33 @@ CREATE POLICY "Invoices access" ON invoices FOR ALL USING (
 -- Company Access Policies
 ALTER TABLE company_access ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Owners can manage access to their companies" ON company_access;
-CREATE POLICY "Owners can manage access to their companies"
-ON company_access FOR ALL
-USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+DROP POLICY IF EXISTS "Enable insert for everyone" ON company_access;
+CREATE POLICY "Enable insert for everyone" ON company_access FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Enable select for related users" ON company_access;
+CREATE POLICY "Enable select for related users" ON company_access FOR SELECT USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
   EXISTS (
     SELECT 1 FROM companies 
     WHERE id = company_id 
     AND (LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(owner_email) = LOWER(auth.jwt() ->> 'email'))
   )
-)
-WITH CHECK (
+);
+
+DROP POLICY IF EXISTS "Enable update for related users" ON company_access;
+CREATE POLICY "Enable update for related users" ON company_access FOR UPDATE USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
+  EXISTS (
+    SELECT 1 FROM companies 
+    WHERE id = company_id 
+    AND (LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(owner_email) = LOWER(auth.jwt() ->> 'email'))
+  )
+);
+
+DROP POLICY IF EXISTS "Enable delete for owners" ON company_access;
+CREATE POLICY "Enable delete for owners" ON company_access FOR DELETE USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   EXISTS (
     SELECT 1 FROM companies 
@@ -269,21 +284,6 @@ WITH CHECK (
   )
 );
 
-DROP POLICY IF EXISTS "Public access for guest invitations" ON company_access;
-CREATE POLICY "Public access for guest invitations"
-ON company_access FOR INSERT
-WITH CHECK (true); -- We rely on the owner_email being verified against auth email in SELECT/UPDATE but allow invitation creation 
-
-DROP POLICY IF EXISTS "Users can view invitations sent to them" ON company_access;
-CREATE POLICY "Users can view invitations sent to them"
-ON company_access FOR SELECT
-USING (LOWER(auth.jwt() ->> 'email') = LOWER(shared_email));
-
-DROP POLICY IF EXISTS "Users can update invitation status (accept/reject)" ON company_access;
-CREATE POLICY "Users can update invitation status (accept/reject)"
-ON company_access FOR UPDATE
-USING (LOWER(auth.jwt() ->> 'email') = LOWER(shared_email))
-WITH CHECK (LOWER(auth.jwt() ->> 'email') = LOWER(shared_email));
 
 -- 7. Policies for payment_requests
 CREATE POLICY "Users can create their own payment requests" 

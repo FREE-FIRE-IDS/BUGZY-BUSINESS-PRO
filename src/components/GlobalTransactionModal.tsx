@@ -228,8 +228,8 @@ export default function GlobalTransactionModal() {
                   <option value="Income">Income</option>
                   <option value="Cash Adjustment In">Adjust Cash (In)</option>
                   <option value="Cash Adjustment Out">Reduce Cash (Out)</option>
-                  <option value="Deposit">Deposit (Cash to Bank)</option>
-                  <option value="Withdraw">Withdraw (Bank to Cash)</option>
+                  <option value="Deposit">Cash Deposit (Cash to Bank)</option>
+                  <option value="Withdraw">Cash Withdraw (Bank to Cash)</option>
                   <option value="Bank To Bank">Bank to Bank</option>
                   <option value="Bank To Party">Bank to Party</option>
                   <option value="Party To Bank">Party to Bank</option>
