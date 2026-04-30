@@ -166,21 +166,21 @@ export default function Invoices() {
       doc.setLineWidth(0.5);
       doc.line((pageWidth - titleWidth) / 2, 21.5, (pageWidth + titleWidth) / 2, 21.5);
 
-      // Info Section - Two Columns
+      // Info Section - Two Columns (Improved Alignment)
       doc.setFontSize(10);
       doc.setTextColor(0, 0, 0);
       
       const infoY = 32;
       const labelX = 14;
-      const valueX = 40;
-      const rightLabelX = 130;
-      const rightValueX = 165;
+      const valueX = 35; // Moved closer to label
+      const rightLabelX = 120; // Moved slightly left
+      const rightValueX = 150; // Moved closer to label
 
       // Left Column
       doc.setFont('helvetica', 'bold');
       doc.text('Bill To:', labelX, infoY);
       doc.setFont('helvetica', 'normal');
-      doc.text(party?.name || 'Walk-in Customer', valueX, infoY);
+      doc.text(party?.name || 'Walk-in Customer', valueX, infoY, { maxWidth: 80 });
       
       doc.setFont('helvetica', 'bold');
       doc.text('Contact:', labelX, infoY + 8);
@@ -221,24 +221,33 @@ export default function Invoices() {
           textColor: [0, 0, 0],
           fontSize: 8,
           fontStyle: 'bold',
-          halign: 'center'
+          halign: 'center',
+          cellPadding: 1.5,
+          minCellHeight: 10,
+          valign: 'middle'
         },
         styles: {
-          fontSize: 8,
-          cellPadding: 2,
+          fontSize: 7, // Reduced slightly to avoid wrap
+          cellPadding: 1.5,
           valign: 'middle',
-          textColor: [0, 0, 0]
+          textColor: [0, 0, 0],
+          overflow: 'visible' // Ensure no wrap/clip if possible
         },
         columnStyles: {
-          0: { halign: 'center', cellWidth: 10 },
-          1: { cellWidth: 20 },
-          2: { cellWidth: 45 },
-          3: { halign: 'center', cellWidth: 12 },
-          4: { halign: 'right', cellWidth: 15 },
-          5: { halign: 'right', cellWidth: 15 },
-          6: { halign: 'right', cellWidth: 15 },
-          7: { halign: 'right', cellWidth: 25 },
-          8: { halign: 'right', cellWidth: 25 }
+          0: { halign: 'center', cellWidth: 8 },
+          1: { cellWidth: 18 },
+          2: { cellWidth: 42 },
+          3: { halign: 'center', cellWidth: 10 },
+          4: { halign: 'right', cellWidth: 14 },
+          5: { halign: 'right', cellWidth: 14 },
+          6: { halign: 'right', cellWidth: 14 },
+          7: { halign: 'right', cellWidth: 22 },
+          8: { halign: 'right', cellWidth: 22 }
+        },
+        didParseCell: (data) => {
+          if (data.section === 'head') {
+            data.cell.styles.cellWidth = 'wrap'; // Try to keep headings on one line
+          }
         }
       });
 

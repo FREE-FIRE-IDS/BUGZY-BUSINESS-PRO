@@ -264,37 +264,43 @@ export default function Parties() {
             </div>
             <div className="overflow-x-auto hidden md:block">
               <table className="w-full text-left">
-                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
+                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider font-black">
                   <tr>
-                    <th className="px-6 py-4 font-semibold">Date</th>
-                    <th className="px-6 py-4 font-semibold">Type</th>
-                    <th className="px-6 py-4 font-semibold">Description</th>
-                    <th className="px-6 py-4 font-semibold text-right">Debit</th>
-                    <th className="px-6 py-4 font-semibold text-right">Credit</th>
-                    <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                    <th className="px-4 py-4">Date</th>
+                    <th className="px-4 py-4">Type</th>
+                    <th className="px-4 py-4">Mark</th>
+                    <th className="px-4 py-4">Net Wt</th>
+                    <th className="px-4 py-4">Price</th>
+                    <th className="px-4 py-4">Description</th>
+                    <th className="px-4 py-4 text-right">Debit</th>
+                    <th className="px-4 py-4 text-right">Credit</th>
+                    <th className="px-4 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {partyLedger.map((tx) => (
                     <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-200">{formatDate(tx.date)}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4 text-[11px] text-slate-900 dark:text-slate-200">{formatDate(tx.date)}</td>
+                      <td className="px-4 py-4">
                         <span className={cn(
-                          "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
+                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase",
                           tx.type === 'Opening Balance' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
                           tx.type === 'Sale' || tx.type === 'Payment In' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                         )}>
                           {tx.type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{tx.description || '-'}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-white">
+                      <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[80px]">{tx.shipping_mark || '-'}</td>
+                      <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400">{tx.net_weight ? Number(tx.net_weight).toFixed(2) : '-'}</td>
+                      <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400">{tx.price ? formatCurrency(tx.price, settings.currency).replace('Rs. ', '').replace('Rs.', '') : '-'}</td>
+                      <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400">{tx.description || '-'}</td>
+                      <td className="px-4 py-4 text-[11px] font-bold text-right text-slate-900 dark:text-white">
                         {tx.type === 'Opening Balance' ? (tx.amount >= 0 ? formatCurrency(tx.amount, settings.currency) : '-') :
-                         (tx.party_id === currentSelectedParty.id && (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party')) || (tx.to_party_id === currentSelectedParty.id) ? formatCurrency(tx.amount, settings.currency) : '-'}
+                         (tx.party_id === currentSelectedParty.id && (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party' || tx.type === 'Cash To Party')) || (tx.to_party_id === currentSelectedParty.id) ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm font-bold text-right text-slate-900 dark:text-white">
+                      <td className="px-4 py-4 text-[11px] font-bold text-right text-slate-900 dark:text-white">
                         {tx.type === 'Opening Balance' ? (tx.amount < 0 ? formatCurrency(Math.abs(tx.amount), settings.currency) : '-') :
-                         (tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party')) ? formatCurrency(tx.amount, settings.currency) : '-'}
+                         (tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party' || tx.type === 'Party To Cash')) ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         {tx.id !== 'opening' && tx.source === 'transaction' && (

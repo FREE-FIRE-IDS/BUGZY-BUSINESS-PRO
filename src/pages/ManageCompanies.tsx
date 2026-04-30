@@ -33,6 +33,7 @@ export default function ManageCompanies() {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyUsername, setNewCompanyUsername] = useState('');
   const [newCompanyLicense, setNewCompanyLicense] = useState('');
+  const [newCompanyCurrency, setNewCompanyCurrency] = useState('PKR');
   const [newCompanyType, setNewCompanyType] = useState<'normal' | 'hr'>('normal');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState<string | null>(null);
@@ -83,7 +84,7 @@ export default function ManageCompanies() {
         name: newCompanyName,
         username: newCompanyUsername || undefined,
         company_type: newCompanyType,
-        currency: settings.currency || 'PKR',
+        currency: newCompanyCurrency,
         address: '',
       }, newCompanyLicense || undefined);
       setIsAddModalOpen(false);
@@ -346,16 +347,35 @@ export default function ManageCompanies() {
                   />
                   <p className="text-[10px] text-slate-400 mt-1 font-medium italic">This will be your unique business identifier.</p>
                 </div>
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-400 tracking-widest mb-2">Default Currency</label>
+                  <select 
+                    value={newCompanyCurrency}
+                    onChange={(e) => setNewCompanyCurrency(e.target.value)}
+                    className="w-full p-4 rounded-2xl border-2 border-slate-100 outline-none focus:border-indigo-500 font-bold transition-all appearance-none"
+                  >
+                    <option value="PKR">PKR (₨)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="AED">AED (د.إ)</option>
+                    <option value="SAR">SAR (﷼)</option>
+                  </select>
+                </div>
                 {!isDeviceLicensed && (
-                  <div>
-                    <label className="block text-xs font-black uppercase text-slate-400 tracking-widest mb-2 text-indigo-600">Secret Activation Key (License)</label>
+                  <div className="bg-amber-50 rounded-3xl p-6 border border-amber-100">
+                    <label className="block text-[10px] font-black uppercase text-amber-600 tracking-widest mb-3 flex items-center gap-2">
+                       <Plus size={14} /> 
+                       License Key (Secret Master Key)
+                    </label>
                     <input 
                       type="text"
                       value={newCompanyLicense}
                       onChange={(e) => setNewCompanyLicense(e.target.value.toUpperCase())}
-                      className="w-full p-4 rounded-2xl border-2 border-indigo-100 bg-indigo-50/30 outline-none focus:border-indigo-500 font-mono font-bold transition-all"
+                      className="w-full p-4 rounded-2xl border-2 border-amber-200 bg-white outline-none focus:border-amber-500 font-mono font-bold transition-all"
                       placeholder="ENTER-LICENSE-KEY"
                     />
+                    <p className="text-[9px] text-amber-600 mt-2 font-medium">Entering a valid license key here will permanently activate your business.</p>
                   </div>
                 )}
                 <div>

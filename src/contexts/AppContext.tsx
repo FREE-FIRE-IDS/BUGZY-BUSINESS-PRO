@@ -2254,7 +2254,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     console.log(`[Sync] Requesting OTP for: ${normalizedEmail}`);
     
     // In many environments, window.location.origin is the safest redirect
-    const redirectTo = window.location.origin;
+    const redirectTo = 'https://bugzy-business0pro.vercel.app';
 
     const { error } = await supabase.auth.signInWithOtp({
       email: normalizedEmail,

@@ -785,6 +785,20 @@ export default function App() {
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
   ];
 
+  // Specific items for PC Sidebar
+  const sidebarItems = [
+    { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+    { id: 'parties', label: 'Parties', icon: Users, premium: true },
+    { id: 'banks', label: 'Banks', icon: Landmark, premium: true },
+    { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
+    { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
+    { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
+    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
+    { id: 'companies', label: 'Company Manage', icon: Building2 },
+    { id: 'reports', label: 'Reports', icon: History, premium: true },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true },
+  ];
+
   const renderPage = () => {
     let tab = activeTab;
     
@@ -928,7 +942,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 mt-6 px-3 space-y-1 overflow-y-auto no-scrollbar">
-          {menuItems.map((item) => (
+          {sidebarItems.map((item) => (
             <button
               key={item.id}
               onClick={() => {
