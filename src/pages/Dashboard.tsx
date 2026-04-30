@@ -38,9 +38,11 @@ import { getBusinessInsights } from '../services/geminiService';
 import { differenceInDays, addDays } from 'date-fns';
 
 export default function Dashboard() {
-  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData, isDeviceLicensed, isLicensed, isTrialExpired, getBankBalance, getPartyBalance } = useApp();
+  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData, isDeviceLicensed, isLicensed, isTrialExpired, getBankBalance, getPartyBalance, isSharedCompany } = useApp();
   const [aiInsights, setAiInsights] = useState<string[]>([]);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  const isShared = isSharedCompany(currentCompany);
 
   const trialInfo = useMemo(() => {
     const isPaid = currentCompany?.is_paid || isLicensed();
@@ -357,18 +359,22 @@ export default function Dashboard() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button 
-            onClick={backupData}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl border border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-sm font-bold"
-          >
-            <Download size={16} /> Backup
-          </button>
-          <button 
-            onClick={handleRestore}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl border border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-sm font-bold"
-          >
-            <Upload size={16} /> Restore
-          </button>
+          {!isShared && (
+            <>
+              <button 
+                onClick={backupData}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl border border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-sm font-bold"
+              >
+                <Download size={16} /> Backup
+              </button>
+              <button 
+                onClick={handleRestore}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl border border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-sm font-bold"
+              >
+                <Upload size={16} /> Restore
+              </button>
+            </>
+          )}
         </div>
       </div>
 

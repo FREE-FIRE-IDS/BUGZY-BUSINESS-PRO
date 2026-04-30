@@ -25,7 +25,8 @@ import { Party, Transaction, TransactionType } from '../types';
 import { generatePartyStatement } from '../lib/pdfGenerator';
 
 export default function Parties() {
-  const { parties, transactions, invoices, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany, setSelectedPartyId, isLicensed, getPartyBalance } = useApp();
+  const { parties, transactions, invoices, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany, setSelectedPartyId, isLicensed, getPartyBalance, isSharedCompany } = useApp();
+  const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [amountFilter, setAmountFilter] = useState<'all' | 'positive' | 'negative'>('all');
@@ -179,20 +180,24 @@ export default function Parties() {
               </div>
             </div>
             <div className="flex gap-3">
-              <button 
-                onClick={() => { setEditingParty(currentSelectedParty); setIsAddModalOpen(true); }}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 border border-slate-100 rounded-xl hover:bg-slate-100 transition-all text-sm font-bold"
-              >
-                <FileText size={18} />
-                Edit
-              </button>
-              <button 
-                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
-                className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold"
-              >
-                <Plus size={18} />
-                New Transaction
-              </button>
+              {!isShared && (
+                <button 
+                  onClick={() => { setEditingParty(currentSelectedParty); setIsAddModalOpen(true); }}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 border border-slate-100 rounded-xl hover:bg-slate-100 transition-all text-sm font-bold"
+                >
+                  <FileText size={18} />
+                  Edit
+                </button>
+              )}
+              {!isShared && (
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
+                  className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold"
+                >
+                  <Plus size={18} />
+                  New Transaction
+                </button>
+              )}
             </div>
           </div>
 
@@ -268,6 +273,7 @@ export default function Parties() {
                   <tr>
                     <th className="px-4 py-4">Date</th>
                     <th className="px-4 py-4">Type</th>
+                    <th className="px-4 py-4">Invoice #</th>
                     <th className="px-4 py-4">Mark</th>
                     <th className="px-4 py-4">Net Wt</th>
                     <th className="px-4 py-4">Price</th>
@@ -290,6 +296,9 @@ export default function Parties() {
                           {tx.type}
                         </span>
                       </td>
+                      <td className="px-4 py-4 text-[11px] font-black text-indigo-600">
+                        {tx.source === 'invoice' ? (invoices.find(i => i.id === tx.id)?.invoice_number) : '-'}
+                      </td>
                       <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[80px]">{tx.shipping_mark || '-'}</td>
                       <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400">{tx.net_weight ? Number(tx.net_weight).toFixed(2) : '-'}</td>
                       <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400">{tx.price ? formatCurrency(tx.price, settings.currency).replace('Rs. ', '').replace('Rs.', '') : '-'}</td>
@@ -304,21 +313,25 @@ export default function Parties() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         {tx.id !== 'opening' && tx.source === 'transaction' && (
-                          <div className="flex justify-end gap-2">
-                          <button 
-                            onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))}
-                            className="flex items-center gap-1 px-2 py-1 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors text-xs font-bold"
-                          >
-                            <FileText size={14} />
-                            Edit
-                          </button>
-                          <button 
-                            onClick={() => deleteTransaction(tx.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                <div className="flex justify-end gap-2">
+                  {!isShared && (
+                    <button 
+                      onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))}
+                      className="flex items-center gap-1 px-2 py-1 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors text-xs font-bold"
+                    >
+                      <FileText size={14} />
+                      Edit
+                    </button>
+                  )}
+                  {!isShared && (
+                    <button 
+                      onClick={() => deleteTransaction(tx.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
                         )}
                       </td>
                     </tr>
@@ -376,18 +389,22 @@ export default function Parties() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button 
-                        onClick={() => tx.source === 'transaction' && window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))}
-                        className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg"
-                      >
-                        <FileText size={16} />
-                      </button>
-                      <button 
-                        onClick={() => tx.source === 'transaction' && deleteTransaction(tx.id)}
-                        className="p-2 text-slate-400 hover:text-rose-600"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {!isShared && (
+                        <button 
+                          onClick={() => tx.source === 'transaction' && window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))}
+                          className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg"
+                        >
+                          <FileText size={16} />
+                        </button>
+                      )}
+                      {!isShared && (
+                        <button 
+                          onClick={() => tx.source === 'transaction' && deleteTransaction(tx.id)}
+                          className="p-2 text-slate-400 hover:text-rose-600"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -513,13 +530,15 @@ export default function Parties() {
                   </button>
                 ))}
               </div>
-              <button 
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
-              >
-                <Plus size={20} />
-                Add Party
-              </button>
+              {!isShared && (
+                <button 
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+                >
+                  <Plus size={20} />
+                  Add Party
+                </button>
+              )}
             </div>
           </div>
 
@@ -562,18 +581,22 @@ export default function Parties() {
                 </div>
                 <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-end items-center">
                   <div className="flex gap-2">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setEditingParty(party); setIsAddModalOpen(true); }}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
-                    >
-                      <FileText size={16} />
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setIsDeleteConfirmOpen(party.id); }}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {!isShared && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setEditingParty(party); setIsAddModalOpen(true); }}
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                      >
+                        <FileText size={16} />
+                      </button>
+                    )}
+                    {!isShared && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setIsDeleteConfirmOpen(party.id); }}
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>

@@ -175,57 +175,46 @@ ALTER TABLE company_access REPLICA IDENTITY FULL;
 -- Ensure RLS
 ALTER TABLE company_access ENABLE ROW LEVEL SECURITY;
 
--- 6. company_access policies (REFINED)
-DROP POLICY IF EXISTS "Enable all for everyone" ON company_access;
-DROP POLICY IF EXISTS "Users can view their own company access" ON company_access;
-DROP POLICY IF EXISTS "Owners can invite users" ON company_access;
-DROP POLICY IF EXISTS "Owners or shared users can update access status" ON company_access;
-DROP POLICY IF EXISTS "Owners can revoke access" ON company_access;
+-- 6. company_access policies (REFINED for robustness)
 DROP POLICY IF EXISTS "company_access_select" ON company_access;
 DROP POLICY IF EXISTS "company_access_insert" ON company_access;
 DROP POLICY IF EXISTS "company_access_update" ON company_access;
 DROP POLICY IF EXISTS "company_access_delete" ON company_access;
 
--- SELECT policy: Allow user to read access records they are involved in
-CREATE POLICY "company_access_select" 
-ON company_access FOR SELECT 
-USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR 
+-- Everyone can see access they are part of
+CREATE POLICY "company_access_select" ON company_access FOR SELECT USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
 );
 
--- INSERT policy: Allow company owner to invite
-CREATE POLICY "company_access_insert" 
-ON company_access FOR INSERT 
-WITH CHECK (
+-- Owners can invite others (LOWER check)
+CREATE POLICY "company_access_insert" ON company_access FOR INSERT WITH CHECK (
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
 );
 
--- UPDATE policy: Only owner can update permissions, or shared user can update status
-CREATE POLICY "company_access_update" 
-ON company_access FOR UPDATE 
-USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email)
-)
-WITH CHECK (
+-- Owners can update anything; Shared users can only update their own status
+CREATE POLICY "company_access_update" ON company_access FOR UPDATE USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
+) WITH CHECK (
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   (LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) AND status IN ('accepted', 'rejected'))
 );
 
--- DELETE policy: Only owner can revoke access
-CREATE POLICY "company_access_delete" 
-ON company_access FOR DELETE 
-USING (LOWER(auth.jwt() ->> 'email') = LOWER(owner_email));
+-- Only owners can revoke access
+CREATE POLICY "company_access_delete" ON company_access FOR DELETE USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
+);
 
--- Companies Policies - dropping first to avoid conflicts if names match
+-- Companies Policies
 DROP POLICY IF EXISTS "Users can view companies they own or are shared with" ON companies;
 CREATE POLICY "Users can view companies they own or are shared with"
 ON companies FOR SELECT
 USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   auth.jwt() ->> 'email' = ANY(linked_emails) OR
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+  EXISTS (SELECT 1 FROM company_access WHERE company_id = id AND LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') AND status = 'accepted')
 );
 
 DROP POLICY IF EXISTS "Users can insert their own companies" ON companies;

@@ -712,7 +712,8 @@ export default function App() {
     paymentStatus,
     isOnline,
     session,
-    syncStatus
+    syncStatus,
+    isSharedCompany
   } = useApp();
   const { theme, toggleTheme } = useTheme();
 
@@ -774,13 +775,13 @@ export default function App() {
   ];
 
   const moreItems = [
-    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
+    ...(!isSharedCompany(currentCompany) ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : []),
     { id: 'companies', label: 'Companies', icon: Building2 },
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
     { id: 'business-status', label: 'Business Status', icon: BarChart3, premium: true },
     { id: 'customization', label: 'Themes', icon: Sun, premium: true },
-    { id: 'settings', label: 'App Settings', icon: SettingsIcon, premium: true },
+    ...(!isSharedCompany(currentCompany) ? [{ id: 'settings', label: 'App Settings', icon: SettingsIcon, premium: true }] : []),
     ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Premium Status', icon: Sparkles, premium: true }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
   ];
@@ -793,10 +794,10 @@ export default function App() {
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
-    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
+    ...(!isSharedCompany(currentCompany) ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : []),
     { id: 'companies', label: 'Company Manage', icon: Building2 },
     { id: 'reports', label: 'Reports', icon: History, premium: true },
-    { id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true },
+    ...(!isSharedCompany(currentCompany) ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true }] : []),
   ];
 
   const renderPage = () => {

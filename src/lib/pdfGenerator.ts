@@ -95,8 +95,28 @@ export const generatePartyStatement = (
     startY: 75,
     head: [['Date', 'Description', 'Debit/DR', 'Credit/CR', 'Balance']],
     body: tableData.map(row => [row.date, row.description, row.debit, row.credit, row.balance]),
-    headStyles: { fillStyle: 'F', fillColor: [67, 56, 202] }, // Indigo-700
-    alternateRowStyles: { fillColor: [245, 243, 255] }, // Indigo-50
+    headStyles: { 
+      fillColor: [67, 56, 202],
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: 'bold',
+      cellPadding: 2
+    },
+    styles: {
+      fontSize: 8,
+      cellPadding: 2,
+      valign: 'middle',
+      textColor: [30, 41, 59],
+      overflow: 'ellipsize'
+    },
+    columnStyles: {
+      0: { halign: 'left', cellWidth: 25 },
+      1: { halign: 'left', cellWidth: 'auto' },
+      2: { halign: 'right', cellWidth: 25 },
+      3: { halign: 'right', cellWidth: 25 },
+      4: { halign: 'right', cellWidth: 25 }
+    },
+    alternateRowStyles: { fillColor: [245, 243, 255] },
     margin: { top: 75 },
   });
 
@@ -211,7 +231,27 @@ export const generateBankStatement = (
       'Balance'
     ]],
     body: tableData.map(row => [row.date, row.description, row.debit, row.credit, row.balance]),
-    headStyles: { fillStyle: 'F', fillColor: [67, 56, 202] },
+    headStyles: { 
+      fillColor: [67, 56, 202],
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: 'bold',
+      cellPadding: 2
+    },
+    styles: {
+      fontSize: 8,
+      cellPadding: 2,
+      valign: 'middle',
+      textColor: [30, 41, 59],
+      overflow: 'ellipsize'
+    },
+    columnStyles: {
+      0: { halign: 'left', cellWidth: 25 },
+      1: { halign: 'left', cellWidth: 'auto' },
+      2: { halign: 'right', cellWidth: 25 },
+      3: { halign: 'right', cellWidth: 25 },
+      4: { halign: 'right', cellWidth: 25 }
+    },
     alternateRowStyles: { fillColor: [245, 243, 255] },
     margin: { top: 75 },
   });

@@ -24,7 +24,8 @@ interface jsPDFWithAutoTable extends jsPDF {
 }
 
 export default function Invoices() {
-  const { invoices, addInvoice, updateInvoice, deleteInvoice, settings, parties, items, currentCompany, banks } = useApp();
+  const { invoices, addInvoice, updateInvoice, deleteInvoice, settings, parties, items, currentCompany, banks, isSharedCompany } = useApp();
+  const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -177,8 +178,9 @@ export default function Invoices() {
       const drawInfoRow = (label: string, value: string, y: number) => {
         doc.setFont('helvetica', 'bold');
         doc.text(label, startX, y);
+        const labelWidth = doc.getTextWidth(label);
         doc.setFont('helvetica', 'normal');
-        doc.text(value || '-', startX + textSpacing, y);
+        doc.text(value || '-', startX + labelWidth + 2, y);
       };
 
       drawInfoRow('Bill To:', party?.name || 'Walk-in Customer', infoY);
@@ -208,31 +210,29 @@ export default function Invoices() {
         headStyles: { 
           fillColor: [241, 245, 249],
           textColor: [0, 0, 0],
-          fontSize: 7.5,
+          fontSize: 8,
           fontStyle: 'bold',
-          halign: 'center',
-          cellPadding: 1,
-          minCellHeight: 8,
+          cellPadding: 2,
+          minCellHeight: 10,
           valign: 'middle',
-          overflow: 'visible'
         },
         styles: {
-          fontSize: 7,
-          cellPadding: 1.5,
+          fontSize: 8,
+          cellPadding: 2,
           valign: 'middle',
           textColor: [0, 0, 0],
           overflow: 'ellipsize'
         },
         columnStyles: {
-          0: { halign: 'center', cellWidth: 7 },
-          1: { cellWidth: 15 },
-          2: { cellWidth: 'auto' },
-          3: { halign: 'center', cellWidth: 10 },
-          4: { halign: 'right', cellWidth: 15 },
-          5: { halign: 'right', cellWidth: 12 },
-          6: { halign: 'right', cellWidth: 15 },
-          7: { halign: 'right', cellWidth: 22 },
-          8: { halign: 'right', cellWidth: 22 }
+          0: { halign: 'center', cellWidth: 10 },
+          1: { halign: 'left', cellWidth: 20 },
+          2: { halign: 'left', cellWidth: 'auto' },
+          3: { halign: 'center', cellWidth: 15 },
+          4: { halign: 'right', cellWidth: 20 },
+          5: { halign: 'right', cellWidth: 18 },
+          6: { halign: 'right', cellWidth: 20 },
+          7: { halign: 'right', cellWidth: 25 },
+          8: { halign: 'right', cellWidth: 25 }
         }
       });
 
@@ -302,16 +302,18 @@ export default function Invoices() {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Invoices</h2>
           <p className="text-slate-500 dark:text-slate-400">Manage and generate professional invoices</p>
         </div>
-        <button 
-          onClick={() => {
-            setIsAddModalOpen(true);
-            setSelectedItems([{ item_id: '', quantity: 1, price: 0 }]);
-          }}
-          className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 w-full md:w-auto"
-        >
-          <Plus size={20} />
-          Create Invoice
-        </button>
+        {!isShared && (
+          <button 
+            onClick={() => {
+              setIsAddModalOpen(true);
+              setSelectedItems([{ item_id: '', quantity: 1, price: 0 }]);
+            }}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 w-full md:w-auto"
+          >
+            <Plus size={20} />
+            Create Invoice
+          </button>
+        )}
       </div>
 
       <div className="relative max-w-md">
@@ -348,15 +350,21 @@ export default function Invoices() {
                   </span>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => exportInvoicePDF(invoice)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors">
-                    <Download size={18} />
-                  </button>
-                  <button onClick={() => handleEditInvoice(invoice)} className="p-2 text-slate-400 hover:text-emerald-600 transition-colors">
-                    <Plus size={18} className="rotate-45" />
-                  </button>
-                  <button onClick={() => setIsDeleteConfirmOpen(invoice.id)} className="p-2 text-slate-400 hover:text-rose-600 transition-colors">
-                    <Trash2 size={18} />
-                  </button>
+                  {!isShared && (
+                    <button onClick={() => exportInvoicePDF(invoice)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors">
+                      <Download size={18} />
+                    </button>
+                  )}
+                  {!isShared && (
+                    <button onClick={() => handleEditInvoice(invoice)} className="p-2 text-slate-400 hover:text-emerald-600 transition-colors">
+                      <Plus size={18} className="rotate-45" />
+                    </button>
+                  )}
+                  {!isShared && (
+                    <button onClick={() => setIsDeleteConfirmOpen(invoice.id)} className="p-2 text-slate-400 hover:text-rose-600 transition-colors">
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                 </div>
               </div>
               <h3 className="font-bold text-lg mb-1 text-slate-900 dark:text-white">{invoice.invoice_number}</h3>

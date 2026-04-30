@@ -25,7 +25,7 @@ export default function ManageCompanies() {
   const { 
     companies, currentCompany, setCurrentCompany, addCompany, deleteCompany,
     syncStatus, isLicensed, isDeviceLicensed, settings, shareCompany, revokeCompanyAccess,
-    getSharedCompanies, refreshData, session
+    getSharedCompanies, refreshData, session, isSharedCompany
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'my' | 'shared' | 'hr'>('my');
@@ -122,12 +122,10 @@ export default function ManageCompanies() {
   const myCompanies = companies.filter(c => c.company_type !== 'hr');
   const hrCompanies = companies.filter(c => c.company_type === 'hr');
 
-  const renderCompanyCard = (company: any, isShared = false) => {
+  const renderCompanyCard = (company: any, isSharedTab = false) => {
     const isActive = currentCompany?.id === company.id;
     const isHR = company.company_type === 'hr';
-    const myEmail = settings.user_email?.toLowerCase() || session?.user?.email?.toLowerCase();
-    const ownerEmail = (company.owner_email || company.user_email)?.toLowerCase();
-    const isOwner = !ownerEmail || myEmail === ownerEmail;
+    const isShared = isSharedCompany(company);
 
     return (
       <motion.div
@@ -143,7 +141,7 @@ export default function ManageCompanies() {
         )}
         onClick={() => {
             setCurrentCompany(company);
-            if (company.company_type === 'normal' || isShared) {
+            if (company.company_type === 'normal' || isSharedTab || isShared) {
                 // Shared or normal companies can trigger a refresh if online
                 refreshData(undefined, true).catch(console.error);
             }
@@ -154,10 +152,10 @@ export default function ManageCompanies() {
             "w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl",
             isActive ? "bg-white/20" : "bg-indigo-50 text-indigo-600"
           )}>
-            {isHR ? <Briefcase size={20} /> : <Building2 size={20} />}
+            {isShared ? <Users size={20} /> : (isHR ? <Briefcase size={20} /> : <Building2 size={20} />)}
           </div>
           <div className="flex items-center gap-2">
-            {!isShared && isOwner && (
+            {!isShared && (
                <button 
                 onClick={(e) => {
                     e.stopPropagation();
@@ -171,7 +169,7 @@ export default function ManageCompanies() {
                 <Share2 size={16} />
                </button>
             )}
-            {!isShared && isOwner && (
+            {!isShared && (
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
@@ -200,6 +198,12 @@ export default function ManageCompanies() {
           <div className="absolute top-2 right-2 flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full">
             <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
             <span className="text-[10px] font-black uppercase tracking-widest">Active</span>
+          </div>
+        )}
+        
+        {isShared && !isActive && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded-full text-indigo-600">
+            <span className="text-[10px] font-black uppercase tracking-widest">Shared with me</span>
           </div>
         )}
       </motion.div>

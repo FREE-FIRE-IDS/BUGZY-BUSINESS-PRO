@@ -81,6 +81,7 @@ interface AppContextType {
   joinCompanyByCode: (code: string) => Promise<boolean>;
   getPartyBalance: (partyId: string) => number;
   getBankBalance: (bankId: string) => number;
+  isSharedCompany: (company?: Company | null) => boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -2249,28 +2250,48 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     await supabase.auth.signOut();
   };
 
+  const isSharedCompany = (company?: Company | null) => {
+    if (!company) return false;
+    const myEmail = (settings.user_email || session?.user?.email || '').toLowerCase();
+    const ownerEmail = (company.owner_email || company.user_email || '').toLowerCase();
+    
+    // If owner email is set and it's not mine, it's shared
+    if (ownerEmail && myEmail && ownerEmail !== myEmail) {
+      return true;
+    }
+    
+    // Check linked emails too
+    if (myEmail && company.linked_emails?.includes(myEmail)) {
+        // If it's in linked_emails but we are NOT the owner, it's shared
+        return ownerEmail !== myEmail;
+    }
+
+    return false;
+  };
+
   const manualSyncLogin = async (email: string) => {
     const normalizedEmail = email.toLowerCase().trim();
-    console.log(`[Sync] Requesting OTP for: ${normalizedEmail}`);
+    console.log(`[Sync] Setting sync email to: ${normalizedEmail}`);
     
-    // In many environments, window.location.origin is the safest redirect
-    const redirectTo = 'https://bugzy-business0pro.vercel.app';
+    // Update local settings immediately so UI feels responsive
+    updateSettings({ user_email: normalizedEmail, sync_enabled: true });
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: redirectTo,
-      },
-    });
-    
-    if (error) {
-      console.error('[Sync OTP Error]', error);
-      if (error.message.toLowerCase().includes('rate limit')) {
-        throw new Error('Supabase Rate Limit Reached: You can only request 3 codes per hour. Please wait a bit longer (up to 60 mins) before trying again ⏳');
-      }
-      throw new Error(error.message || 'Failed to send code ❌');
+    // Try to sign in with OTP but don't block the UI with "SENT" wait if they want "instant"
+    // We will still send it so they CAN verify if they want RLS to work
+    const redirectTo = window.location.origin; // Dynamically detect origin
+
+    try {
+      await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: redirectTo,
+        },
+      });
+    } catch (e) {
+      console.warn('Silent OTP failure:', e);
     }
+    
     return "SENT";
   };
 
@@ -2552,7 +2573,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       fetchSentInvitations,
       joinCompanyByCode,
       getPartyBalance,
-      getBankBalance
+      getBankBalance,
+      isSharedCompany
     }}>
       {children}
     </AppContext.Provider>
