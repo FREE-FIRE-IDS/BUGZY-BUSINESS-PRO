@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useState, useEffect } from 'react';
 
 import { Company } from './types';
 import { supabase } from './lib/supabase';
@@ -43,6 +43,8 @@ import { useApp } from './contexts/AppContext';
 import { useTheme } from './contexts/ThemeContext';
 import { cn } from './lib/utils';
 import { differenceInDays, addDays, isAfter, format } from 'date-fns';
+
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -648,51 +650,6 @@ function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onU
   );
 }
 
-class ErrorBoundary extends React.Component<any, { hasError: boolean }> {
-  state = { hasError: false };
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: any, errorInfo: any) {
-    console.error("ErrorBoundary caught an error", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] text-center bg-slate-50 dark:bg-slate-900 rounded-[2.5rem]">
-          <div className="w-20 h-20 bg-rose-100 dark:bg-rose-900/30 text-rose-600 rounded-3xl flex items-center justify-center mb-6">
-            <X size={40} />
-          </div>
-          <h2 className="text-2xl font-black mb-2">Something went wrong</h2>
-          <p className="text-slate-500 mb-8 max-w-xs mx-auto">This section crashed. Try refreshing or going back to the dashboard.</p>
-          <div className="flex gap-4">
-            <button 
-              onClick={() => window.location.reload()}
-              className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-500/20 active:scale-95 transition-all"
-            >
-              Refresh App
-            </button>
-            <button 
-              onClick={() => {
-                (this as any).setState({ hasError: false });
-                window.dispatchEvent(new CustomEvent('navigate', { detail: 'dashboard' }));
-              }}
-              className="px-8 py-4 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl font-bold active:scale-95 transition-all"
-            >
-              Go Home
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    return (this as any).props.children; 
-  }
-}
-
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -897,11 +854,10 @@ export default function App() {
   }
 
   return (
-    <ErrorBoundary>
-      <div className={cn(
-          "h-screen flex overflow-hidden transition-colors duration-300",
-          theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
-        )}>
+    <div className={cn(
+        "h-screen flex overflow-hidden transition-colors duration-300",
+        theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
+      )}>
       {/* PC Sidebar */}
       <aside className={cn(
         "h-full shrink-0 border-r hidden md:flex flex-col transition-all duration-300 relative z-30",
@@ -1272,8 +1228,7 @@ export default function App() {
           </div>
         </div>
       )}
-      </div>
-    </ErrorBoundary>
+    </div>
   );
 }
 

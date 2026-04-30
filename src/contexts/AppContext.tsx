@@ -40,16 +40,14 @@ interface AppContextType {
   updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
   submitPaymentRequest: (data: {
-    user_name: string;
-    username?: string;
-    account_name: string;
+    name: string;
     phone: string;
     amount: number;
-    plan: 'monthly' | 'yearly';
-    screenshot_url?: string;
+    plan: string;
+    screenshot: string;
   }) => Promise<void>;
   fetchPaymentRequests: () => Promise<PaymentRequest[]>;
-  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected', companyId: string) => Promise<void>;
+  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected') => Promise<void>;
   paymentStatus: 'none' | 'pending' | 'approved' | 'rejected';
   activateLicense: (key: string) => Promise<void>;
   fetchLicenses: () => Promise<License[]>;
