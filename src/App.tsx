@@ -770,7 +770,7 @@ export default function App() {
     { id: 'banks', label: 'Banks', icon: Landmark, premium: true },
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
     { id: 'reports', label: 'Reports', icon: History, premium: true },
-    { id: 'more', label: 'More', icon: Menu },
+    { id: 'more', label: 'More', icon: Menu }, // This will be filtered out on PC
   ];
 
   const moreItems = [
@@ -783,6 +783,12 @@ export default function App() {
     { id: 'settings', label: 'App Settings', icon: SettingsIcon, premium: true },
     ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Premium Status', icon: Sparkles, premium: true }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
+  ];
+
+  // PC will show everything except 'more' tab
+  const pcItems = [
+    ...menuItems.filter(i => i.id !== 'more'),
+    ...moreItems.filter(i => i.id !== 'upgrade')
   ];
 
   const renderPage = () => {
@@ -891,10 +897,11 @@ export default function App() {
   }
 
   return (
-    <div className={cn(
-        "h-screen flex overflow-hidden transition-colors duration-300",
-        theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
-      )}>
+    <ErrorBoundary>
+      <div className={cn(
+          "h-screen flex overflow-hidden transition-colors duration-300",
+          theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
+        )}>
       {/* PC Sidebar */}
       <aside className={cn(
         "h-full shrink-0 border-r hidden md:flex flex-col transition-all duration-300 relative z-30",
@@ -928,7 +935,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 mt-6 px-3 space-y-1 overflow-y-auto no-scrollbar">
-          {menuItems.map((item) => (
+          {pcItems.map((item) => (
             <button
               key={item.id}
               onClick={() => {
@@ -1265,7 +1272,8 @@ export default function App() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
 
