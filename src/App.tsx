@@ -768,13 +768,13 @@ export default function App() {
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'parties', label: 'Parties', icon: Users, premium: true },
     { id: 'banks', label: 'Banks', icon: Landmark, premium: true },
-    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
     { id: 'reports', label: 'Reports', icon: History, premium: true },
     { id: 'more', label: 'More', icon: Menu },
   ];
 
   const moreItems = [
+    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
     { id: 'companies', label: 'Companies', icon: Building2 },
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
@@ -786,7 +786,11 @@ export default function App() {
   ];
 
   const renderPage = () => {
-    const tab = activeTab === 'more' ? 'settings' : activeTab;
+    let tab = activeTab;
+    
+    // If we are showing the "More" tab (menu), we might still be on one of its pages
+    // or we might be showing the list of more items.
+    // However, the current logic handles display of the grid separately.
     
     // Check if user is on a premium tab
     const isPremiumTab = [...menuItems, ...moreItems].find(i => i.id === tab)?.premium;
@@ -924,7 +928,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 mt-6 px-3 space-y-1 overflow-y-auto no-scrollbar">
-          {menuItems.filter(i => i.id !== 'more').concat(moreItems.filter(i => i.id !== 'upgrade')).map((item) => (
+          {menuItems.map((item) => (
             <button
               key={item.id}
               onClick={() => {
@@ -1005,7 +1009,7 @@ export default function App() {
                 </div>
               )}
               <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50 capitalize truncate max-w-[120px] md:max-w-none hidden lg:block">
-                {activeTab === 'more' ? 'Menu' : activeTab}
+                {[...menuItems, ...moreItems].find(i => i.id === activeTab)?.label || 'Dashboard'}
               </h2>
             </div>
 

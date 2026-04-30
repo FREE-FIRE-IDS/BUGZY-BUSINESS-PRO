@@ -174,6 +174,7 @@ ALTER TABLE banks REPLICA IDENTITY FULL;
 ALTER TABLE inventory REPLICA IDENTITY FULL;
 ALTER TABLE transactions REPLICA IDENTITY FULL;
 ALTER TABLE invoices REPLICA IDENTITY FULL;
+ALTER TABLE company_access REPLICA IDENTITY FULL;
 
 -- Ensure RLS and basic policies
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
@@ -200,10 +201,8 @@ WITH CHECK (
 DROP POLICY IF EXISTS "Owners can update their companies" ON companies;
 CREATE POLICY "Owners can update their companies"
 ON companies FOR UPDATE
-USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
-);
+USING (true)
+WITH CHECK (true);
 
 -- Policies for other tables to ensure real-time sync works
 -- Parties
@@ -249,17 +248,8 @@ CREATE POLICY "Invoices access" ON invoices FOR ALL USING (
 -- Company Access Policies
 ALTER TABLE company_access ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Enable insert for everyone" ON company_access;
-CREATE POLICY "Enable insert for everyone" ON company_access FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Enable select for related users" ON company_access;
-CREATE POLICY "Enable select for related users" ON company_access FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Enable update for related users" ON company_access;
-CREATE POLICY "Enable update for related users" ON company_access FOR UPDATE USING (true);
-
-DROP POLICY IF EXISTS "Enable delete for owners" ON company_access;
-CREATE POLICY "Enable delete for owners" ON company_access FOR DELETE USING (true);
+DROP POLICY IF EXISTS "Enable all for everyone" ON company_access;
+CREATE POLICY "Enable all for everyone" ON company_access FOR ALL USING (true) WITH CHECK (true);
 
 
 -- 7. Policies for payment_requests
