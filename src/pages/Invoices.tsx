@@ -166,37 +166,26 @@ export default function Invoices() {
       doc.setLineWidth(0.5);
       doc.line((pageWidth - titleWidth) / 2, 21.5, (pageWidth + titleWidth) / 2, 21.5);
 
-      // Info Section - Two Columns (Improved Alignment)
+      // Info Section - Single Column (Unified Side)
       doc.setFontSize(10);
       doc.setTextColor(0, 0, 0);
       
       const infoY = 32;
-      const labelX = 14;
-      const valueX = 35; // Moved closer to label
-      const rightLabelX = 120; // Moved slightly left
-      const rightValueX = 150; // Moved closer to label
-
-      // Left Column
-      doc.setFont('helvetica', 'bold');
-      doc.text('Bill To:', labelX, infoY);
-      doc.setFont('helvetica', 'normal');
-      doc.text(party?.name || 'Walk-in Customer', valueX, infoY, { maxWidth: 80 });
+      const startX = 14;
+      const textSpacing = 28; // Space between label and value
       
-      doc.setFont('helvetica', 'bold');
-      doc.text('Contact:', labelX, infoY + 8);
-      doc.setFont('helvetica', 'normal');
-      doc.text(party?.phone || '-', valueX, infoY + 8);
+      const drawInfoRow = (label: string, value: string, y: number) => {
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, startX, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value || '-', startX + textSpacing, y);
+      };
 
-      // Right Column
-      doc.setFont('helvetica', 'bold');
-      doc.text('Invoice #:', rightLabelX, infoY);
-      doc.setFont('helvetica', 'normal');
-      doc.text(invoice.invoice_number || '-', rightValueX, infoY);
-      
-      doc.setFont('helvetica', 'bold');
-      doc.text('Date:', rightLabelX, infoY + 8);
-      doc.setFont('helvetica', 'normal');
-      doc.text(formatDate(invoice.date), rightValueX, infoY + 8);
+      drawInfoRow('Bill To:', party?.name || 'Walk-in Customer', infoY);
+      drawInfoRow('Contact:', party?.phone || '-', infoY + 7);
+      drawInfoRow('Invoice #:', invoice.invoice_number || '-', infoY + 14);
+      drawInfoRow('Date:', formatDate(invoice.date), infoY + 21);
+      drawInfoRow('Status:', invoice.status, infoY + 28);
 
       // Table
       const tableData = invoice.items.map((item: any, idx: number) => [
@@ -214,40 +203,36 @@ export default function Invoices() {
       autoTable(doc, {
         head: [['#', 'Mark', 'Item Description', 'Qty', 'T.Wt', 'Short', 'N.Wt', 'Price', 'Total']],
         body: tableData,
-        startY: infoY + 18,
+        startY: infoY + 36,
         theme: 'grid',
         headStyles: { 
-          fillColor: [220, 220, 220],
+          fillColor: [241, 245, 249],
           textColor: [0, 0, 0],
-          fontSize: 8,
+          fontSize: 7.5,
           fontStyle: 'bold',
           halign: 'center',
-          cellPadding: 1.5,
-          minCellHeight: 10,
-          valign: 'middle'
+          cellPadding: 1,
+          minCellHeight: 8,
+          valign: 'middle',
+          overflow: 'visible'
         },
         styles: {
-          fontSize: 7, // Reduced slightly to avoid wrap
+          fontSize: 7,
           cellPadding: 1.5,
           valign: 'middle',
           textColor: [0, 0, 0],
-          overflow: 'visible' // Ensure no wrap/clip if possible
+          overflow: 'ellipsize'
         },
         columnStyles: {
-          0: { halign: 'center', cellWidth: 8 },
-          1: { cellWidth: 18 },
-          2: { cellWidth: 42 },
+          0: { halign: 'center', cellWidth: 7 },
+          1: { cellWidth: 15 },
+          2: { cellWidth: 'auto' },
           3: { halign: 'center', cellWidth: 10 },
-          4: { halign: 'right', cellWidth: 14 },
-          5: { halign: 'right', cellWidth: 14 },
-          6: { halign: 'right', cellWidth: 14 },
+          4: { halign: 'right', cellWidth: 15 },
+          5: { halign: 'right', cellWidth: 12 },
+          6: { halign: 'right', cellWidth: 15 },
           7: { halign: 'right', cellWidth: 22 },
           8: { halign: 'right', cellWidth: 22 }
-        },
-        didParseCell: (data) => {
-          if (data.section === 'head') {
-            data.cell.styles.cellWidth = 'wrap'; // Try to keep headings on one line
-          }
         }
       });
 

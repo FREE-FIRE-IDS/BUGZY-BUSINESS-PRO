@@ -329,32 +329,49 @@ export default function Parties() {
 
             {/* Mobile Card View for Ledger */}
             <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
-              {partyLedger.map((tx) => (
+              {partyLedger.map((tx, index) => (
                 <div key={tx.id} className="p-4 space-y-3">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="text-xs text-slate-400">{formatDate(tx.date)}</p>
+                      <p className="text-[10px] text-slate-400 font-bold mb-1 tracking-tight uppercase">#{index + 1} • {formatDate(tx.date)}</p>
                       <p className="font-bold text-slate-900 dark:text-slate-900">{tx.description || tx.type}</p>
+                      {tx.shipping_mark && <p className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded inline-block mt-1 uppercase mt-1 tracking-widest">{tx.shipping_mark}</p>}
                     </div>
                     <span className={cn(
-                      "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
+                      "px-2 py-0.5 rounded text-[9px] font-bold uppercase",
                       tx.type === 'Sale' || tx.type === 'Payment In' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
                     )}>
                       {tx.type}
                     </span>
                   </div>
+                  {(tx.net_weight || tx.price) && (
+                    <div className="flex gap-4 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                      {tx.net_weight && (
+                        <div>
+                           <p className="text-[8px] uppercase font-black text-slate-400 tracking-widest">Weight</p>
+                           <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{Number(tx.net_weight).toFixed(2)}</p>
+                        </div>
+                      )}
+                      {tx.price && (
+                        <div>
+                           <p className="text-[8px] uppercase font-black text-slate-400 tracking-widest">Price</p>
+                           <p className="text-xs font-bold text-slate-700 dark:text-slate-200">@{Number(tx.price).toFixed(2)}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex justify-between items-center">
                     <div className="flex gap-4">
                       <div>
                         <p className="text-[10px] text-slate-400 uppercase font-bold">Debit</p>
                         <p className="text-sm font-bold text-slate-900 dark:text-slate-900">
-                          {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party')) || (tx.to_party_id === currentSelectedParty.id) ? formatCurrency(tx.amount, settings.currency) : '-'}
+                          {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party' || tx.type === 'Cash To Party')) || (tx.to_party_id === currentSelectedParty.id) ? formatCurrency(tx.amount, settings.currency) : '-'}
                         </p>
                       </div>
                       <div>
                         <p className="text-[10px] text-slate-400 uppercase font-bold">Credit</p>
                         <p className="text-sm font-bold text-slate-900 dark:text-slate-900">
-                          {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party')) ? formatCurrency(tx.amount, settings.currency) : '-'}
+                          {(tx.party_id === currentSelectedParty.id && (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Bank' || tx.type === 'Party To Party' || tx.type === 'Party To Cash')) ? formatCurrency(tx.amount, settings.currency) : '-'}
                         </p>
                       </div>
                     </div>

@@ -1288,6 +1288,7 @@ function SetupCompany() {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
+  const [license, setLicense] = useState('');
   const [currency, setCurrency] = useState('PKR');
   const [type, setType] = useState<'normal' | 'hr'>('normal');
   const [mode, setMode] = useState<'login' | 'signup' | 'restore' | 'list'>(companies.length > 0 ? 'list' : 'signup');
@@ -1322,7 +1323,7 @@ function SetupCompany() {
           currency,
           company_type: type,
           user_id: session?.user?.id || 'default',
-        });
+        }, license.trim() || undefined);
         setMode('list');
       } catch (e: any) {
         console.error('Add company error:', e);
@@ -1525,6 +1526,22 @@ function SetupCompany() {
                 <option value="USD">US Dollar (USD)</option>
                 <option value="None">None</option>
               </select>
+            </div>
+          )}
+
+          {mode === 'signup' && (
+            <div className="bg-amber-50 dark:bg-amber-900/10 rounded-2xl p-4 border border-amber-100 dark:border-amber-900/30">
+              <label className="block text-xs font-black uppercase text-amber-600 dark:text-amber-400 tracking-widest mb-2 flex items-center gap-2">
+                <Sparkles size={14} /> License Key (Optional)
+              </label>
+              <input 
+                type="text" 
+                value={license}
+                onChange={(e) => setLicense(e.target.value)}
+                className="w-full p-2 bg-white dark:bg-slate-800 rounded-lg border border-amber-200 dark:border-amber-900/30 outline-none focus:border-amber-500 font-mono font-bold transition-all text-slate-900 dark:text-slate-50 uppercase tracking-widest text-sm"
+                placeholder="PRO-XXXX-XXXX"
+              />
+              <p className="text-[9px] text-amber-600 dark:text-amber-500 mt-2 font-medium">Entering your master key activates professional features permanently.</p>
             </div>
           )}
           

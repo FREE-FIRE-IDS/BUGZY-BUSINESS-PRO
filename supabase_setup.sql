@@ -175,26 +175,34 @@ ALTER TABLE company_access REPLICA IDENTITY FULL;
 -- Ensure RLS
 ALTER TABLE company_access ENABLE ROW LEVEL SECURITY;
 
--- 6. company_access policies (REFIRNED)
+-- 6. company_access policies (REFINED)
 DROP POLICY IF EXISTS "Enable all for everyone" ON company_access;
+DROP POLICY IF EXISTS "Users can view their own company access" ON company_access;
+DROP POLICY IF EXISTS "Owners can invite users" ON company_access;
+DROP POLICY IF EXISTS "Owners or shared users can update access status" ON company_access;
+DROP POLICY IF EXISTS "Owners can revoke access" ON company_access;
+DROP POLICY IF EXISTS "company_access_select" ON company_access;
+DROP POLICY IF EXISTS "company_access_insert" ON company_access;
+DROP POLICY IF EXISTS "company_access_update" ON company_access;
+DROP POLICY IF EXISTS "company_access_delete" ON company_access;
 
 -- SELECT policy: Allow user to read access records they are involved in
-CREATE POLICY "Users can view their own company access" 
+CREATE POLICY "company_access_select" 
 ON company_access FOR SELECT 
 USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
 );
 
--- INSERT policy: Allow company owner to invite, or allow anyone to record an invite if we trust the source (more secure to check owner_email)
-CREATE POLICY "Owners can invite users" 
+-- INSERT policy: Allow company owner to invite
+CREATE POLICY "company_access_insert" 
 ON company_access FOR INSERT 
 WITH CHECK (
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
 );
 
--- UPDATE policy: Only owner can update (permission/status) or shared user can update (status only)
-CREATE POLICY "Owners or shared users can update access status" 
+-- UPDATE policy: Only owner can update permissions, or shared user can update status
+CREATE POLICY "company_access_update" 
 ON company_access FOR UPDATE 
 USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
@@ -206,7 +214,7 @@ WITH CHECK (
 );
 
 -- DELETE policy: Only owner can revoke access
-CREATE POLICY "Owners can revoke access" 
+CREATE POLICY "company_access_delete" 
 ON company_access FOR DELETE 
 USING (LOWER(auth.jwt() ->> 'email') = LOWER(owner_email));
 
@@ -274,41 +282,6 @@ CREATE POLICY "Invoices access" ON invoices FOR ALL USING (
   (auth.jwt() ->> 'email') = user_email OR 
   EXISTS (SELECT 1 FROM companies WHERE id = company_id AND ((auth.jwt() ->> 'email') = user_email OR (auth.jwt() ->> 'email') = ANY(linked_emails) OR (auth.jwt() ->> 'email') = owner_email))
 );
-
--- Company Access Policies
-ALTER TABLE company_access ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Enable all for everyone" ON company_access;
-DROP POLICY IF EXISTS "company_access_select" ON company_access;
-DROP POLICY IF EXISTS "company_access_insert" ON company_access;
-DROP POLICY IF EXISTS "company_access_update" ON company_access;
-DROP POLICY IF EXISTS "company_access_delete" ON company_access;
-
--- Everyone can see access they are part of or companies they own
-CREATE POLICY "company_access_select" ON company_access FOR SELECT USING (
-  (auth.jwt() ->> 'email') = user_email OR
-  EXISTS (SELECT 1 FROM companies WHERE id = company_id AND (auth.jwt() ->> 'email') = owner_email)
-);
-
--- Only owners can invite others
-CREATE POLICY "company_access_insert" ON company_access FOR INSERT WITH CHECK (
-  EXISTS (SELECT 1 FROM companies WHERE id = company_id AND (auth.jwt() ->> 'email') = owner_email)
-);
-
--- Owners can update anything; Shared users can only update their own status
-CREATE POLICY "company_access_update" ON company_access FOR UPDATE USING (
-  (auth.jwt() ->> 'email') = user_email OR
-  EXISTS (SELECT 1 FROM companies WHERE id = company_id AND (auth.jwt() ->> 'email') = owner_email)
-) WITH CHECK (
-  EXISTS (SELECT 1 FROM companies WHERE id = company_id AND (auth.jwt() ->> 'email') = owner_email) OR
-  ((auth.jwt() ->> 'email') = user_email) -- Allowed to update status
-);
-
--- Only owners can revoke access
-CREATE POLICY "company_access_delete" ON company_access FOR DELETE USING (
-  EXISTS (SELECT 1 FROM companies WHERE id = company_id AND (auth.jwt() ->> 'email') = owner_email)
-);
-
 
 -- 7. Policies for payment_requests
 CREATE POLICY "Users can create their own payment requests" 
