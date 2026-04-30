@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 
 import { Company } from './types';
 import { supabase } from './lib/supabase';
@@ -43,8 +43,6 @@ import { useApp } from './contexts/AppContext';
 import { useTheme } from './contexts/ThemeContext';
 import { cn } from './lib/utils';
 import { differenceInDays, addDays, isAfter, format } from 'date-fns';
-
-import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -650,6 +648,51 @@ function TrialBanner({ company, onUpgrade, isLicensed }: { company: Company, onU
   );
 }
 
+class ErrorBoundary extends React.Component<any, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 flex flex-col items-center justify-center min-h-[50vh] text-center bg-slate-50 dark:bg-slate-900 rounded-[2.5rem]">
+          <div className="w-20 h-20 bg-rose-100 dark:bg-rose-900/30 text-rose-600 rounded-3xl flex items-center justify-center mb-6">
+            <X size={40} />
+          </div>
+          <h2 className="text-2xl font-black mb-2">Something went wrong</h2>
+          <p className="text-slate-500 mb-8 max-w-xs mx-auto">This section crashed. Try refreshing or going back to the dashboard.</p>
+          <div className="flex gap-4">
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-500/20 active:scale-95 transition-all"
+            >
+              Refresh App
+            </button>
+            <button 
+              onClick={() => {
+                (this as any).setState({ hasError: false });
+                window.dispatchEvent(new CustomEvent('navigate', { detail: 'dashboard' }));
+              }}
+              className="px-8 py-4 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl font-bold active:scale-95 transition-all"
+            >
+              Go Home
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (this as any).props.children; 
+  }
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -727,7 +770,7 @@ export default function App() {
     { id: 'banks', label: 'Banks', icon: Landmark, premium: true },
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
     { id: 'reports', label: 'Reports', icon: History, premium: true },
-    { id: 'more', label: 'More', icon: Menu }, // This will be filtered out on PC
+    { id: 'more', label: 'More', icon: Menu },
   ];
 
   const moreItems = [
@@ -740,12 +783,6 @@ export default function App() {
     { id: 'settings', label: 'App Settings', icon: SettingsIcon, premium: true },
     ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Premium Status', icon: Sparkles, premium: true }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
-  ];
-
-  // PC will show everything except 'more' tab
-  const pcItems = [
-    ...menuItems.filter(i => i.id !== 'more'),
-    ...moreItems.filter(i => i.id !== 'upgrade')
   ];
 
   const renderPage = () => {
@@ -891,7 +928,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 mt-6 px-3 space-y-1 overflow-y-auto no-scrollbar">
-          {pcItems.map((item) => (
+          {menuItems.map((item) => (
             <button
               key={item.id}
               onClick={() => {

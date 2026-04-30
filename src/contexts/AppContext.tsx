@@ -40,14 +40,16 @@ interface AppContextType {
   updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string, hard?: boolean) => Promise<void>;
   submitPaymentRequest: (data: {
-    name: string;
+    user_name: string;
+    username?: string;
+    account_name: string;
     phone: string;
     amount: number;
-    plan: string;
-    screenshot: string;
+    plan: 'monthly' | 'yearly';
+    screenshot_url?: string;
   }) => Promise<void>;
   fetchPaymentRequests: () => Promise<PaymentRequest[]>;
-  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected') => Promise<void>;
+  updatePaymentRequestStatus: (id: string, status: 'approved' | 'rejected', companyId: string) => Promise<void>;
   paymentStatus: 'none' | 'pending' | 'approved' | 'rejected';
   activateLicense: (key: string) => Promise<void>;
   fetchLicenses: () => Promise<License[]>;
@@ -1213,19 +1215,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     // Background Sync
     if (settings.sync_enabled) {
-      try {
-        syncToCloud('transactions', newTx, true).catch(err => console.error('Add Transaction Sync Error:', err));
-      } catch (e) {
-        console.error('Background Sync Exception:', e);
-      }
+      syncToCloud('transactions', newTx, true).catch(err => console.error('Add Transaction Sync Error:', err));
     }
     
     // Recalculate balances (also optimistic)
-    try {
-      await recalculateBalances(updated, parties, banks, items, invoices);
-    } catch (e) {
-      console.error('Recalculate error:', e);
-    }
+    await recalculateBalances(updated, parties, banks, items, invoices);
   };
 
   const updateTransaction = async (id: string, tx: Partial<Transaction>) => {
@@ -2259,11 +2253,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const normalizedEmail = email.toLowerCase().trim();
     console.log(`[Sync] Requesting OTP for: ${normalizedEmail}`);
     
-    // Determine production or local redirect URL
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const prodUrl = 'https://bugzy-business-pro.vercel.app';
-    const localUrl = 'http://localhost:5173';
-    const redirectTo = isLocal ? localUrl : prodUrl;
+    // In many environments, window.location.origin is the safest redirect
+    const redirectTo = window.location.origin;
 
     const { error } = await supabase.auth.signInWithOtp({
       email: normalizedEmail,

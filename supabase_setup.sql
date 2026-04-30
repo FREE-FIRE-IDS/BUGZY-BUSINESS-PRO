@@ -201,10 +201,8 @@ WITH CHECK (
 DROP POLICY IF EXISTS "Owners can update their companies" ON companies;
 CREATE POLICY "Owners can update their companies"
 ON companies FOR UPDATE
-USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
-);
+USING (true)
+WITH CHECK (true);
 
 -- Policies for other tables to ensure real-time sync works
 -- Parties
@@ -251,28 +249,7 @@ CREATE POLICY "Invoices access" ON invoices FOR ALL USING (
 ALTER TABLE company_access ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Enable all for everyone" ON company_access;
-
-DROP POLICY IF EXISTS "Owners can manage access" ON company_access;
-CREATE POLICY "Owners can manage access" ON company_access
-FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
-) WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
-);
-
-DROP POLICY IF EXISTS "Users can view their invitations" ON company_access;
-CREATE POLICY "Users can view their invitations" ON company_access
-FOR SELECT USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email)
-);
-
-DROP POLICY IF EXISTS "Users can accept invitations" ON company_access;
-CREATE POLICY "Users can accept invitations" ON company_access
-FOR UPDATE USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email)
-) WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email)
-);
+CREATE POLICY "Enable all for everyone" ON company_access FOR ALL USING (true) WITH CHECK (true);
 
 
 -- 7. Policies for payment_requests

@@ -21,7 +21,6 @@ export default function GlobalTransactionModal() {
   const [toBankId, setToBankId] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [invoiceNumber, setInvoiceNumber] = useState('');
   const [shippingMark, setShippingMark] = useState('');
   const [totalWeight, setTotalWeight] = useState('');
   const [shortage, setShortage] = useState('');
@@ -106,7 +105,6 @@ export default function GlobalTransactionModal() {
         setToBankId(tx.to_bank_id || '');
         setAmount(String(tx.amount));
         setDescription(tx.description || '');
-        setInvoiceNumber(tx.reference || tx.invoice_number || '');
         setShippingMark(tx.shipping_mark || '');
         setTotalWeight(tx.total_weight ? String(tx.total_weight) : '');
         setShortage(tx.shortage ? String(tx.shortage) : '');
@@ -147,7 +145,6 @@ export default function GlobalTransactionModal() {
       type,
       amount: Number(amount),
       description,
-      reference: invoiceNumber || undefined,
       party_id: partyId || undefined,
       bank_id: bankId || undefined,
       to_party_id: toPartyId || undefined,
@@ -175,7 +172,6 @@ export default function GlobalTransactionModal() {
     setToBankId('');
     setAmount('');
     setDescription('');
-    setInvoiceNumber('');
     setShippingMark('');
     setTotalWeight('');
     setShortage('');
@@ -325,20 +321,6 @@ export default function GlobalTransactionModal() {
                     <option value="">Select Destination Bank</option>
                     {banks.filter(b => b.id !== bankId).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
-                </div>
-              )}
-
-              {/* Invoice Number */}
-              {(['Sale', 'Purchase', 'Payment In', 'Payment Out'].includes(type)) && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Invoice / Reference #</label>
-                  <input 
-                    type="text"
-                    value={invoiceNumber}
-                    onChange={(e) => setInvoiceNumber(e.target.value)}
-                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50 outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="e.g. INV-1001"
-                  />
                 </div>
               )}
 
