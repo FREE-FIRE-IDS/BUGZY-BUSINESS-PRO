@@ -22,14 +22,20 @@ import { format } from 'date-fns';
 export default function SyncCenter() {
   const { 
     settings, updateSettings, refreshData, manualSyncLogin, confirmSyncLogin, isOnline, syncStatus, signOut, session,
-    currentCompany, shareCompany, invitations, fetchInvitations, updateInvitationStatus, sentInvitations, fetchSentInvitations
+    currentCompany, shareCompany, invitations, fetchInvitations, updateInvitationStatus, sentInvitations, fetchSentInvitations,
+    joinCompanyByCode, revokeCompanyAccess
   } = useApp();
   const [email, setEmail] = useState(settings.user_email || '');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState((settings.sync_enabled && settings.is_verified) || session ? 'active' : 'intro');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [otpSent, setOtpSent] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [isInviting, setIsInviting] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
   // Auto-transition if session becomes active
   React.useEffect(() => {
@@ -358,7 +364,6 @@ export default function SyncCenter() {
                      <Database className="text-indigo-500" size={20} />
                      <span className="text-slate-900 dark:text-slate-50 font-bold">Cloud Storage</span>
                    </div>
-                   <span className="text-sm text-emerald-500 font-bold uppercase tracking-wider">Enterprise</span>
                  </div>
               </div>
 
@@ -532,10 +537,7 @@ export default function SyncCenter() {
                         </div>
                       </div>
                       <button 
-                        onClick={() => {
-                          const { revokeCompanyAccess } = useApp() as any;
-                          revokeCompanyAccess(currentCompany!.id, sent.shared_email);
-                        }}
+                        onClick={() => revokeCompanyAccess(currentCompany!.id, sent.shared_email)}
                         className="p-2 text-slate-400 hover:text-rose-500 self-end sm:self-auto"
                         title="Revoke Access"
                       >

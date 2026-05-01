@@ -101,7 +101,7 @@ export const generatePartyStatement = (
       fontSize: 8,
       fontStyle: 'bold',
       cellPadding: 3,
-      halign: 'center',
+      halign: 'left',
       minCellHeight: 10
     },
     styles: {
@@ -117,6 +117,11 @@ export const generatePartyStatement = (
       2: { halign: 'right', cellWidth: 28 },
       3: { halign: 'right', cellWidth: 28 },
       4: { halign: 'right', cellWidth: 28 }
+    },
+    didParseCell: (data) => {
+      if (data.section === 'head' && data.column.index >= 2) {
+        data.cell.styles.halign = 'right';
+      }
     },
     alternateRowStyles: { fillColor: [245, 243, 255] },
     margin: { top: 75 },
@@ -238,7 +243,7 @@ export const generateBankStatement = (
       fontSize: 8,
       fontStyle: 'bold',
       cellPadding: 3,
-      halign: 'center',
+      halign: 'left',
       minCellHeight: 10
     },
     styles: {
@@ -254,6 +259,11 @@ export const generateBankStatement = (
       2: { halign: 'right', cellWidth: 28 },
       3: { halign: 'right', cellWidth: 28 },
       4: { halign: 'right', cellWidth: 28 }
+    },
+    didParseCell: (data) => {
+      if (data.section === 'head' && data.column.index >= 2) {
+        data.cell.styles.halign = 'right';
+      }
     },
     alternateRowStyles: { fillColor: [245, 243, 255] },
     margin: { top: 75 },

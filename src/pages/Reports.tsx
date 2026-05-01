@@ -834,14 +834,19 @@ export default function Reports() {
           textColor: [255, 255, 255],
           fontSize: pdfSettings.smallFont ? 8 : 9,
           fontStyle: 'bold',
-          halign: 'center'
+          halign: 'left'
         },
         columnStyles: {
-          0: { halign: 'left', cellWidth: 12 },
+          0: { halign: 'left', cellWidth: 15 },
           1: { halign: 'left' },
-          2: { halign: 'right', cellWidth: 35 },
-          3: { halign: 'right', cellWidth: 35 },
-          4: { halign: 'right', cellWidth: 35 }
+          2: { halign: 'right', cellWidth: 42 },
+          3: { halign: 'right', cellWidth: 42 },
+          4: { halign: 'right', cellWidth: 42 }
+        },
+        didParseCell: (data) => {
+          if (data.section === 'head' && data.column.index >= 2) {
+            data.cell.styles.halign = 'right';
+          }
         },
         styles: {
           fontSize: pdfSettings.smallFont ? 7 : 8,
