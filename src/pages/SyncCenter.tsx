@@ -183,13 +183,10 @@ export default function SyncCenter() {
             exit={{ opacity: 0, y: -20 }}
             className="bg-white dark:bg-slate-900 rounded-[2rem] p-10 border border-slate-100 dark:border-slate-800 text-center space-y-8"
           >
-            <div className="max-w-md mx-auto space-y-4">
-              <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/20 rounded-3xl flex items-center justify-center mx-auto text-indigo-600 mb-6">
-                <ShieldCheck size={40} />
-              </div>
+            <div className="space-y-4">
               <h2 className="text-3xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Cloud Sync is Disabled</h2>
               <p className="text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                Link your Gmail account to enable professional real-time sync across all your devices.
+                Link your Gmail account to enable professional 6-digit code verification and real-time sync across all your devices.
               </p>
             </div>
 

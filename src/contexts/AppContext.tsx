@@ -2583,6 +2583,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
       session, signOut, isOnline,
       manualSyncLogin,
+      verifySyncCode,
       confirmSyncLogin,
       shareCompany,
       revokeCompanyAccess,

@@ -122,7 +122,7 @@ export default function Reports() {
   const companyTransactions = transactions.filter(t => t.company_id === currentCompany?.id);
 
   const allColumns: Record<ReportType, string[]> = useMemo(() => ({
-    'Cash in Hand': ['Date', 'Type', 'Description', 'In (+)', 'Out (-)', 'Balance'],
+    'Cash in Hand': ['#', 'Date', 'Type', 'Description', 'In (+)', 'Out (-)', 'Balance'],
     'Single Party': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
     'All Parties': viewMode === 'app' 
       ? ['#', 'Name', 'Receivable Balance', 'Payable Balance', 'Net Balance'] 
@@ -224,17 +224,18 @@ export default function Reports() {
           is_in: i.type === 'Sale'
         }));
         
-        const sortedCash = [...cashTxs, ...cashInvs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const sortedCash = filterByDate([...cashTxs, ...cashInvs]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         let cashBal = 0;
-        result = sortedCash.map(item => {
+        result = sortedCash.map((item, index) => {
           const is_in = (item as any).isInvoice ? (item as any).is_in : ['Sale', 'Income', 'Payment In', 'Stock In', 'Withdraw', 'Bank To Party', 'Cash Adjustment In'].includes(item.type);
           const amount = (item as any).amount || (item as any).total || 0;
           if (is_in) cashBal += amount;
           else cashBal -= amount;
           return {
             ...item,
+            '#': index + 1,
             'Date': item.date,
-            'Type': item.type,
+            'Type': (item as any).isInvoice ? `INV ${item.type}` : item.type,
             'Description': item.description || (item as any).type,
             'In (+)': is_in ? amount : 0,
             'Out (-)': !is_in ? amount : 0,
