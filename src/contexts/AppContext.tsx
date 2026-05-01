@@ -1651,7 +1651,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       username: company.username?.toLowerCase().trim() || currentUser || '',
       company_type: company.company_type || 'normal',
       trial_start: now,
-      is_paid: false,
+      is_paid: isDeviceLicensed,
       created_at: now,
       updated_at: now,
       linked_emails: [],
@@ -2322,31 +2322,28 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (!currentCompany || currentCompany.id !== companyId) throw new Error('Company not selected');
     
     // Restriction: Only owner can share
-    const myAuthEmail = session?.user?.email?.toLowerCase();
-    const mySettingsEmail = settings.user_email?.toLowerCase();
-    const myEmail = myAuthEmail || mySettingsEmail;
+    const myEmail = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
+    if (!myEmail) throw new Error('Please login to send invitations ❌');
 
-    const ownerEmail = (currentCompany.owner_email || currentCompany.user_email || '').toLowerCase();
+    const ownerEmail = (currentCompany.owner_email || currentCompany.user_email || '').toLowerCase().trim();
     
-    // If the RLS requires owner_email to match auth email, we must pass the auth email as owner_email if we are indeed the one logged in
-    const emailToPassAsOwner = myEmail || ownerEmail;
-
-    if (ownerEmail && myEmail && myEmail !== ownerEmail) {
+    // If we have an owner email set and we are NOT that person, reject
+    if (ownerEmail && myEmail !== ownerEmail) {
       throw new Error('Only the company owner can invite people ❌');
     }
 
-    const email = shareWithEmail.toLowerCase().trim();
-    if (!email) throw new Error('Email is required');
-    if (email === myEmail) throw new Error('You cannot invite yourself ❌');
+    const inviteeEmail = shareWithEmail.toLowerCase().trim();
+    if (!inviteeEmail) throw new Error('Invitee email is required');
+    if (inviteeEmail === myEmail) throw new Error('You cannot invite yourself ❌');
 
-    // Generate a 6-digit code
+    // Generate a 6-digit code for this invitation
     const joinCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Use upsert to avoid blocking on existing invitations but also allowing updates
+    // Use upsert
     const { error } = await supabase.from('company_access').upsert({
       company_id: companyId,
-      owner_email: emailToPassAsOwner,
-      shared_email: email,
+      owner_email: myEmail, // Use the current authenticated user's email
+      shared_email: inviteeEmail,
       join_code: joinCode,
       permission: 'edit',
       status: 'pending',
@@ -2355,15 +2352,19 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     if (error) {
       console.error('[Share Error]', error);
+      // Helpful error message for RLS
+      if (error.message.includes('row-level security')) {
+        throw new Error('Sync verification required. Please click the Magic Link in your email to authenticate, then try again. 🛡️');
+      }
       throw new Error(error.message || 'Failed to send invitation ❌');
     }
     
     // Also update linked_emails for faster join queries
-    const updatedEmails = Array.from(new Set([...(currentCompany.linked_emails || []), email]));
+    const updatedEmails = Array.from(new Set([...(currentCompany.linked_emails || []), inviteeEmail]));
     try {
-      await updateCompany(companyId, { linked_emails: updatedEmails });
+      await supabase.from('companies').update({ linked_emails: updatedEmails }).eq('id', companyId);
     } catch (err) {
-      console.warn('Silent skip: linked_emails update failed (non-critical)', err);
+      console.warn('Silent skip: linked_emails update failed', err);
     }
     
     await fetchSentInvitations(companyId);

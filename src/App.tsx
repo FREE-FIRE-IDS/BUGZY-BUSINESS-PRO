@@ -1531,18 +1531,36 @@ function SetupCompany() {
           )}
 
           {mode === 'signup' && (
-            <div className="bg-amber-50 dark:bg-amber-900/10 rounded-2xl p-4 border border-amber-100 dark:border-amber-900/30">
-              <label className="block text-xs font-black uppercase text-amber-600 dark:text-amber-400 tracking-widest mb-2 flex items-center gap-2">
-                <Sparkles size={14} /> License Key (Optional)
+            <div className={cn(
+              "rounded-2xl p-4 border transition-all",
+              isDeviceLicensed 
+                ? "bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30"
+                : "bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/30"
+            )}>
+              <label className={cn(
+                "block text-xs font-black uppercase tracking-widest mb-2 flex items-center gap-2",
+                isDeviceLicensed ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+              )}>
+                {isDeviceLicensed ? <ShieldCheck size={14} /> : <Sparkles size={14} />}
+                {isDeviceLicensed ? 'License Active' : 'License Key (Optional)'}
               </label>
-              <input 
-                type="text" 
-                value={license}
-                onChange={(e) => setLicense(e.target.value)}
-                className="w-full p-2 bg-white dark:bg-slate-800 rounded-lg border border-amber-200 dark:border-amber-900/30 outline-none focus:border-amber-500 font-mono font-bold transition-all text-slate-900 dark:text-slate-50 uppercase tracking-widest text-sm"
-                placeholder="PRO-XXXX-XXXX"
-              />
-              <p className="text-[9px] text-amber-600 dark:text-amber-500 mt-2 font-medium">Entering your master key activates professional features permanently.</p>
+              {isDeviceLicensed ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 italic">This device is verified for professional use.</span>
+                  <div className="px-2 py-0.5 bg-emerald-600 text-white rounded-full text-[8px] font-black uppercase">Verified</div>
+                </div>
+              ) : (
+                <>
+                  <input 
+                    type="text" 
+                    value={license}
+                    onChange={(e) => setLicense(e.target.value)}
+                    className="w-full p-2 bg-white dark:bg-slate-800 rounded-lg border border-amber-200 dark:border-amber-900/30 outline-none focus:border-amber-500 font-mono font-bold transition-all text-slate-900 dark:text-slate-50 uppercase tracking-widest text-sm"
+                    placeholder="PRO-XXXX-XXXX"
+                  />
+                  <p className="text-[9px] text-amber-600 dark:text-amber-500 mt-2 font-medium">Entering your master key activates professional features permanently.</p>
+                </>
+              )}
             </div>
           )}
           
