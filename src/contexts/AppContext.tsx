@@ -2271,28 +2271,47 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const manualSyncLogin = async (email: string) => {
     const normalizedEmail = email.toLowerCase().trim();
-    console.log(`[Sync] Setting sync email to: ${normalizedEmail}`);
+    console.log(`[Sync] Requesting verification code for: ${normalizedEmail}`);
     
-    // Update local settings immediately so UI feels responsive
+    // Update local settings immediately
     updateSettings({ user_email: normalizedEmail, sync_enabled: true });
 
-    // Try to sign in with OTP but don't block the UI with "SENT" wait if they want "instant"
-    // We will still send it so they CAN verify if they want RLS to work
-    const redirectTo = window.location.origin; // Dynamically detect origin
-
-    try {
-      await supabase.auth.signInWithOtp({
-        email: normalizedEmail,
-        options: {
-          shouldCreateUser: true,
-          emailRedirectTo: redirectTo,
-        },
-      });
-    } catch (e) {
-      console.warn('Silent OTP failure:', e);
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        shouldCreateUser: true,
+      },
+    });
+    
+    if (error) {
+      console.error('[Sync OTP Error]', error);
+      if (error.message.toLowerCase().includes('rate limit')) {
+        throw new Error('Supabase Rate Limit Reached: Please wait a few minutes before trying again ⏳');
+      }
+      throw new Error(error.message || 'Failed to send code ❌');
     }
     
     return "SENT";
+  };
+
+  const verifySyncCode = async (email: string, token: string) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email',
+    });
+
+    if (error) {
+      console.error('[Verify OTP Error]', error);
+      throw new Error(error.message || 'Invalid code ❌');
+    }
+
+    if (data.session) {
+      setSession(data.session);
+      updateSettings({ is_verified: true });
+      return true;
+    }
+    return false;
   };
 
   const confirmSyncLogin = async (email: string, token: string) => {

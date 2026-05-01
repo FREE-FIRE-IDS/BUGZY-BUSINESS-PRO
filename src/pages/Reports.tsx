@@ -122,7 +122,7 @@ export default function Reports() {
   const companyTransactions = transactions.filter(t => t.company_id === currentCompany?.id);
 
   const allColumns: Record<ReportType, string[]> = useMemo(() => ({
-    'Cash in Hand': ['Date', 'Description', 'In (+)', 'Out (-)', 'Balance'],
+    'Cash in Hand': ['Date', 'Type', 'Description', 'In (+)', 'Out (-)', 'Balance'],
     'Single Party': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
     'All Parties': viewMode === 'app' 
       ? ['#', 'Name', 'Receivable Balance', 'Payable Balance', 'Net Balance'] 
@@ -234,6 +234,7 @@ export default function Reports() {
           return {
             ...item,
             'Date': item.date,
+            'Type': item.type,
             'Description': item.description || (item as any).type,
             'In (+)': is_in ? amount : 0,
             'Out (-)': !is_in ? amount : 0,
@@ -762,6 +763,7 @@ export default function Reports() {
   const formatValue = (col: string, val: any, isTotal: boolean = false) => {
     if (val === undefined || val === null) return isTotal ? '' : '-';
     if (col === 'Date') return formatDate(val);
+    if (col === 'Type') return String(val).toUpperCase();
     if (col === 'Qty' || col === 'Total Wt' || col === 'Shortage' || col === 'Net Wt') {
       return val.toLocaleString(undefined, { minimumFractionDigits: col === 'Qty' ? 0 : 2 });
     }
@@ -831,7 +833,8 @@ export default function Reports() {
           fillColor: [30, 41, 59],
           textColor: [255, 255, 255],
           fontSize: pdfSettings.smallFont ? 8 : 9,
-          fontStyle: 'bold'
+          fontStyle: 'bold',
+          halign: 'center'
         },
         columnStyles: {
           0: { halign: 'left', cellWidth: 12 },
@@ -845,9 +848,9 @@ export default function Reports() {
           cellPadding: 3,
           valign: 'middle',
           textColor: [0, 0, 0],
+          overflow: 'visible',
           lineColor: [220, 220, 220],
-          lineWidth: 0.1,
-          overflow: 'linebreak'
+          lineWidth: 0.1
         },
         foot: [[
           '',

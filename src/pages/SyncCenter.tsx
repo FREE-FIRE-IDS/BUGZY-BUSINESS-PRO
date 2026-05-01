@@ -26,23 +26,15 @@ export default function SyncCenter() {
   } = useApp();
   const [email, setEmail] = useState(settings.user_email || '');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState(settings.sync_enabled || session ? 'active' : 'intro');
+  const [step, setStep] = useState((settings.sync_enabled && settings.is_verified) || session ? 'active' : 'intro');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [otpSent, setOtpSent] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [joinCode, setJoinCode] = useState('');
-  const [isInviting, setIsInviting] = useState(false);
-  const [isJoining, setIsJoining] = useState(false);
 
-  // Auto-transition if session becomes active (e.g. magic link clicked)
+  // Auto-transition if session becomes active
   React.useEffect(() => {
     if (session && step !== 'active') {
       setStep('active');
-      if (!settings.sync_enabled) {
-        updateSettings({ sync_enabled: true, user_email: session.user.email });
-      }
     }
   }, [session, step]);
 
@@ -84,9 +76,7 @@ export default function SyncCenter() {
     if (!joinCode) return;
     setIsJoining(true);
     try {
-      const { joinCompanyByCode } = useApp() as any; // Temporary cast if type isn't updated yet in current context
-      // But I already updated the context type in the previous step, so it should be fine.
-      await useApp().joinCompanyByCode(joinCode);
+      await joinCompanyByCode(joinCode);
       setJoinCode('');
       alert('Successfully joined the company! 🎉');
     } catch (err: any) {
@@ -259,15 +249,11 @@ export default function SyncCenter() {
             <div className="space-y-2">
               <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Verify Identity</h2>
               <p className="text-slate-500 dark:text-slate-400 font-medium px-4">
-                We've sent a <span className="text-indigo-600 font-bold">Magic Link</span> or <span className="text-indigo-600 font-bold">6-digit code</span> to <span className="text-indigo-600 font-bold">{email}</span>
+                We've sent a <span className="text-indigo-600 font-bold">6-digit code</span> to <span className="text-indigo-600 font-bold">{email}</span>
               </p>
               <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-2xl mx-6 space-y-3 border border-indigo-100 dark:border-indigo-800/30">
                 <p className="text-[12px] text-indigo-700 dark:text-indigo-300 font-bold leading-tight uppercase tracking-wider text-center">
                   Copy & Paste the 6-digit code below
-                </p>
-                <div className="h-px bg-indigo-100 dark:bg-indigo-800/40" />
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center italic">
-                  Note: If the "Magic Link" button in your email says "site can't be reached", please simply copy the 6-digit code from the email and paste it here.
                 </p>
               </div>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 px-6">

@@ -480,8 +480,8 @@ NOTIFY pgrst, 'reload schema';
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 md:space-y-12 px-4 md:px-0">
-      {/* Licensing Section */}
-      {isLicensed() && (
+      {/* Licensing Section Hidden as requested */}
+      {false && isLicensed() && (
       <section>
         <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
           <Shield size={24} className="text-indigo-600" />

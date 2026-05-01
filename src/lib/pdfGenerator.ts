@@ -100,21 +100,23 @@ export const generatePartyStatement = (
       textColor: [255, 255, 255],
       fontSize: 8,
       fontStyle: 'bold',
-      cellPadding: 2
+      cellPadding: 3,
+      halign: 'center',
+      minCellHeight: 10
     },
     styles: {
       fontSize: 8,
-      cellPadding: 2,
+      cellPadding: 3,
       valign: 'middle',
       textColor: [30, 41, 59],
-      overflow: 'ellipsize'
+      overflow: 'visible'
     },
     columnStyles: {
       0: { halign: 'left', cellWidth: 25 },
       1: { halign: 'left', cellWidth: 'auto' },
-      2: { halign: 'right', cellWidth: 25 },
-      3: { halign: 'right', cellWidth: 25 },
-      4: { halign: 'right', cellWidth: 25 }
+      2: { halign: 'right', cellWidth: 28 },
+      3: { halign: 'right', cellWidth: 28 },
+      4: { halign: 'right', cellWidth: 28 }
     },
     alternateRowStyles: { fillColor: [245, 243, 255] },
     margin: { top: 75 },
@@ -125,13 +127,12 @@ export const generatePartyStatement = (
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(30, 41, 59);
   
-  doc.text(`Sub-Total Debit: ${transactions.reduce((s, t) => (t.type === 'Sale' || t.type === 'Payment Out' || t.type === 'Bank To Party' || t.to_party_id === party.id) ? s + t.amount : s, 0).toFixed(2)}`, 14, finalY + 12);
-  doc.text(`Sub-Total Credit: ${transactions.reduce((s, t) => (t.type === 'Purchase' || t.type === 'Payment In' || t.type === 'Expense' || t.type === 'Party To Bank' || t.type === 'Party To Party') ? s + t.amount : s, 0).toFixed(2)}`, 14, finalY + 19);
+  doc.text(`Sub-Total Debit: ${transactions.reduce((s, t) => (t.type === 'Sale' || t.type === 'Payment Out' || t.type === 'Bank To Party' || t.to_party_id === party.id) ? s + t.amount : s, 0).toFixed(2)}    Sub-Total Credit: ${transactions.reduce((s, t) => (t.type === 'Purchase' || t.type === 'Payment In' || t.type === 'Expense' || t.type === 'Party To Bank' || t.type === 'Party To Party') ? s + t.amount : s, 0).toFixed(2)}`, 14, finalY + 12);
   
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(79, 70, 229);
-  doc.text(`Final Balance: ${company.currency} ${party.balance.toFixed(2)}`, 14, finalY + 35);
+  doc.text(`Final Balance: ${company.currency} ${party.balance.toFixed(2)}`, 14, finalY + 28);
 
   doc.save(`${party.name}_Statement_${dateStr}.pdf`);
 };
@@ -236,21 +237,23 @@ export const generateBankStatement = (
       textColor: [255, 255, 255],
       fontSize: 8,
       fontStyle: 'bold',
-      cellPadding: 2
+      cellPadding: 3,
+      halign: 'center',
+      minCellHeight: 10
     },
     styles: {
       fontSize: 8,
-      cellPadding: 2,
+      cellPadding: 3,
       valign: 'middle',
       textColor: [30, 41, 59],
-      overflow: 'ellipsize'
+      overflow: 'visible'
     },
     columnStyles: {
       0: { halign: 'left', cellWidth: 25 },
       1: { halign: 'left', cellWidth: 'auto' },
-      2: { halign: 'right', cellWidth: 25 },
-      3: { halign: 'right', cellWidth: 25 },
-      4: { halign: 'right', cellWidth: 25 }
+      2: { halign: 'right', cellWidth: 28 },
+      3: { halign: 'right', cellWidth: 28 },
+      4: { halign: 'right', cellWidth: 28 }
     },
     alternateRowStyles: { fillColor: [245, 243, 255] },
     margin: { top: 75 },
