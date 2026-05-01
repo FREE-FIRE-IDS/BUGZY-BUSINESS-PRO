@@ -34,6 +34,7 @@ interface AppContextType {
   deleteTransaction: (id: string, hard?: boolean) => Promise<void>;
   addCompany: (company: Omit<Company, 'id' | 'created_at'>, licenseKey?: string) => Promise<void>;
   updateCompany: (id: string, company: Partial<Company>) => Promise<void>;
+  deleteCompany: (id: string) => Promise<void>;
   backupData: () => void;
   restoreData: (json: string) => Promise<void>;
   addInvoice: (invoice: Omit<Invoice, 'id' | 'created_at'>) => Promise<void>;

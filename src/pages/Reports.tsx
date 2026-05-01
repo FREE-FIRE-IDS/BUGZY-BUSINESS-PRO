@@ -834,7 +834,7 @@ export default function Reports() {
           textColor: [255, 255, 255],
           fontSize: pdfSettings.smallFont ? 8 : 9,
           fontStyle: 'bold',
-          halign: 'left'
+          halign: 'left' // Base alignment for headers
         },
         columnStyles: {
           0: { halign: 'left', cellWidth: 15 },
@@ -844,6 +844,7 @@ export default function Reports() {
           4: { halign: 'right', cellWidth: 42 }
         },
         didParseCell: (data) => {
+          // Align headings with data for numeric columns
           if (data.section === 'head' && data.column.index >= 2) {
             data.cell.styles.halign = 'right';
           }
@@ -1057,7 +1058,8 @@ export default function Reports() {
           fillColor: [30, 41, 59],
           textColor: [255, 255, 255],
           fontSize: pdfSettings.smallFont ? 8 : 9,
-          fontStyle: 'bold'
+          fontStyle: 'bold',
+          halign: 'left'
         },
         styles: {
           fontSize: pdfSettings.smallFont ? 7 : 8,
@@ -1066,11 +1068,21 @@ export default function Reports() {
           textColor: [0, 0, 0]
         },
         columnStyles: selectedColumns.reduce((acc: any, col, idx) => {
-          if (col === 'Debit' || col === 'Credit' || col === 'Balance' || col === 'Amount' || col === 'Total' || col === 'Value' || col === 'In (+)' || col === 'Out (-)' || col === 'Deposit' || col === 'Withdrawal') {
+          // Identify numeric columns that should be right-aligned
+          if (col === 'Debit' || col === 'Credit' || col === 'Balance' || col === 'Amount' || col === 'Total' || col === 'Value' || col === 'In (+)' || col === 'Out (-)' || col === 'Deposit' || col === 'Withdrawal' || col === 'Cash In' || col === 'Cash Out' || col === 'Net Flow' || col === 'Debit (DR)' || col === 'Credit (CR)' || col === 'Receivable Balance' || col === 'Payable Balance' || col === 'Net Balance') {
             acc[idx] = { halign: 'right' };
           }
           return acc;
         }, {}),
+        didParseCell: (data) => {
+          // Sync header alignment with column alignment
+          const colName = selectedColumns[data.column.index];
+          const isNumeric = ['Debit', 'Credit', 'Balance', 'Amount', 'Total', 'Value', 'In (+)', 'Out (-)', 'Deposit', 'Withdrawal', 'Cash In', 'Cash Out', 'Net Flow', 'Debit (DR)', 'Credit (CR)', 'Receivable Balance', 'Payable Balance', 'Net Balance'].includes(colName);
+          
+          if (data.section === 'head' && isNumeric) {
+            data.cell.styles.halign = 'right';
+          }
+        },
         foot: tableTotals ? [
           selectedColumns.map(col => {
             const val = (tableTotals as any)[col];
@@ -1384,7 +1396,10 @@ export default function Reports() {
                   )}>
                     <tr>
                       {activeColumns.map(colId => (
-                        <th key={colId} className="px-4 sm:px-6 py-3 sm:py-4 text-[9px] sm:text-[10px] uppercase tracking-wider font-black text-slate-400 whitespace-nowrap bg-inherit">
+                        <th key={colId} className={cn(
+                          "px-4 sm:px-6 py-3 sm:py-4 text-[9px] sm:text-[10px] uppercase tracking-wider font-black text-slate-400 whitespace-nowrap bg-inherit",
+                          ['Debit', 'Credit', 'Balance', 'Amount', 'Total', 'Value', 'In (+)', 'Out (-)', 'Deposit', 'Withdrawal', 'Cash In', 'Cash Out', 'Net Flow', 'Debit (DR)', 'Credit (CR)', 'Receivable Balance', 'Payable Balance', 'Net Balance'].includes(colId) && "text-right"
+                        )}>
                           {colId.replace(/_/g, ' ')}
                         </th>
                       ))}
@@ -1396,7 +1411,8 @@ export default function Reports() {
                         {activeColumns.map(colId => (
                           <td key={colId} className={cn(
                             "px-4 sm:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap",
-                            (colId === 'Party Name' || colId === 'Description' || colId === 'Item Name') && "max-w-[150px] sm:max-w-[200px] truncate"
+                            (colId === 'Party Name' || colId === 'Description' || colId === 'Item Name') && "max-w-[150px] sm:max-w-[200px] truncate",
+                            ['Debit', 'Credit', 'Balance', 'Amount', 'Total', 'Value', 'In (+)', 'Out (-)', 'Deposit', 'Withdrawal', 'Cash In', 'Cash Out', 'Net Flow', 'Debit (DR)', 'Credit (CR)', 'Receivable Balance', 'Payable Balance', 'Net Balance'].includes(colId) && "text-right"
                           )}>
                             {formatValue(colId, row[colId])}
                           </td>
@@ -1420,7 +1436,10 @@ export default function Reports() {
                         {activeColumns.map(colId => {
                           const totalVal = (tableTotals as any)[colId];
                           return (
-                            <td key={colId} className="px-4 sm:px-6 py-4 sm:py-5 bg-inherit">
+                            <td key={colId} className={cn(
+                              "px-4 sm:px-6 py-4 sm:py-5 bg-inherit",
+                              ['Debit', 'Credit', 'Balance', 'Amount', 'Total', 'Value', 'In (+)', 'Out (-)', 'Deposit', 'Withdrawal', 'Cash In', 'Cash Out', 'Net Flow', 'Debit (DR)', 'Credit (CR)', 'Receivable Balance', 'Payable Balance', 'Net Balance'].includes(colId) && "text-right"
+                            )}>
                               {totalVal !== undefined ? (
                                 <div className="flex flex-col">
                                   <span className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{colId}</span>
@@ -1432,7 +1451,9 @@ export default function Reports() {
                                   </span>
                                 </div>
                               ) : colId === activeColumns[0] ? (
-                                <span className="text-[9px] sm:text-xs font-black text-slate-400 uppercase tracking-widest">Totals</span>
+                                <div className="flex flex-col items-start">
+                                  <span className="text-[9px] sm:text-xs font-black text-slate-400 uppercase tracking-widest">Totals</span>
+                                </div>
                               ) : null}
                             </td>
                           );

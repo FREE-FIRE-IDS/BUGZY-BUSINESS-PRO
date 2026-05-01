@@ -255,11 +255,11 @@ export default function SyncCenter() {
             <div className="space-y-2">
               <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Verify Identity</h2>
               <p className="text-slate-500 dark:text-slate-400 font-medium px-4">
-                We've sent a <span className="text-indigo-600 font-bold">6-digit code</span> to <span className="text-indigo-600 font-bold">{email}</span>
+                We've sent a <span className="text-indigo-600 font-bold">6-digit verification code</span> to <span className="text-indigo-600 font-bold">{email}</span>
               </p>
               <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-2xl mx-6 space-y-3 border border-indigo-100 dark:border-indigo-800/30">
                 <p className="text-[12px] text-indigo-700 dark:text-indigo-300 font-bold leading-tight uppercase tracking-wider text-center">
-                  Copy & Paste the 6-digit code below
+                  Copy & Paste the 6-digit code from your email below
                 </p>
               </div>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 px-6">
@@ -297,22 +297,6 @@ export default function SyncCenter() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="h-px bg-slate-100 dark:bg-slate-800 flex-1" />
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">OR</span>
-                <div className="h-px bg-slate-100 dark:bg-slate-800 flex-1" />
-              </div>
-
-              <div className="text-center space-y-2">
-                <p className="text-xs text-slate-500 font-medium">Already clicked the Magic Link?</p>
-                <button
-                  type="button"
-                  onClick={() => refreshData()}
-                  className="w-full py-3 rounded-xl border-2 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-950 transition-all text-sm mb-4"
-                >
-                  Check Login Status
-                </button>
-              </div>
               <button 
                 type="button"
                 onClick={() => setStep('intro')}
