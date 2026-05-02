@@ -2,7 +2,17 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Transaction, Party, BankAccount as Bank } from "../types";
 
 export async function getBusinessInsights(transactions: Transaction[], parties: Party[], banks: Bank[]) {
-  const apiKey = (process.env as any).API_KEY || (process.env as any).GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    console.warn('Gemini API Key missing. Using fallback insights.');
+    return [
+      "Keep an eye on your high-balance parties to ensure timely collections.",
+      "Your expenses are consistent; consider a 5% reduction in non-essential costs.",
+      "Sales are trending positively. It might be a good time to expand your inventory."
+    ];
+  }
+
   const ai = new GoogleGenAI({ apiKey });
   
   const summary = {
@@ -15,10 +25,10 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
   const prompt = `As a business consultant, analyze this financial summary and provide 3 short, actionable insights or predictions for the next month:
   ${JSON.stringify(summary)}`;
 
-  const maxRetries = 3;
+  const maxRetries = 2; // Reduced retries to avoid long delays
   let retryCount = 0;
 
-  const executeWithRetry = async (): Promise<any> => {
+  const executeWithRetry = async (): Promise<string[]> => {
     try {
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -37,17 +47,21 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
       
       const text = response.text || '[]';
       try {
-        return JSON.parse(text);
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : [];
       } catch (e) {
         // Fallback for cases where JSON might have extra formatting
-        const jsonStr = text.substring(text.indexOf('['), text.lastIndexOf(']') + 1) || text;
-        return JSON.parse(jsonStr);
+        const match = text.match(/\[.*\]/s);
+        if (match) {
+          return JSON.parse(match[0]);
+        }
+        return [];
       }
     } catch (error: any) {
       const errorMessage = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
       
       // Retry for rate limits OR RPC/Connection issues
-      const shouldRetry = 
+      const isRetryable = 
         errorMessage.includes('429') || 
         errorMessage.includes('RESOURCE_EXHAUSTED') || 
         errorMessage.toLowerCase().includes('quota') ||
@@ -56,19 +70,21 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
         errorMessage.toLowerCase().includes('xhr error') ||
         errorMessage.includes('ProxyUnaryCall');
       
-      if (shouldRetry && retryCount < maxRetries) {
+      if (isRetryable && retryCount < maxRetries) {
         retryCount++;
-        const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 2s, 4s, 8s
-        console.warn(`Gemini API error or rate limit. Retrying in ${delay}ms (Attempt ${retryCount}/${maxRetries})...`);
+        const delay = Math.pow(2, retryCount) * 1500; 
+        console.warn(`Gemini RPC/Rate error. Retry ${retryCount}/${maxRetries} in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return executeWithRetry();
       }
       
-      if (shouldRetry && (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED'))) {
-        throw new Error('RATE_LIMIT_EXCEEDED');
+      // If we reach here, we failed all retries or it's a non-retryable error
+      if (isRetryable) {
+        console.warn('AI Insights failed after retries. Using fallbacks.');
+      } else {
+        console.error('Gemini Service Error:', errorMessage);
       }
-      
-      console.error('AI Insight error:', error);
+
       return [
         "Keep an eye on your high-balance parties to ensure timely collections.",
         "Your expenses are consistent; consider a 5% reduction in non-essential costs.",

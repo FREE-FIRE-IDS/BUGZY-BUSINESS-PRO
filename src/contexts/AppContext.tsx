@@ -2282,7 +2282,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       email: normalizedEmail,
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: 'https://bugzy-business-pro.vercel.app',
       },
     });
     
@@ -2376,7 +2375,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       console.error('[Share Error]', error);
       // Helpful error message for RLS
       if (error.message.includes('row-level security')) {
-        throw new Error('Sync verification required. Please click the Magic Link in your email to authenticate, then try again. 🛡️');
+        throw new Error('Sync verification required. Please enter the 6-digit Verification Code sent to your email to authenticate. 🛡️');
       }
       throw new Error(error.message || 'Failed to send invitation ❌');
     }
