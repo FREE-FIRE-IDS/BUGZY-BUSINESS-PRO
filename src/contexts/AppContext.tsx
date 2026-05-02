@@ -2278,65 +2278,100 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     // Update local settings immediately
     updateSettings({ user_email: normalizedEmail, sync_enabled: true });
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: {
-        shouldCreateUser: true,
-      },
-    });
-    
-    if (error) {
-      console.error('[Sync OTP Error]', error);
-      if (error.message.toLowerCase().includes('rate limit')) {
-        throw new Error('Supabase Rate Limit Reached: Please wait a few minutes before trying again ⏳');
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          shouldCreateUser: true,
+          // Explicitly NOT providing emailRedirectTo forces token behavior in many cases
+          // or at least doesn't confuse the flow with local URLs
+        },
+      });
+      
+      if (error) {
+        console.error('[Sync OTP Error Raw]', error);
+        
+        // Handle empty error {} or specific rate limits
+        let errorMessage = 'Failed to send code ❌';
+        if (error.message) {
+          errorMessage = error.message;
+        } else if (typeof error === 'object') {
+          errorMessage = (error as any).error_description || (error as any).msg || JSON.stringify(error);
+        }
+
+        if (errorMessage.toLowerCase().includes('rate limit') || errorMessage.includes('429')) {
+          throw new Error('Too many requests. Please wait 60 seconds before trying again ⏳');
+        }
+        
+        if (errorMessage === '{}') {
+          throw new Error('Supabase configuration error. Ensure Email Auth is enabled in dashboard.');
+        }
+
+        throw new Error(errorMessage);
       }
-      throw new Error(error.message || 'Failed to send code ❌');
+      
+      return "SENT";
+    } catch (err: any) {
+      console.error('[Sync OTP Exception]', err);
+      throw new Error(err.message || 'Verification service unavailable ❌');
     }
-    
-    return "SENT";
   };
 
   const verifySyncCode = async (email: string, token: string) => {
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'email',
-    });
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedToken = token.trim();
+    
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: normalizedEmail,
+        token: normalizedToken,
+        type: 'email', // Use 'email' for standard OTP/MagicLink tokens
+      });
 
-    if (error) {
-      console.error('[Verify OTP Error]', error);
-      throw new Error(error.message || 'Invalid code ❌');
-    }
+      if (error) {
+        console.error('[Verify OTP Error]', error);
+        throw new Error(error.message || 'Invalid or expired code ❌');
+      }
 
-    if (data.session) {
-      setSession(data.session);
-      updateSettings({ is_verified: true });
-      return true;
+      if (data.session) {
+        setSession(data.session);
+        updateSettings({ is_verified: true, user_email: normalizedEmail });
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      throw new Error(err.message || 'Verification failed ❌');
     }
-    return false;
   };
 
   const confirmSyncLogin = async (email: string, token: string) => {
     const normalizedEmail = email.toLowerCase().trim();
+    const normalizedToken = token.trim();
+    
     console.log(`[Sync] Verifying OTP for: ${normalizedEmail}`);
-    const { data, error } = await supabase.auth.verifyOtp({
-      email: normalizedEmail,
-      token,
-      type: 'email',
-    });
+    
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: normalizedEmail,
+        token: normalizedToken,
+        type: 'email',
+      });
 
-    if (error) {
-      console.error('[Sync Verify Error]', error);
-      throw new Error(error.message || 'Invalid or expired code ❌');
+      if (error) {
+        console.error('[Sync Verify Error]', error);
+        throw new Error(error.message || 'Invalid or expired code ❌');
+      }
+
+      if (data.session) {
+        setSession(data.session);
+      }
+
+      updateSettings({ user_email: normalizedEmail, sync_enabled: true, is_verified: true });
+      await refreshData(normalizedEmail, true);
+      return true;
+    } catch (err: any) {
+      throw new Error(err.message || 'Verification failed ❌');
     }
-
-    if (data.session) {
-      setSession(data.session);
-    }
-
-    updateSettings({ user_email: normalizedEmail, sync_enabled: true });
-    await refreshData(normalizedEmail, true);
-    return true;
   };
 
   const shareCompany = async (companyId: string, shareWithEmail: string) => {
