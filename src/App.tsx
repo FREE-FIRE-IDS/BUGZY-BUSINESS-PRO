@@ -1285,7 +1285,7 @@ export default function App() {
 }
 
 function SetupCompany() {
-  const { addCompany, loginWithUsername, restoreCompany, restoreData, syncStatus, session, companies, setCurrentCompany } = useApp();
+  const { addCompany, loginWithUsername, restoreCompany, restoreData, syncStatus, session, companies, setCurrentCompany, isDeviceLicensed } = useApp();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');

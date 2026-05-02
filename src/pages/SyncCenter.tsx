@@ -380,7 +380,7 @@ export default function SyncCenter() {
                       {invitations.map(invite => (
                         <div key={invite.id} className="bg-white/10 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
                           <div>
-                            <p className="font-black text-lg">{invite.companies?.name}</p>
+                            <p className="font-black text-lg">{Array.isArray(invite.companies) ? invite.companies[0]?.name : invite.companies?.name}</p>
                             <p className="text-xs font-bold opacity-70">From: {invite.owner_email}</p>
                           </div>
                           <div className="flex gap-2">

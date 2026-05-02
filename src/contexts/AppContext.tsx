@@ -70,6 +70,7 @@ interface AppContextType {
   restoreCompany: (code: string) => Promise<boolean>;
   isOnline: boolean;
   manualSyncLogin: (email: string) => Promise<string>;
+  verifySyncCode: (email: string, token: string) => Promise<boolean>;
   confirmSyncLogin: (email: string, token: string) => Promise<boolean>;
   shareCompany: (companyId: string, shareWithEmail: string) => Promise<void>;
   revokeCompanyAccess: (companyId: string, sharedEmail: string) => Promise<void>;
@@ -2281,6 +2282,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       email: normalizedEmail,
       options: {
         shouldCreateUser: true,
+        emailRedirectTo: 'https://bugzy-business-pro.vercel.app',
       },
     });
     
