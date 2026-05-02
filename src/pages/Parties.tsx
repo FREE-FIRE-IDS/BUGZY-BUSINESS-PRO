@@ -273,7 +273,6 @@ export default function Parties() {
                   <tr>
                     <th className="px-4 py-4">Date</th>
                     <th className="px-4 py-4">Type</th>
-                    <th className="px-4 py-4">Invoice #</th>
                     <th className="px-4 py-4">Mark</th>
                     <th className="px-4 py-4">Net Wt</th>
                     <th className="px-4 py-4">Price</th>
@@ -295,9 +294,6 @@ export default function Parties() {
                         )}>
                           {tx.type}
                         </span>
-                      </td>
-                      <td className="px-4 py-4 text-[11px] font-black text-indigo-600">
-                        {tx.source === 'invoice' ? (invoices.find(i => i.id === tx.id)?.invoice_number) : '-'}
                       </td>
                       <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[80px]">{tx.shipping_mark || '-'}</td>
                       <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400">{tx.net_weight ? Number(tx.net_weight).toFixed(2) : '-'}</td>
@@ -458,8 +454,8 @@ export default function Parties() {
                         >
                           {[
                             { id: 'all', label: 'All Balances', icon: Users },
-                            { id: 'positive', label: 'Receivable (>0)', icon: ArrowUpRight, color: 'text-emerald-600' },
-                            { id: 'negative', label: 'Payable (<0)', icon: ArrowDownLeft, color: 'text-rose-600' },
+                            { id: 'positive', label: 'Debit (Receivable)', icon: ArrowUpRight, color: 'text-emerald-600' },
+                            { id: 'negative', label: 'Credit (Payable)', icon: ArrowDownLeft, color: 'text-rose-600' },
                           ].map((opt) => (
                             <button
                               key={opt.id}

@@ -125,7 +125,7 @@ export default function Reports() {
     'Cash in Hand': ['#', 'Date', 'Type', 'Description', 'In (+)', 'Out (-)', 'Balance'],
     'Single Party': ['Date', 'Description', 'Debit', 'Credit', 'Balance'],
     'All Parties': viewMode === 'app' 
-      ? ['#', 'Name', 'Receivable Balance', 'Payable Balance', 'Net Balance'] 
+      ? ['#', 'Name', 'Debit (Receivable)', 'Credit (Payable)', 'Net Balance'] 
       : ['#', 'Name', 'Debit', 'Credit', 'Balance'],
     'Single Bank': ['Date', 'Description', viewMode === 'app' ? 'Deposit' : 'Debit', viewMode === 'app' ? 'Withdrawal' : 'Credit', 'Balance'],
     'All Banks': ['Bank Name', 'Account #', 'Debit (DR)', 'Credit (CR)', 'Balance'],

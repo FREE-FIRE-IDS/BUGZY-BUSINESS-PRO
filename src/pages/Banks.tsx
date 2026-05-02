@@ -710,7 +710,7 @@ export default function Banks() {
                   )}
                 >
                   <Filter size={14} />
-                  <span>{amountFilter === 'all' ? 'All' : amountFilter === 'positive' ? 'Positive' : 'Negative'}</span>
+                  <span>{amountFilter === 'all' ? 'All' : amountFilter === 'positive' ? 'Debit' : 'Credit'}</span>
                 </button>
                 <AnimatePresence>
                   {showFilterMenu && (
@@ -724,8 +724,8 @@ export default function Banks() {
                       >
                         {[
                           { id: 'all', label: 'All Balances', icon: Building2 },
-                          { id: 'positive', label: 'Positive (>0)', icon: ArrowUpRight, color: 'text-emerald-600' },
-                          { id: 'negative', label: 'Negative (<0)', icon: ArrowDownLeft, color: 'text-rose-600' },
+                          { id: 'positive', label: 'Debit (Positive)', icon: ArrowUpRight, color: 'text-emerald-600' },
+                          { id: 'negative', label: 'Credit (Negative)', icon: ArrowDownLeft, color: 'text-rose-600' },
                         ].map((opt) => (
                           <button
                             key={opt.id}
