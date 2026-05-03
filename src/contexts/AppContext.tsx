@@ -2322,30 +2322,38 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const normalizedToken = token.trim();
     
     try {
-      // Try 'magiclink' (common for OTP)
-      let { data, error } = await supabase.auth.verifyOtp({
+      // Supabase OTP can be "magiclink", "signup", or "email" depending on user state
+      // We try them in order of probability for a login flow
+      let result = await supabase.auth.verifyOtp({
         email: normalizedEmail,
         token: normalizedToken,
         type: 'magiclink',
       });
 
-      // If failed, try 'signup' (common for new users)
-      if (error || !data.session) {
-        console.warn('[Verify OTP] magiclink failed, trying signup...', error);
-        const signupResult = await supabase.auth.verifyOtp({
+      if (result.error || !result.data.session) {
+        console.warn('[Verify OTP] magiclink failed, trying signup...', result.error);
+        result = await supabase.auth.verifyOtp({
           email: normalizedEmail,
           token: normalizedToken,
           type: 'signup',
         });
-        data = signupResult.data;
-        error = signupResult.error;
       }
 
-      if (error) {
-        console.error('[Verify OTP Error Full]', error);
-        throw new Error(error.message || 'Invalid or expired code ❌');
+      if (result.error || !result.data.session) {
+        console.warn('[Verify OTP] signup failed, trying email type...', result.error);
+        result = await supabase.auth.verifyOtp({
+          email: normalizedEmail,
+          token: normalizedToken,
+          type: 'email',
+        });
       }
 
+      if (result.error) {
+        console.error('[Verify OTP Error Full]', result.error);
+        throw new Error(result.error.message || 'Invalid or expired code ❌');
+      }
+
+      const { data } = result;
       if (data.session) {
         setSession(data.session);
         updateSettings({ is_verified: true, user_email: normalizedEmail, sync_enabled: true });
@@ -2364,30 +2372,36 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     console.log(`[Sync] Verifying OTP for: ${normalizedEmail}`);
     
     try {
-      // Try 'magiclink'
-      let { data, error } = await supabase.auth.verifyOtp({
+      let result = await supabase.auth.verifyOtp({
         email: normalizedEmail,
         token: normalizedToken,
         type: 'magiclink',
       });
 
-      // Try 'signup' as fallback
-      if (error || !data.session) {
-        console.warn('[Sync Verify] magiclink failed, trying signup...', error);
-        const signupResult = await supabase.auth.verifyOtp({
+      if (result.error || !result.data.session) {
+        console.warn('[Sync Verify] magiclink failed, trying signup...', result.error);
+        result = await supabase.auth.verifyOtp({
           email: normalizedEmail,
           token: normalizedToken,
           type: 'signup',
         });
-        data = signupResult.data;
-        error = signupResult.error;
       }
 
-      if (error) {
-        console.error('[Sync Verify Error Full]', error);
-        throw new Error(error.message || 'Invalid or expired code ❌');
+      if (result.error || !result.data.session) {
+        console.warn('[Sync Verify] signup failed, trying email type...', result.error);
+        result = await supabase.auth.verifyOtp({
+          email: normalizedEmail,
+          token: normalizedToken,
+          type: 'email',
+        });
       }
 
+      if (result.error) {
+        console.error('[Sync Verify Error Full]', result.error);
+        throw new Error(result.error.message || 'Invalid or expired code ❌');
+      }
+
+      const { data } = result;
       if (data.session) {
         setSession(data.session);
       }

@@ -136,8 +136,11 @@ export default function SyncCenter() {
         setLoading(true);
         const success = await confirmSyncLogin(email, otp);
         if (success) {
+          // Force step change before alert to prevent blocking UI update
           setStep('active');
-          alert('Verification successful! 🚀 Account linked and sync enabled.');
+          setTimeout(() => {
+            alert('Verification successful! 🚀 Account linked and sync enabled.');
+          }, 100);
         } else {
           setError('Verification failed. Invalid or expired code.');
         }
