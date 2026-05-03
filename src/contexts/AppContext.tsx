@@ -2325,17 +2325,33 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       const { data, error } = await supabase.auth.verifyOtp({
         email: normalizedEmail,
         token: normalizedToken,
-        type: 'email', // Use 'email' for standard OTP/MagicLink tokens
+        type: 'magiclink', // Use 'magiclink' for tokens sent via signInWithOtp
       });
 
       if (error) {
-        console.error('[Verify OTP Error]', error);
-        throw new Error(error.message || 'Invalid or expired code ❌');
+        console.warn('[Verify OTP Error] magiclink failed, trying email type...', error);
+        // Fallback to 'email' type if magiclink fails (sometimes ambiguous in Supabase)
+        const { data: retryData, error: retryError } = await supabase.auth.verifyOtp({
+          email: normalizedEmail,
+          token: normalizedToken,
+          type: 'email',
+        });
+
+        if (retryError) {
+          console.error('[Verify OTP Error Full]', retryError);
+          throw new Error(retryError.message || 'Invalid or expired code ❌');
+        }
+        
+        if (retryData.session) {
+          setSession(retryData.session);
+          updateSettings({ is_verified: true, user_email: normalizedEmail, sync_enabled: true });
+          return true;
+        }
       }
 
       if (data.session) {
         setSession(data.session);
-        updateSettings({ is_verified: true, user_email: normalizedEmail });
+        updateSettings({ is_verified: true, user_email: normalizedEmail, sync_enabled: true });
         return true;
       }
       return false;
@@ -2354,20 +2370,35 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       const { data, error } = await supabase.auth.verifyOtp({
         email: normalizedEmail,
         token: normalizedToken,
-        type: 'email',
+        type: 'magiclink',
       });
 
       if (error) {
-        console.error('[Sync Verify Error]', error);
-        throw new Error(error.message || 'Invalid or expired code ❌');
-      }
+        console.warn('[Sync Verify Error] magiclink failed, trying email type...', error);
+        const { data: retryData, error: retryError } = await supabase.auth.verifyOtp({
+          email: normalizedEmail,
+          token: normalizedToken,
+          type: 'email',
+        });
 
-      if (data.session) {
+        if (retryError) {
+          console.error('[Sync Verify Error Full]', retryError);
+          throw new Error(retryError.message || 'Invalid or expired code ❌');
+        }
+
+        if (retryData.session) {
+          setSession(retryData.session);
+        }
+      } else if (data.session) {
         setSession(data.session);
       }
 
       updateSettings({ user_email: normalizedEmail, sync_enabled: true, is_verified: true });
+      
+      // Ensure sync starts and invitations are fetched
       await refreshData(normalizedEmail, true);
+      await fetchInvitations(normalizedEmail);
+      
       return true;
     } catch (err: any) {
       throw new Error(err.message || 'Verification failed ❌');
@@ -2453,8 +2484,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     return true;
   };
 
-  const fetchInvitations = async () => {
-    const email = settings.user_email || session?.user?.email;
+  const fetchInvitations = async (emailOverride?: string) => {
+    const email = emailOverride || settings.user_email || session?.user?.email;
     if (!email) return;
 
     const { data, error } = await supabase
