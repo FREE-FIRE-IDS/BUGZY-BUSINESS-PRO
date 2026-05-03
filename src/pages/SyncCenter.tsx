@@ -37,12 +37,14 @@ export default function SyncCenter() {
   const [isInviting, setIsInviting] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
 
-  // Auto-transition if session becomes active
+  // Global state observation for forced transitions
   React.useEffect(() => {
-    if (session && step !== 'active') {
+    const isVerified = (settings.sync_enabled && settings.is_verified) || !!session;
+    if (isVerified && step !== 'active') {
+      console.log('[SyncCenter] Force transitioning to active step based on state');
       setStep('active');
     }
-  }, [session, step]);
+  }, [settings.sync_enabled, settings.is_verified, session, step]);
 
   React.useEffect(() => {
     if (step === 'active') {
@@ -136,11 +138,8 @@ export default function SyncCenter() {
         setLoading(true);
         const success = await confirmSyncLogin(email, otp);
         if (success) {
-          // Force step change before alert to prevent blocking UI update
+          // Force step change immediately
           setStep('active');
-          setTimeout(() => {
-            alert('Verification successful! 🚀 Account linked and sync enabled.');
-          }, 100);
         } else {
           setError('Verification failed. Invalid or expired code.');
         }

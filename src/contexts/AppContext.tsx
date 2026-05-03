@@ -2357,6 +2357,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       if (data.session) {
         setSession(data.session);
         updateSettings({ is_verified: true, user_email: normalizedEmail, sync_enabled: true });
+        // Immediately trigger invitations fetch
+        fetchInvitations(normalizedEmail).catch(e => console.error('Early fetch invites error:', e));
         return true;
       }
       return false;
@@ -2404,10 +2406,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       const { data } = result;
       if (data.session) {
         setSession(data.session);
+        // FORCE update settings HERE to ensure local state sees it immediately
+        updateSettings({ user_email: normalizedEmail, sync_enabled: true, is_verified: true });
       }
 
-      updateSettings({ user_email: normalizedEmail, sync_enabled: true, is_verified: true });
-      
       // Essential: Start sync immediately but don't strictly block UI transition if these are slow
       refreshData(normalizedEmail, true).catch(e => console.error('Initial sync error:', e));
       fetchInvitations(normalizedEmail).catch(e => console.error('Fetch invites error:', e));
