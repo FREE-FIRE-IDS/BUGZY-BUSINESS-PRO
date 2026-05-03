@@ -133,12 +133,19 @@ export default function SyncCenter() {
     setError(null);
     try {
       if (otp.length === 6) {
-        await confirmSyncLogin(email, otp);
-        setStep('active');
+        setLoading(true);
+        const success = await confirmSyncLogin(email, otp);
+        if (success) {
+          setStep('active');
+          alert('Verification successful! 🚀 Account linked and sync enabled.');
+        } else {
+          setError('Verification failed. Invalid or expired code.');
+        }
       } else {
-        setError('Invalid OTP code ❌');
+        setError('Please enter the 6-digit OTP code ❌');
       }
     } catch (err: any) {
+      console.error('[Verify Click Error]', err);
       setError(err.message || 'Verification failed. Please check the code.');
     } finally {
       setLoading(false);
