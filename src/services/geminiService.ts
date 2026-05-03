@@ -68,12 +68,14 @@ export async function getBusinessInsights(transactions: Transaction[], parties: 
         errorMessage.toLowerCase().includes('rate limit') ||
         errorMessage.toLowerCase().includes('rpc failed') ||
         errorMessage.toLowerCase().includes('xhr error') ||
+        errorMessage.toLowerCase().includes('internal error') ||
+        errorMessage.toLowerCase().includes('500') ||
         errorMessage.includes('ProxyUnaryCall');
       
       if (isRetryable && retryCount < maxRetries) {
         retryCount++;
-        const delay = Math.pow(2, retryCount) * 1500; 
-        console.warn(`Gemini RPC/Rate error. Retry ${retryCount}/${maxRetries} in ${delay}ms...`);
+        const delay = Math.pow(2, retryCount) * 2000; // Increased delay slightly
+        console.warn(`Gemini RPC/Proxy error (Retry ${retryCount}/${maxRetries}): ${errorMessage.slice(0, 100)}... Retrying in ${delay}ms`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return executeWithRetry();
       }

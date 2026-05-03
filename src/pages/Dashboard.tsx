@@ -79,9 +79,13 @@ export default function Dashboard() {
           setAiInsights(insights);
           setAiError(null);
         } catch (error: any) {
-          const msg = error.message || '';
-          if (msg === 'RATE_LIMIT_EXCEEDED' || msg.toLowerCase().includes('quota')) {
+          const msg = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+          console.error('[Dashboard AI Insight Error]', msg);
+          
+          if (msg.includes('429') || msg.toLowerCase().includes('quota')) {
             setAiError('AI quota exceeded. Please select your own API key.');
+          } else if (msg.includes('500') || msg.toLowerCase().includes('xhr error') || msg.includes('ProxyUnaryCall')) {
+            setAiError('Connection error with AI service. Retrying in background...');
           } else {
             setAiError('AI insights are currently unavailable.');
           }
