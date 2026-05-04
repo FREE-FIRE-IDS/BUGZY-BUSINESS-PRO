@@ -124,6 +124,7 @@ export default function Banks() {
   const [bankSearchTerm, setBankSearchTerm] = useState('');
   const [amountFilter, setAmountFilter] = useState<'all' | 'positive' | 'negative'>('all');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [ledgerFilter, setLedgerFilter] = useState<'All' | 'Debit' | 'Credit'>('All');
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [isLedgerSearchOpen, setIsLedgerSearchOpen] = useState(false);
   const [ledgerDateRange, setLedgerDateRange] = useState<'All' | 'This Month' | '7 Days'>('All');
@@ -174,6 +175,13 @@ export default function Banks() {
           if (diff > 7) return false;
         }
 
+        if (ledgerFilter === 'Debit') {
+          return (entry.type === 'Opening Balance' ? entry.amount >= 0 : entry.to_bank_id === selectedBank.id);
+        }
+        if (ledgerFilter === 'Credit') {
+          return (entry.type === 'Opening Balance' ? entry.amount < 0 : entry.bank_id === selectedBank.id);
+        }
+
         if (!ledgerSearchTerm) return true;
         const lowSearch = ledgerSearchTerm.toLowerCase();
         return (
@@ -183,7 +191,7 @@ export default function Banks() {
         );
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [selectedBank, transactions, ledgerSearchTerm, ledgerDateRange]);
+  }, [selectedBank, transactions, ledgerSearchTerm, ledgerDateRange, ledgerFilter]);
 
   const handleExportPDF = () => {
     if (currentCompany && selectedBank) {
@@ -489,6 +497,16 @@ export default function Banks() {
                   <option value="All">All Time</option>
                   <option value="This Month">This Month</option>
                   <option value="7 Days">Last 7 Days</option>
+                </select>
+
+                <select 
+                  value={ledgerFilter}
+                  onChange={(e) => setLedgerFilter(e.target.value as any)}
+                  className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="All">Both Balances</option>
+                  <option value="Debit">Debit Only</option>
+                  <option value="Credit">Credit Only</option>
                 </select>
 
                 <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">

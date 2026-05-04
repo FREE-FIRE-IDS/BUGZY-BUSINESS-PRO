@@ -75,6 +75,7 @@ export default function Parties() {
     });
   }, [parties, searchTerm, filterType, amountFilter, hideZero, transactions, getPartyBalance]);
 
+  const [ledgerFilter, setLedgerFilter] = useState<'All' | 'Debit' | 'Credit'>('All');
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [isLedgerSearchOpen, setIsLedgerSearchOpen] = useState(false);
   const [ledgerDateRange, setLedgerDateRange] = useState<'All' | 'This Month' | '7 Days'>('All');
@@ -122,6 +123,21 @@ export default function Parties() {
           if (diff > 7) return false;
         }
 
+        // Ledger Type Filter
+        if (ledgerFilter === 'Debit') {
+          // Debit is "amount >= 0" for opening, or specific types for transactions/invoices
+          // Based on current logic in table:
+          // Debit cell: (tx.type === 'Opening Balance' ? (tx.amount >= 0 ...) : (tx.party_id === pid && (Payment In | Sale | Bank To Party | Cash To Party)) || (tx.to_party_id === pid))
+          const isDebit = entry.type === 'Opening Balance' ? (entry.amount >= 0) :
+                         ((entry.party_id === currentSelectedParty.id && ['Payment In', 'Sale', 'Bank To Party', 'Cash To Party'].includes(entry.type)) || (entry.to_party_id === currentSelectedParty.id));
+          if (!isDebit) return false;
+        } else if (ledgerFilter === 'Credit') {
+          // Credit cell: (tx.type === 'Opening Balance' ? (tx.amount < 0 ...) : (tx.party_id === pid && (Payment Out | Purchase | Expense | Party To Bank | Party To Party | Party To Cash)))
+          const isCredit = entry.type === 'Opening Balance' ? (entry.amount < 0) :
+                          (entry.party_id === currentSelectedParty.id && ['Payment Out', 'Purchase', 'Expense', 'Party To Bank', 'Party To Party', 'Party To Cash'].includes(entry.type));
+          if (!isCredit) return false;
+        }
+
         if (!ledgerSearchTerm) return true;
         const lowSearch = ledgerSearchTerm.toLowerCase();
         return (
@@ -131,7 +147,7 @@ export default function Parties() {
         );
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [currentSelectedParty, transactions, invoices, ledgerSearchTerm, ledgerDateRange]);
+  }, [currentSelectedParty, transactions, invoices, ledgerSearchTerm, ledgerDateRange, ledgerFilter]);
 
   const handleExportPDF = () => {
     if (currentCompany && currentSelectedParty) {
@@ -256,6 +272,16 @@ export default function Parties() {
                   <option value="7 Days">Last 7 Days</option>
                 </select>
 
+                <select 
+                  value={ledgerFilter}
+                  onChange={(e) => setLedgerFilter(e.target.value as any)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
+                >
+                  <option value="All">Both Balances</option>
+                  <option value="Debit">Debit Only</option>
+                  <option value="Credit">Credit Only</option>
+                </select>
+
                 <div className="h-6 w-[1px] bg-slate-100 mx-1 secret" />
 
                 <button 
@@ -273,9 +299,6 @@ export default function Parties() {
                   <tr>
                     <th className="px-4 py-4">Date</th>
                     <th className="px-4 py-4">Type</th>
-                    <th className="px-4 py-4">Mark</th>
-                    <th className="px-4 py-4">Net Wt</th>
-                    <th className="px-4 py-4">Price</th>
                     <th className="px-4 py-4">Description</th>
                     <th className="px-4 py-4 text-right">Debit</th>
                     <th className="px-4 py-4 text-right">Credit</th>
@@ -295,9 +318,6 @@ export default function Parties() {
                           {tx.type}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[80px]">{tx.shipping_mark || '-'}</td>
-                      <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400">{tx.net_weight ? Number(tx.net_weight).toFixed(2) : '-'}</td>
-                      <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400">{tx.price ? formatCurrency(tx.price, settings.currency).replace('Rs. ', '').replace('Rs.', '') : '-'}</td>
                       <td className="px-4 py-4 text-[11px] text-slate-500 dark:text-slate-400">{tx.description || '-'}</td>
                       <td className="px-4 py-4 text-[11px] font-bold text-right text-slate-900 dark:text-white">
                         {tx.type === 'Opening Balance' ? (tx.amount >= 0 ? formatCurrency(tx.amount, settings.currency) : '-') :
@@ -344,7 +364,6 @@ export default function Parties() {
                     <div>
                       <p className="text-[10px] text-slate-400 font-bold mb-1 tracking-tight uppercase">#{index + 1} • {formatDate(tx.date)}</p>
                       <p className="font-bold text-slate-900 dark:text-slate-900">{tx.description || tx.type}</p>
-                      {tx.shipping_mark && <p className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded inline-block mt-1 uppercase mt-1 tracking-widest">{tx.shipping_mark}</p>}
                     </div>
                     <span className={cn(
                       "px-2 py-0.5 rounded text-[9px] font-bold uppercase",
@@ -353,22 +372,6 @@ export default function Parties() {
                       {tx.type}
                     </span>
                   </div>
-                  {(tx.net_weight || tx.price) && (
-                    <div className="flex gap-4 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                      {tx.net_weight && (
-                        <div>
-                           <p className="text-[8px] uppercase font-black text-slate-400 tracking-widest">Weight</p>
-                           <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{Number(tx.net_weight).toFixed(2)}</p>
-                        </div>
-                      )}
-                      {tx.price && (
-                        <div>
-                           <p className="text-[8px] uppercase font-black text-slate-400 tracking-widest">Price</p>
-                           <p className="text-xs font-bold text-slate-700 dark:text-slate-200">@{Number(tx.price).toFixed(2)}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
                   <div className="flex justify-between items-center">
                     <div className="flex gap-4">
                       <div>
