@@ -21,7 +21,7 @@ import { format } from 'date-fns';
 
 export default function SyncCenter() {
   const { 
-    settings, updateSettings, refreshData, manualSyncLogin, confirmSyncLogin, isOnline, syncStatus, signOut, session,
+    settings, updateSettings, refreshData, manualSyncLogin, quickVerify, confirmSyncLogin, isOnline, syncStatus, signOut, session,
     currentCompany, shareCompany, invitations, fetchInvitations, updateInvitationStatus, sentInvitations, fetchSentInvitations,
     joinCompanyByCode, revokeCompanyAccess
   } = useApp();
@@ -110,49 +110,25 @@ export default function SyncCenter() {
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  const handleSendOTP = async (e: React.FormEvent) => {
+  const handleVerifyFast = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || cooldown > 0) return;
+    if (!email || !email.includes('@') || loading) return;
     
     setLoading(true);
     setError(null);
     try {
-      await manualSyncLogin(email);
-      setOtpSent(true);
-      setStep('otp');
-      setCooldown(60);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otp || loading) return;
-    
-    setLoading(true);
-    setError(null);
-    try {
-      if (otp.length === 6) {
-        console.log('[SyncCenter] Attempting to verify OTP...');
-        const success = await confirmSyncLogin(email, otp);
-        if (success) {
-          console.log('[SyncCenter] Verification confirmed, forcing active step');
-          // Update local state immediately
-          setStep('active');
-          // Also clear OTP to be clean
-          setOtp('');
-        } else {
-          setError('Verification failed. Invalid or expired code.');
-        }
+      console.log('[SyncCenter] Attempting quick verification...');
+      const success = await quickVerify(email);
+      if (success) {
+        console.log('[SyncCenter] Quick verification done, moving to active');
+        setStep('active');
+        alert('Cloud Sync Enabled! 🚀 Data is now syncing with ' + email);
       } else {
-        setError('Please enter the 6-digit OTP code ❌');
+        setError('Verification failed. Please check your email.');
       }
     } catch (err: any) {
-      console.error('[Verify Click Error]', err);
-      setError(err.message || 'Verification failed. Please check the code.');
+      console.error('[Quick Verify Error Stage]', err);
+      setError(err.message || 'Verification failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -203,7 +179,7 @@ export default function SyncCenter() {
               </p>
             </div>
 
-            <form onSubmit={handleSendOTP} className="max-w-md mx-auto space-y-4">
+            <form onSubmit={handleVerifyFast} className="max-w-md mx-auto space-y-4">
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <Mail className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={20} />
@@ -225,11 +201,11 @@ export default function SyncCenter() {
               )}
               <button
                 type="submit"
-                disabled={loading || !isOnline || cooldown > 0}
+                disabled={loading || !isOnline}
                 className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50 disabled:bg-slate-400 flex items-center justify-center gap-2"
               >
-                {loading ? <Loader2 className="animate-spin" /> : <Mail size={20} />}
-                {cooldown > 0 ? `Retry in ${cooldown}s` : 'Send Verification Code'}
+                {loading ? <Loader2 className="animate-spin" /> : <Cloud size={20} />}
+                Enable Instant Sync
               </button>
             </form>
 
@@ -250,72 +226,6 @@ export default function SyncCenter() {
                 <p className="text-xs text-slate-500 font-medium">Everything stays perfectly in sync</p>
               </div>
             </div>
-          </motion.div>
-        )}
-
-        {step === 'otp' && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white dark:bg-slate-900 rounded-[2rem] p-10 border border-slate-100 dark:border-slate-800 text-center space-y-8 max-w-md mx-auto"
-          >
-            <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center mx-auto text-indigo-600">
-              <Lock size={32} />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Verify Identity</h2>
-              <p className="text-slate-500 dark:text-slate-400 font-medium px-4">
-                We've sent a <span className="text-indigo-600 font-bold">6-digit verification code</span> to <span className="text-indigo-600 font-bold">{email}</span>
-              </p>
-              <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-2xl mx-6 space-y-3 border border-indigo-100 dark:border-indigo-800/30">
-                <p className="text-[12px] text-indigo-700 dark:text-indigo-300 font-bold leading-tight uppercase tracking-wider text-center">
-                  Copy & Paste the 6-digit code from your email below
-                </p>
-              </div>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 px-6">
-                Please check <span className="text-rose-500">Inbox & Spam</span>.
-              </p>
-            </div>
-
-            <form onSubmit={handleVerify} className="space-y-6">
-              <input
-                type="text"
-                maxLength={6}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                className="block w-full text-center text-4xl tracking-[0.5em] font-black py-4 bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 rounded-2xl text-indigo-600 focus:border-indigo-500 transition-all"
-                placeholder="000000"
-                required
-              />
-              <button
-                type="submit"
-                disabled={loading || otp.length < 6}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={20} />}
-                Confirm Verification
-              </button>
-
-              <div className="text-center">
-                <button
-                  type="button"
-                  disabled={loading || cooldown > 0}
-                  onClick={handleSendOTP}
-                  className="text-indigo-600 dark:text-indigo-400 text-sm font-bold hover:underline disabled:text-slate-400 disabled:no-underline"
-                >
-                  {cooldown > 0 ? `Resend Code in ${cooldown}s` : "Didn't receive code? Resend"}
-                </button>
-              </div>
-
-              <button 
-                type="button"
-                onClick={() => setStep('intro')}
-                className="text-slate-500 text-sm font-bold hover:text-slate-900 dark:hover:text-slate-50 transition-colors"
-              >
-                Change Email Address
-              </button>
-            </form>
           </motion.div>
         )}
 

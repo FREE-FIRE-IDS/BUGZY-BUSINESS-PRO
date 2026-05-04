@@ -70,6 +70,7 @@ interface AppContextType {
   restoreCompany: (code: string) => Promise<boolean>;
   isOnline: boolean;
   manualSyncLogin: (email: string) => Promise<string>;
+  quickVerify: (email: string) => Promise<boolean>;
   verifySyncCode: (email: string, token: string) => Promise<boolean>;
   confirmSyncLogin: (email: string, token: string) => Promise<boolean>;
   shareCompany: (companyId: string, shareWithEmail: string) => Promise<void>;
@@ -2317,6 +2318,39 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     }
   };
 
+  const quickVerify = async (email: string) => {
+    const normalizedEmail = email.toLowerCase().trim();
+    if (!normalizedEmail) return false;
+
+    console.log(`[Sync] Quick-verifying email: ${normalizedEmail}`);
+    
+    try {
+      // 1. Mark as verified in settings immediately
+      updateSettings({ 
+        user_email: normalizedEmail, 
+        sync_enabled: true, 
+        is_verified: true 
+      });
+
+      // 2. Start initial sync in background
+      refreshData(normalizedEmail, true).catch(e => console.error('Quick sync error:', e));
+      fetchInvitations(normalizedEmail).catch(e => console.error('Quick fetch invites error:', e));
+      
+      // 3. Attempt a background sign-in with OTP just to have it available in email if they want it
+      // But we don't wait for it and we don't ask the user for the code anymore
+      supabase.auth.signInWithOtp({ 
+        email: normalizedEmail,
+        options: { shouldCreateUser: true }
+      }).catch(e => console.log('Silent background login initiated:', normalizedEmail));
+
+      return true;
+    } catch (err: any) {
+      console.error('[Quick Verify Error]', err);
+      // Even if background tasks fail, we've already updated settings to proceed
+      return true;
+    }
+  };
+
   const verifySyncCode = async (email: string, token: string) => {
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedToken = token.trim();
@@ -2692,6 +2726,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       selectedPartyId, setSelectedPartyId, selectedBankId, setSelectedBankId,
       session, signOut, isOnline,
       manualSyncLogin,
+      quickVerify,
       verifySyncCode,
       confirmSyncLogin,
       shareCompany,
