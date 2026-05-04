@@ -2488,11 +2488,16 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const myEmail = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
     if (!myEmail) throw new Error('Please login to send invitations ❌');
 
+    // Check if user is fully logged in for RLS
+    if (!session) {
+      throw new Error('Cloud session expired 🛡️. Please click "Verify Email" in Cloud Sync to refresh your secure access.');
+    }
+
     const ownerEmail = (currentCompany.owner_email || currentCompany.user_email || '').toLowerCase().trim();
     
-    // If we have an owner email set and we are NOT that person, reject
-    if (ownerEmail && myEmail !== ownerEmail) {
-      throw new Error('Only the company owner can invite people ❌');
+    // If we have an owner email set and we are NOT that person (and not an admin), reject
+    if (ownerEmail && myEmail !== ownerEmail && !isAdmin) {
+      throw new Error('Access Denied: Only the company owner can invite people ❌');
     }
 
     const inviteeEmail = shareWithEmail.toLowerCase().trim();
@@ -2517,7 +2522,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       console.error('[Share Error]', error);
       // Helpful error message for RLS
       if (error.message.includes('row-level security')) {
-        throw new Error('Access Denied 🛡️ - Only the company owner can send invitations. If you are the owner, please ensure you are logged in with the correct email.');
+        throw new Error(`Access Denied 🛡️ - Only the company owner (${ownerEmail || 'Set in Cloud'}) can send invitations. Your current session is locked. Please re-verify your email in Sync Center to refresh your credentials.`);
       }
       throw new Error(error.message || 'Failed to send invitation ❌');
     }
