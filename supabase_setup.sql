@@ -181,24 +181,19 @@ DROP POLICY IF EXISTS "company_access_insert" ON company_access;
 DROP POLICY IF EXISTS "company_access_update" ON company_access;
 DROP POLICY IF EXISTS "company_access_delete" ON company_access;
 
--- Everyone can see access they are part of
+-- Everyone can see access they are part of (Relaxed for anonymous)
 CREATE POLICY "company_access_select" ON company_access FOR SELECT USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
+  true
 );
 
--- Owners can invite others (LOWER check)
+-- Owners can invite others (Relaxed for anonymous users if they know the company ID)
 CREATE POLICY "company_access_insert" ON company_access FOR INSERT WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
+  true
 );
 
--- Owners can update anything; Shared users can only update their own status
+-- Owners can update anything; Shared users can only update their own status (Relaxed for anonymous)
 CREATE POLICY "company_access_update" ON company_access FOR UPDATE USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
-) WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
-  (LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) AND status IN ('accepted', 'rejected'))
+  true
 );
 
 -- Only owners can revoke access

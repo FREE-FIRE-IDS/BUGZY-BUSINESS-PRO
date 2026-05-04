@@ -175,7 +175,7 @@ export default function SyncCenter() {
             <div className="space-y-4">
               <h2 className="text-3xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Cloud Sync is Disabled</h2>
               <p className="text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                Link your Gmail account to enable professional 6-digit code verification and real-time sync across all your devices.
+                Link your Gmail account to enable instant real-time sync and secure cloud backup across all your devices.
               </p>
             </div>
 
@@ -340,7 +340,7 @@ export default function SyncCenter() {
                   </div>
                   <div>
                     <h3 className="text-lg font-black text-slate-900 dark:text-slate-50 tracking-tight">Join Company</h3>
-                    <p className="text-xs text-slate-500 font-medium">Enter a 6-digit join code to access a company</p>
+                    <p className="text-xs text-slate-500 font-medium">Enter the secure join code to access a shared company</p>
                   </div>
                 </div>
 
