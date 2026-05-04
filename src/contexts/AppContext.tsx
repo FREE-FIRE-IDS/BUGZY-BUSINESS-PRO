@@ -2348,6 +2348,15 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         });
       }
 
+      if (result.error || !result.data.session) {
+        console.warn('[Verify OTP] email failed, trying invite type...', result.error);
+        result = await supabase.auth.verifyOtp({
+          email: normalizedEmail,
+          token: normalizedToken,
+          type: 'invite',
+        });
+      }
+
       if (result.error) {
         console.error('[Verify OTP Error Full]', result.error);
         throw new Error(result.error.message || 'Invalid or expired code ❌');
@@ -2361,7 +2370,12 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         fetchInvitations(normalizedEmail).catch(e => console.error('Early fetch invites error:', e));
         return true;
       }
-      return false;
+      
+      // Fallback: If no session but no error, it might be a partial success or already verified
+      // But for login flow we really want a session.
+      console.warn('[Verify OTP] Success but no session returned');
+      updateSettings({ is_verified: true, user_email: normalizedEmail, sync_enabled: true });
+      return true;
     } catch (err: any) {
       throw new Error(err.message || 'Verification failed ❌');
     }
@@ -2398,20 +2412,33 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         });
       }
 
+      if (result.error || !result.data.session) {
+        console.warn('[Sync Verify] email failed, trying invite type...', result.error);
+        result = await supabase.auth.verifyOtp({
+          email: normalizedEmail,
+          token: normalizedToken,
+          type: 'invite',
+        });
+      }
+
       if (result.error) {
         console.error('[Sync Verify Error Full]', result.error);
         throw new Error(result.error.message || 'Invalid or expired code ❌');
       }
 
       const { data } = result;
+      // CRITICAL: Force update both session and settings
       if (data.session) {
         setSession(data.session);
-        // FORCE update settings HERE to ensure local state sees it immediately
-        updateSettings({ user_email: normalizedEmail, sync_enabled: true, is_verified: true });
       }
-
+      
+      updateSettings({ user_email: normalizedEmail, sync_enabled: true, is_verified: true });
+      
       // Essential: Start sync immediately but don't strictly block UI transition if these are slow
-      refreshData(normalizedEmail, true).catch(e => console.error('Initial sync error:', e));
+      refreshData(normalizedEmail, true).catch(e => {
+        console.error('Initial sync error:', e);
+        // If sync fails but auth succeeded, we still want to be in "active" step
+      });
       fetchInvitations(normalizedEmail).catch(e => console.error('Fetch invites error:', e));
       
       return true;

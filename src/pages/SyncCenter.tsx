@@ -130,16 +130,20 @@ export default function SyncCenter() {
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otp) return;
+    if (!otp || loading) return;
+    
     setLoading(true);
     setError(null);
     try {
       if (otp.length === 6) {
-        setLoading(true);
+        console.log('[SyncCenter] Attempting to verify OTP...');
         const success = await confirmSyncLogin(email, otp);
         if (success) {
-          // Force step change immediately
+          console.log('[SyncCenter] Verification confirmed, forcing active step');
+          // Update local state immediately
           setStep('active');
+          // Also clear OTP to be clean
+          setOtp('');
         } else {
           setError('Verification failed. Invalid or expired code.');
         }
@@ -253,6 +257,7 @@ export default function SyncCenter() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
             className="bg-white dark:bg-slate-900 rounded-[2rem] p-10 border border-slate-100 dark:border-slate-800 text-center space-y-8 max-w-md mx-auto"
           >
             <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center mx-auto text-indigo-600">
