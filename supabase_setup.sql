@@ -182,29 +182,35 @@ ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
 -- 6. company_access policies (Wide open for now to fix recursion)
+DROP POLICY IF EXISTS "company_access_all_policy" ON company_access;
 DROP POLICY IF EXISTS "company_access_select" ON company_access;
 DROP POLICY IF EXISTS "company_access_insert" ON company_access;
 DROP POLICY IF EXISTS "company_access_update" ON company_access;
 DROP POLICY IF EXISTS "company_access_delete" ON company_access;
 DROP POLICY IF EXISTS "company_access_policy" ON company_access;
 
-CREATE POLICY "company_access_all_policy" ON company_access FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "company_access_all_policy" 
+ON company_access FOR ALL 
+USING (true) 
+WITH CHECK (true);
 
--- 7. Companies Policies (Consolidated and simplified)
+-- 7. Companies Policies (Simplified to prevent loops)
+DROP POLICY IF EXISTS "companies_select" ON companies;
+DROP POLICY IF EXISTS "companies_insert" ON companies;
+DROP POLICY IF EXISTS "companies_update" ON companies;
+DROP POLICY IF EXISTS "companies_delete" ON companies;
 DROP POLICY IF EXISTS "Users can view companies they own or are shared with" ON companies;
 DROP POLICY IF EXISTS "Users can insert their own companies" ON companies;
 DROP POLICY IF EXISTS "Owners can update their companies" ON companies;
-DROP POLICY IF EXISTS "Companies access" ON companies;
 
--- SELECT: Owner OR Linked OR Shared
+-- SELECT: Owner OR Linked OR Shared (Direct check on company_access)
 CREATE POLICY "companies_select" ON companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  auth.jwt() ->> 'email' = ANY(linked_emails) OR
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
-  EXISTS (
-    SELECT 1 FROM company_access 
-    WHERE company_id = companies.id 
-    AND LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
+  (auth.jwt() ->> 'email') = ANY(linked_emails) OR
+  id IN (
+    SELECT company_id FROM company_access 
+    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
     AND status = 'accepted'
   )
 );
@@ -224,40 +230,67 @@ CREATE POLICY "companies_delete" ON companies FOR DELETE USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
 );
 
--- 8. Policies for other tables (Inherit from companies access)
+-- 8. Policies for other tables (Direct access via user_email or share check)
+-- This avoids querying the 'companies' table inside their policies to prevent recursion.
+
 -- Parties
+DROP POLICY IF EXISTS "parties_access" ON parties;
 DROP POLICY IF EXISTS "Parties access" ON parties;
 CREATE POLICY "parties_access" ON parties FOR ALL USING (
-  (auth.jwt() ->> 'email') = user_email OR 
-  company_id IN (SELECT id FROM companies)
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  company_id IN (
+    SELECT company_id FROM company_access 
+    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
+    AND status = 'accepted'
+  )
 );
 
 -- Banks
+DROP POLICY IF EXISTS "banks_access" ON banks;
 DROP POLICY IF EXISTS "Banks access" ON banks;
 CREATE POLICY "banks_access" ON banks FOR ALL USING (
-  (auth.jwt() ->> 'email') = user_email OR 
-  company_id IN (SELECT id FROM companies)
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  company_id IN (
+    SELECT company_id FROM company_access 
+    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
+    AND status = 'accepted'
+  )
 );
 
 -- Inventory
+DROP POLICY IF EXISTS "inventory_access" ON inventory;
 DROP POLICY IF EXISTS "Inventory access" ON inventory;
 CREATE POLICY "inventory_access" ON inventory FOR ALL USING (
-  (auth.jwt() ->> 'email') = user_email OR 
-  company_id IN (SELECT id FROM companies)
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  company_id IN (
+    SELECT company_id FROM company_access 
+    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
+    AND status = 'accepted'
+  )
 );
 
 -- Transactions
+DROP POLICY IF EXISTS "transactions_access" ON transactions;
 DROP POLICY IF EXISTS "Transactions access" ON transactions;
 CREATE POLICY "transactions_access" ON transactions FOR ALL USING (
-  (auth.jwt() ->> 'email') = user_email OR 
-  company_id IN (SELECT id FROM companies)
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  company_id IN (
+    SELECT company_id FROM company_access 
+    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
+    AND status = 'accepted'
+  )
 );
 
 -- Invoices
+DROP POLICY IF EXISTS "invoices_access" ON invoices;
 DROP POLICY IF EXISTS "Invoices access" ON invoices;
 CREATE POLICY "invoices_access" ON invoices FOR ALL USING (
-  (auth.jwt() ->> 'email') = user_email OR 
-  company_id IN (SELECT id FROM companies)
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  company_id IN (
+    SELECT company_id FROM company_access 
+    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
+    AND status = 'accepted'
+  )
 );
 
 -- 7. Policies for payment_requests
