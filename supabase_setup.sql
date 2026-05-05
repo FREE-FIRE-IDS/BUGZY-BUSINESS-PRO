@@ -182,24 +182,11 @@ DROP POLICY IF EXISTS "company_access_update" ON company_access;
 DROP POLICY IF EXISTS "company_access_delete" ON company_access;
 
 -- Everyone can see access they are part of (Relaxed for anonymous)
-CREATE POLICY "company_access_select" ON company_access FOR SELECT USING (
-  true
-);
-
--- Owners can invite others (Relaxed for anonymous users if they know the company ID)
-CREATE POLICY "company_access_insert" ON company_access FOR INSERT WITH CHECK (
-  true
-);
-
--- Owners can update anything; Shared users can only update their own status (Relaxed for anonymous)
-CREATE POLICY "company_access_update" ON company_access FOR UPDATE USING (
-  true
-);
-
--- Only owners can revoke access
-CREATE POLICY "company_access_delete" ON company_access FOR DELETE USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
-);
+CREATE POLICY "company_access_select" ON company_access FOR ALL USING (true);
+-- Removing specific insert/update/delete to prioritize FOR ALL
+DROP POLICY IF EXISTS "company_access_insert" ON company_access;
+DROP POLICY IF EXISTS "company_access_update" ON company_access;
+DROP POLICY IF EXISTS "company_access_delete" ON company_access;
 
 -- Companies Policies
 DROP POLICY IF EXISTS "Users can view companies they own or are shared with" ON companies;

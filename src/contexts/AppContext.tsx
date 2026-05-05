@@ -2484,7 +2484,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const shareCompany = async (companyId: string, shareWithEmail: string) => {
     if (!currentCompany || currentCompany.id !== companyId) throw new Error('Company not selected');
     
-    // Restriction: Only owner can share
+    // Restriction: Only owner can share (admins bypass)
     const myEmail = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
     if (!myEmail) throw new Error('Please login to send invitations ❌');
 
@@ -2492,7 +2492,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     // If we have an owner email set and we are NOT that person (and not an admin), reject
     if (ownerEmail && myEmail !== ownerEmail && !isAdmin) {
-      throw new Error('Access Denied: Only the company owner can invite people ❌');
+      console.warn('[Share] Ownership mismatch', { myEmail, ownerEmail });
+      throw new Error(`Access Denied: Only the company owner (${ownerEmail}) can invite people. Your verified email is ${myEmail} ❌`);
     }
 
     const inviteeEmail = shareWithEmail.toLowerCase().trim();
@@ -2517,7 +2518,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       console.error('[Share Error]', error);
       // Helpful error message for RLS
       if (error.message.includes('row-level security')) {
-        throw new Error(`Access Denied 🛡️ - Only the company owner (${ownerEmail || 'Correct Email'}) can invite others. If you are the owner, please ensure Cloud Sync is active in settings.`);
+        throw new Error(`Access Denied 🛡️ - Only the company owner can invite others. Company Owner: ${ownerEmail || 'Not Set'}. Your Email: ${myEmail}. Please ensure you are logged in with the owner email and Cloud Sync is active.`);
       }
       throw new Error(error.message || 'Failed to send invitation ❌');
     }
