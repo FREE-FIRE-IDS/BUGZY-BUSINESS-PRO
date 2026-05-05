@@ -172,86 +172,92 @@ ALTER TABLE companies REPLICA IDENTITY FULL;
 -- ... (rest of REPLICA IDENTITY FULL)
 ALTER TABLE company_access REPLICA IDENTITY FULL;
 
--- Ensure RLS
+-- Ensure RLS is enabled on all tables
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE company_access ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parties ENABLE ROW LEVEL SECURITY;
+ALTER TABLE banks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
--- 6. company_access policies (REFINED for robustness)
+-- 6. company_access policies (Wide open for now to fix recursion)
 DROP POLICY IF EXISTS "company_access_select" ON company_access;
 DROP POLICY IF EXISTS "company_access_insert" ON company_access;
 DROP POLICY IF EXISTS "company_access_update" ON company_access;
 DROP POLICY IF EXISTS "company_access_delete" ON company_access;
+DROP POLICY IF EXISTS "company_access_policy" ON company_access;
 
--- Everyone can see access they are part of (Relaxed for anonymous)
-CREATE POLICY "company_access_select" ON company_access FOR ALL USING (true);
--- Removing specific insert/update/delete to prioritize FOR ALL
-DROP POLICY IF EXISTS "company_access_insert" ON company_access;
-DROP POLICY IF EXISTS "company_access_update" ON company_access;
-DROP POLICY IF EXISTS "company_access_delete" ON company_access;
+CREATE POLICY "company_access_all_policy" ON company_access FOR ALL USING (true) WITH CHECK (true);
 
--- Companies Policies
+-- 7. Companies Policies (Consolidated and simplified)
 DROP POLICY IF EXISTS "Users can view companies they own or are shared with" ON companies;
-CREATE POLICY "Users can view companies they own or are shared with"
-ON companies FOR SELECT
-USING (
+DROP POLICY IF EXISTS "Users can insert their own companies" ON companies;
+DROP POLICY IF EXISTS "Owners can update their companies" ON companies;
+DROP POLICY IF EXISTS "Companies access" ON companies;
+
+-- SELECT: Owner OR Linked OR Shared
+CREATE POLICY "companies_select" ON companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   auth.jwt() ->> 'email' = ANY(linked_emails) OR
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
-  EXISTS (SELECT 1 FROM company_access WHERE company_id = id AND LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') AND status = 'accepted')
+  EXISTS (
+    SELECT 1 FROM company_access 
+    WHERE company_id = companies.id 
+    AND LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
+    AND status = 'accepted'
+  )
 );
 
-DROP POLICY IF EXISTS "Users can insert their own companies" ON companies;
-CREATE POLICY "Users can insert their own companies"
-ON companies FOR INSERT
-WITH CHECK (
+-- INSERT: Owner or User Email matches
+CREATE POLICY "companies_insert" ON companies FOR INSERT WITH CHECK (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
 );
 
-DROP POLICY IF EXISTS "Owners can update their companies" ON companies;
-CREATE POLICY "Owners can update their companies"
-ON companies FOR UPDATE
-USING (true)
-WITH CHECK (true);
+-- UPDATE: Permissive for now to allow owner fixes
+CREATE POLICY "companies_update" ON companies FOR UPDATE USING (true) WITH CHECK (true);
 
--- Policies for other tables to ensure real-time sync works
+-- DELETE: Owner only
+CREATE POLICY "companies_delete" ON companies FOR DELETE USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
+);
+
+-- 8. Policies for other tables (Inherit from companies access)
 -- Parties
-ALTER TABLE parties ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Parties access" ON parties;
-CREATE POLICY "Parties access" ON parties FOR ALL USING (
+CREATE POLICY "parties_access" ON parties FOR ALL USING (
   (auth.jwt() ->> 'email') = user_email OR 
-  EXISTS (SELECT 1 FROM companies WHERE id = company_id AND ((auth.jwt() ->> 'email') = user_email OR (auth.jwt() ->> 'email') = ANY(linked_emails) OR (auth.jwt() ->> 'email') = owner_email))
+  company_id IN (SELECT id FROM companies)
 );
 
 -- Banks
-ALTER TABLE banks ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Banks access" ON banks;
-CREATE POLICY "Banks access" ON banks FOR ALL USING (
+CREATE POLICY "banks_access" ON banks FOR ALL USING (
   (auth.jwt() ->> 'email') = user_email OR 
-  EXISTS (SELECT 1 FROM companies WHERE id = company_id AND ((auth.jwt() ->> 'email') = user_email OR (auth.jwt() ->> 'email') = ANY(linked_emails) OR (auth.jwt() ->> 'email') = owner_email))
+  company_id IN (SELECT id FROM companies)
 );
 
 -- Inventory
-ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Inventory access" ON inventory;
-CREATE POLICY "Inventory access" ON inventory FOR ALL USING (
+CREATE POLICY "inventory_access" ON inventory FOR ALL USING (
   (auth.jwt() ->> 'email') = user_email OR 
-  EXISTS (SELECT 1 FROM companies WHERE id = company_id AND ((auth.jwt() ->> 'email') = user_email OR (auth.jwt() ->> 'email') = ANY(linked_emails) OR (auth.jwt() ->> 'email') = owner_email))
+  company_id IN (SELECT id FROM companies)
 );
 
 -- Transactions
-ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Transactions access" ON transactions;
-CREATE POLICY "Transactions access" ON transactions FOR ALL USING (
+CREATE POLICY "transactions_access" ON transactions FOR ALL USING (
   (auth.jwt() ->> 'email') = user_email OR 
-  EXISTS (SELECT 1 FROM companies WHERE id = company_id AND ((auth.jwt() ->> 'email') = user_email OR (auth.jwt() ->> 'email') = ANY(linked_emails) OR (auth.jwt() ->> 'email') = owner_email))
+  company_id IN (SELECT id FROM companies)
 );
 
 -- Invoices
-ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Invoices access" ON invoices;
-CREATE POLICY "Invoices access" ON invoices FOR ALL USING (
+CREATE POLICY "invoices_access" ON invoices FOR ALL USING (
   (auth.jwt() ->> 'email') = user_email OR 
-  EXISTS (SELECT 1 FROM companies WHERE id = company_id AND ((auth.jwt() ->> 'email') = user_email OR (auth.jwt() ->> 'email') = ANY(linked_emails) OR (auth.jwt() ->> 'email') = owner_email))
+  company_id IN (SELECT id FROM companies)
 );
 
 -- 7. Policies for payment_requests
