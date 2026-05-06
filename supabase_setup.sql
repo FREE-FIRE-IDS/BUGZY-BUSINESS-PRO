@@ -181,7 +181,7 @@ ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
--- 6. company_access policies (Wide open for now to fix recursion)
+-- 6. company_access policies (Wide open for now to fix recursion and share issues)
 DROP POLICY IF EXISTS "company_access_all_policy" ON company_access;
 DROP POLICY IF EXISTS "company_access_select" ON company_access;
 DROP POLICY IF EXISTS "company_access_insert" ON company_access;
@@ -189,48 +189,79 @@ DROP POLICY IF EXISTS "company_access_update" ON company_access;
 DROP POLICY IF EXISTS "company_access_delete" ON company_access;
 DROP POLICY IF EXISTS "company_access_policy" ON company_access;
 
+-- Allow authenticated users to manage invitations they are part of
 CREATE POLICY "company_access_all_policy" 
 ON company_access FOR ALL 
-USING (true) 
-WITH CHECK (true);
+USING (
+  auth.role() = 'authenticated' AND (
+    LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
+    LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
+    LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  )
+)
+WITH CHECK (
+  auth.role() = 'authenticated' AND (
+    LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
+    LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
+    LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  )
+);
 
 -- 7. Companies Policies (Simplified to prevent loops)
 DROP POLICY IF EXISTS "companies_select" ON companies;
 DROP POLICY IF EXISTS "companies_insert" ON companies;
 DROP POLICY IF EXISTS "companies_update" ON companies;
 DROP POLICY IF EXISTS "companies_delete" ON companies;
-DROP POLICY IF EXISTS "Users can view companies they own or are shared with" ON companies;
-DROP POLICY IF EXISTS "Users can insert their own companies" ON companies;
-DROP POLICY IF EXISTS "Owners can update their companies" ON companies;
 
--- SELECT: Owner OR Linked OR Shared (Direct check on company_access)
+-- SELECT: Owner OR Linked OR Shared
 CREATE POLICY "companies_select" ON companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   (auth.jwt() ->> 'email') = ANY(linked_emails) OR
   id IN (
     SELECT company_id FROM company_access 
     WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
-    AND status = 'accepted'
   )
 );
 
--- INSERT: Owner or User Email matches
+-- INSERT: Allow authenticated users to create companies
 CREATE POLICY "companies_insert" ON companies FOR INSERT WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
+  auth.role() = 'authenticated'
 );
 
--- UPDATE: Permissive for now to allow owner fixes
-CREATE POLICY "companies_update" ON companies FOR UPDATE USING (true) WITH CHECK (true);
+-- UPDATE: Allow owners and admins to update
+CREATE POLICY "companies_update" ON companies FOR UPDATE USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+) WITH CHECK (true);
 
--- DELETE: Owner only
+-- DELETE: Owners and admins only
 CREATE POLICY "companies_delete" ON companies FOR DELETE USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email)
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
--- 8. Policies for other tables (Direct access via user_email or share check)
+-- 8. Policies for licenses
+DROP POLICY IF EXISTS "Users can view their own licenses" ON licenses;
+DROP POLICY IF EXISTS "Admins can view all licenses" ON licenses;
+DROP POLICY IF EXISTS "Admins can manage licenses" ON licenses;
+DROP POLICY IF EXISTS "Users can update their own device_id" ON licenses;
+DROP POLICY IF EXISTS "license_access" ON licenses;
+
+CREATE POLICY "license_access" ON licenses FOR ALL 
+USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  auth.uid()::text = user_id::text OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+)
+WITH CHECK (
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  auth.uid()::text = user_id::text OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+);
 -- This avoids querying the 'companies' table inside their policies to prevent recursion.
 
 -- Parties

@@ -23,7 +23,7 @@ export default function SyncCenter() {
   const { 
     settings, updateSettings, refreshData, manualSyncLogin, quickVerify, confirmSyncLogin, isOnline, syncStatus, signOut, session,
     currentCompany, shareCompany, invitations, fetchInvitations, updateInvitationStatus, sentInvitations, fetchSentInvitations,
-    joinCompanyByCode, revokeCompanyAccess
+    joinCompanyByCode, revokeCompanyAccess, isAdmin
   } = useApp();
   const [email, setEmail] = useState(settings.user_email || '');
   const [otp, setOtp] = useState('');
@@ -37,8 +37,10 @@ export default function SyncCenter() {
   const [isInviting, setIsInviting] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
 
-  // Global state observation for forced transitions
   React.useEffect(() => {
+    if (isAdmin) {
+      console.log('[SyncCenter] Admin mode enabled');
+    }
     const isVerified = (settings.sync_enabled && settings.is_verified) || !!session;
     if (isVerified && step !== 'active') {
       console.log('[SyncCenter] Force transitioning to active step based on state');
@@ -95,6 +97,7 @@ export default function SyncCenter() {
   };
 
   const isOwner = currentCompany && (
+    isAdmin ||
     currentCompany.user_email?.toLowerCase() === settings.user_email?.toLowerCase() ||
     currentCompany.owner_email?.toLowerCase() === settings.user_email?.toLowerCase() ||
     !currentCompany.owner_email

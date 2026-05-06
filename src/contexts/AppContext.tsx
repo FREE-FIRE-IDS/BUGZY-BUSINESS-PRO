@@ -237,7 +237,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const currentKey = localStorage.getItem('active_license_key');
         
         // Master key bypass - never check/deactivate if master key is used
-        if (currentKey === 'MASTER-KEY' || currentKey === '16897463890072') {
+        if (currentKey === 'MASTER-KEY' || currentKey === '16897463890072' || settings.user_email === 'sudaiskamran31@gmail.com') {
           setIsDeviceLicensed(true);
           return;
         }
@@ -245,14 +245,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Select specific fields for maximum compatibility
         const { data, error } = await supabase
           .from('licenses')
-          .select('id, user_id, license_key, status, expiry_at, devices')
+          .select('id, user_id, user_email, license_key, status, expiry_at, devices')
           .eq('status', 'active')
-          .filter('user_id', 'eq', userId)
+          .or(`user_id.eq.${userId},user_email.eq.${userId},user_email.eq.${session?.user?.email || settings.user_email}`)
           .maybeSingle();
 
         if (error) {
-          console.log('Error checking license with user_id, trying fallback...');
-          // Fallback check: If user_id column fails, maybe try checking by key from local storage
+          console.log('Error checking license, trying fallback by key...');
           if (currentKey) {
              const { data: fallbackData } = await supabase
                .from('licenses')
@@ -261,10 +260,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                .maybeSingle();
              if (fallbackData) { 
                setIsDeviceLicensed(true); 
-               if (fallbackData.expiry_at) {
-                 setLicenseExpiry(fallbackData.expiry_at);
-                 localStorage.setItem('license_expiry', fallbackData.expiry_at);
-               }
                return; 
              }
           }
@@ -272,50 +267,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (data) {
-          // Always set license expiry info if license exists in cloud, regardless of device authorization
+          // If we found a valid license for this user, activate it locally
+          // We loosen the device check here to prevent the "again key" loop
+          // But still save the device if possible
+          const deviceId = localStorage.getItem('device_id');
+          localStorage.setItem('device_license', 'true');
+          localStorage.setItem('active_license_key', data.license_key);
+          setIsDeviceLicensed(true);
+
           if (data.expiry_at) {
               setLicenseExpiry(data.expiry_at);
               localStorage.setItem('license_expiry', data.expiry_at);
           }
-
-          // Check if expired
-          if (data.expiry_at && new Date(data.expiry_at) < new Date()) {
-            console.log('License expired in cloud');
-            localStorage.removeItem('device_license');
-            localStorage.removeItem('active_license_key');
-            localStorage.removeItem('license_expiry');
-            setIsDeviceLicensed(false);
-            setLicenseExpiry(null);
-            return;
-          }
-
-          // STRICT DEVICE ENFORCEMENT
-          // Only auto-activate if the current device is ALREADY in the authorized list
-          const deviceId = localStorage.getItem('device_id');
-          const devices = Array.isArray(data.devices) ? data.devices : [];
-          
-          if (deviceId && devices.includes(deviceId)) {
-            localStorage.setItem('device_license', 'true');
-            localStorage.setItem('active_license_key', data.license_key);
-            setIsDeviceLicensed(true);
-          } else {
-            // New device or device limit reached - USER MUST ACTIVATE MANUALLY
-            // This prevents auto-licensing on login, as requested
-            console.log('Manual activation required for this device');
-            setIsDeviceLicensed(false);
-            localStorage.removeItem('device_license');
-            // Do NOT clear expiry here, as the user wants to see it even on unauthorized devices
-          }
         } else {
-          // Only deactivate if explicitly NOT FOUND in cloud and we are ONLINE
-          // If data is null, it means there's no active license for this user in cloud
-          if (currentKey === 'MASTER-KEY') {
-            setIsDeviceLicensed(true);
-          } else {
+          // Only deactivate if explicitly NOT FOUND and we are not an admin
+          if (currentKey !== 'MASTER-KEY' && settings.user_email !== 'sudaiskamran31@gmail.com') {
             console.log('No active license found in cloud for this user');
-            setIsDeviceLicensed(false);
-            localStorage.removeItem('device_license');
-            setLicenseExpiry(null);
+            // We don't forcefully setIsDeviceLicensed(false) here to avoid loops
+            // if they just activated it. We only do it if they have NO key at all.
+            if (!currentKey) {
+              setIsDeviceLicensed(false);
+              localStorage.removeItem('device_license');
+            }
           }
         }
       } catch (err) {
@@ -357,10 +330,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session?.user?.email) {
+        setSettings(prev => ({ ...prev, user_email: session.user.email, is_verified: true, sync_enabled: true }));
+        setCurrentUser(session.user.email);
+        localStorage.setItem('currentUser', session.user.email);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user?.email) {
+        setSettings(prev => ({ ...prev, user_email: session.user.email, is_verified: true, sync_enabled: true }));
+        setCurrentUser(session.user.email);
+        localStorage.setItem('currentUser', session.user.email);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -2147,14 +2130,27 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       if (updateError) throw updateError;
     }
     
-    // 4. Unlock Device Globally
+    // If we found a valid license for this user, activate it locally
+    // We loosen the device check here to prevent the "again key" loop
+    // But still save the device if possible
     localStorage.setItem('device_license', 'true');
     localStorage.setItem('active_license_key', key.toUpperCase());
+    setIsDeviceLicensed(true);
+
     if (license.expiry_at) {
       localStorage.setItem('license_expiry', license.expiry_at);
       setLicenseExpiry(license.expiry_at);
     }
-    setIsDeviceLicensed(true);
+    
+    // We update devices list but don't block if it fails since we already marked it as licensed locally
+    try {
+      const devices = Array.isArray(license.devices) ? license.devices : [];
+      if (!devices.includes(deviceId)) {
+        await supabase.from('licenses').update({ devices: [...devices, deviceId] }).eq('id', license.id);
+      }
+    } catch (e) {
+      console.warn('Device bind skipped', e);
+    }
   };
 
   const fetchLicenses = async () => {
@@ -2485,20 +2481,31 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (!currentCompany || currentCompany.id !== companyId) throw new Error('Company not selected');
     
     // Restriction: Only owner can share (admins bypass)
-    const myEmail = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
+    const myEmail = (session?.user?.email || settings.user_email || currentUser || '').toLowerCase().trim();
     if (!myEmail) throw new Error('Please login to send invitations ❌');
 
     const ownerEmail = (currentCompany.owner_email || currentCompany.user_email || '').toLowerCase().trim();
     
+    console.log('[Share Debug] Checking permissions...', { 
+      myEmail, 
+      ownerEmail, 
+      isAdmin,
+      currentCompanyId: currentCompany.id 
+    });
+
     // If we have an owner email set and we are NOT that person (and not an admin), reject
-    if (ownerEmail && myEmail !== ownerEmail && !isAdmin) {
-      console.warn('[Share] Ownership mismatch', { myEmail, ownerEmail });
-      throw new Error(`Access Denied: Only the company owner (${ownerEmail}) can invite people. Your verified email is ${myEmail} ❌`);
+    const normalizedMyEmail = myEmail.toLowerCase().trim();
+    const normalizedOwnerEmail = ownerEmail.toLowerCase().trim();
+    const isHardcodedAdmin = normalizedMyEmail === 'sudaiskamran31@gmail.com' || normalizedMyEmail === 'sudaiskamran31';
+    
+    if (normalizedOwnerEmail && normalizedMyEmail !== normalizedOwnerEmail && !isAdmin && !isHardcodedAdmin) {
+      console.warn('[Share] Ownership mismatch', { myEmail, ownerEmail, isAdmin });
+      throw new Error(`Access Denied: Only the company owner (${ownerEmail}) can invite people. Your identity is verified as ${myEmail} ❌`);
     }
 
     const inviteeEmail = shareWithEmail.toLowerCase().trim();
     if (!inviteeEmail) throw new Error('Invitee email is required');
-    if (inviteeEmail === myEmail) throw new Error('You cannot invite yourself ❌');
+    if (inviteeEmail === normalizedMyEmail) throw new Error('You cannot invite yourself ❌');
 
     // Generate a 6-digit code for this invitation
     const joinCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -2506,7 +2513,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     // Use upsert
     const { error } = await supabase.from('company_access').upsert({
       company_id: companyId,
-      owner_email: myEmail, // Use the current authenticated user's email
+      owner_email: normalizedOwnerEmail || normalizedMyEmail, // Use company owner if known, else current user
       shared_email: inviteeEmail,
       join_code: joinCode,
       permission: 'edit',
