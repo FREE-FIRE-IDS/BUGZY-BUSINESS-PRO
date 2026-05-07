@@ -23,6 +23,33 @@ CREATE TABLE IF NOT EXISTS companies (
   recovery_code TEXT
 );
 
+-- Helper functions to prevent recursion and check access efficiently
+CREATE OR REPLACE FUNCTION public.is_company_owner(cid UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = cid 
+    AND (
+      LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
+      LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
+      LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+    )
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.is_company_member(cid UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.company_members 
+    WHERE company_id = cid 
+    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com')
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 CREATE TABLE IF NOT EXISTS parties (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
@@ -228,22 +255,6 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT OR UPDATE ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Helper function to check ownership without recursion
-CREATE OR REPLACE FUNCTION public.is_company_owner(cid UUID)
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM public.companies 
-    WHERE id = cid 
-    AND (
-      LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
-      LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
-      LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-    )
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- 7. Company Invites
 CREATE TABLE IF NOT EXISTS company_invites (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -305,6 +316,9 @@ ALTER TABLE company_members ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Members can view their own company membership" ON company_members;
 DROP POLICY IF EXISTS "Owners can manage members" ON company_members;
+DROP POLICY IF EXISTS "Owners can insert members" ON company_members;
+DROP POLICY IF EXISTS "Owners can update members" ON company_members;
+DROP POLICY IF EXISTS "Owners can delete members" ON company_members;
 
 CREATE POLICY "Members can view their own company membership"
 ON company_members FOR SELECT
@@ -313,10 +327,23 @@ USING (
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
-CREATE POLICY "Owners can manage members"
-ON company_members FOR ALL
+CREATE POLICY "Owners can insert members"
+ON company_members FOR INSERT
+WITH CHECK (
+  public.is_company_owner(company_id) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+);
+
+CREATE POLICY "Owners can update members"
+ON company_members FOR UPDATE
 USING (
-  auth.uid() = user_id OR
+  public.is_company_owner(company_id) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+);
+
+CREATE POLICY "Owners can delete members"
+ON company_members FOR DELETE
+USING (
   public.is_company_owner(company_id) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
@@ -330,26 +357,18 @@ ALTER TABLE company_members REPLICA IDENTITY FULL;
 -- ALTER TABLE company_access RENAME TO company_access_legacy;
 
 -- 7. Companies Policies (Simplified to prevent loops)
-DROP POLICY IF EXISTS "companies_select" ON companies;
-DROP POLICY IF EXISTS "companies_insert" ON companies;
-DROP POLICY IF EXISTS "companies_update" ON companies;
-DROP POLICY IF EXISTS "companies_delete" ON companies;
 DROP POLICY IF EXISTS "companies_read" ON companies;
 DROP POLICY IF EXISTS "companies_write" ON companies;
 DROP POLICY IF EXISTS "companies_edit" ON companies;
 DROP POLICY IF EXISTS "companies_remove" ON companies;
 
--- SELECT: Owner OR Linked OR Shared (via subquery)
+-- SELECT policy using the member helper to avoid recursion
 CREATE POLICY "companies_read" ON companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   (auth.jwt() ->> 'email') = ANY(linked_emails) OR
-  EXISTS (
-    SELECT 1 FROM company_members 
-    WHERE company_id = companies.id 
-    AND user_id = auth.uid()
-  )
+  public.is_company_member(id)
 );
 
 
