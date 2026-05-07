@@ -188,6 +188,10 @@ DROP POLICY IF EXISTS "company_access_insert" ON company_access;
 DROP POLICY IF EXISTS "company_access_update" ON company_access;
 DROP POLICY IF EXISTS "company_access_delete" ON company_access;
 DROP POLICY IF EXISTS "company_access_policy" ON company_access;
+DROP POLICY IF EXISTS "company_access_read" ON company_access;
+DROP POLICY IF EXISTS "company_access_write" ON company_access;
+DROP POLICY IF EXISTS "company_access_edit" ON company_access;
+DROP POLICY IF EXISTS "company_access_remove" ON company_access;
 
 -- SELECT: Invitee or Owner can see the record
 CREATE POLICY "company_access_read" ON company_access FOR SELECT USING (
@@ -238,12 +242,52 @@ CREATE POLICY "companies_read" ON companies FOR SELECT USING (
   )
 );
 
+
 -- INSERT: Auth only
 CREATE POLICY "companies_write" ON companies FOR INSERT WITH CHECK (
   auth.role() = 'authenticated'
 );
 
--- UPDATE: Owner or Admin
+-- 8. Add Licenses and Payment Requests Tables (to ensure they exist for policies)
+CREATE TABLE IF NOT EXISTS licenses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT,
+  user_email TEXT,
+  license_key TEXT UNIQUE,
+  status TEXT DEFAULT 'active',
+  devices JSONB DEFAULT '[]',
+  expiry_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS payment_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT,
+  user_email TEXT,
+  name TEXT,
+  phone TEXT,
+  plan TEXT,
+  amount DOUBLE PRECISION,
+  screenshot TEXT,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Ensure columns exist
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='user_email') THEN
+    ALTER TABLE licenses ADD COLUMN user_email TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='user_email') THEN
+    ALTER TABLE payment_requests ADD COLUMN user_email TEXT;
+  END IF;
+END $$;
+
+ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+
+-- 9. UPDATE: Owner or Admin
 CREATE POLICY "companies_edit" ON companies FOR UPDATE USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
