@@ -181,7 +181,7 @@ ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
--- 6. company_access policies (Wide open for now to fix recursion and share issues)
+-- 6. company_access policies (Simplified to avoid recursion)
 DROP POLICY IF EXISTS "company_access_all_policy" ON company_access;
 DROP POLICY IF EXISTS "company_access_select" ON company_access;
 DROP POLICY IF EXISTS "company_access_insert" ON company_access;
@@ -189,22 +189,30 @@ DROP POLICY IF EXISTS "company_access_update" ON company_access;
 DROP POLICY IF EXISTS "company_access_delete" ON company_access;
 DROP POLICY IF EXISTS "company_access_policy" ON company_access;
 
--- Allow authenticated users to manage invitations they are part of
-CREATE POLICY "company_access_all_policy" 
-ON company_access FOR ALL 
-USING (
-  auth.role() = 'authenticated' AND (
-    LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
-    LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
-    LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-  )
-)
-WITH CHECK (
-  auth.role() = 'authenticated' AND (
-    LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
-    LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
-    LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-  )
+-- SELECT: Invitee or Owner can see the record
+CREATE POLICY "company_access_read" ON company_access FOR SELECT USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+);
+
+-- INSERT: Only owner can invite
+CREATE POLICY "company_access_write" ON company_access FOR INSERT WITH CHECK (
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+);
+
+-- UPDATE: Owner or invitee (to accept)
+CREATE POLICY "company_access_edit" ON company_access FOR UPDATE USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+) WITH CHECK (true);
+
+-- DELETE: Owner only
+CREATE POLICY "company_access_remove" ON company_access FOR DELETE USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- 7. Companies Policies (Simplified to prevent loops)
@@ -212,61 +220,51 @@ DROP POLICY IF EXISTS "companies_select" ON companies;
 DROP POLICY IF EXISTS "companies_insert" ON companies;
 DROP POLICY IF EXISTS "companies_update" ON companies;
 DROP POLICY IF EXISTS "companies_delete" ON companies;
+DROP POLICY IF EXISTS "companies_read" ON companies;
+DROP POLICY IF EXISTS "companies_write" ON companies;
+DROP POLICY IF EXISTS "companies_edit" ON companies;
+DROP POLICY IF EXISTS "companies_remove" ON companies;
 
--- SELECT: Owner OR Linked OR Shared
-CREATE POLICY "companies_select" ON companies FOR SELECT USING (
+-- SELECT: Owner OR Linked OR Shared (via subquery)
+CREATE POLICY "companies_read" ON companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   (auth.jwt() ->> 'email') = ANY(linked_emails) OR
-  id IN (
-    SELECT company_id FROM company_access 
-    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
+  EXISTS (
+    SELECT 1 FROM company_access 
+    WHERE company_id = companies.id 
+    AND LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
   )
 );
 
--- INSERT: Allow authenticated users to create companies
-CREATE POLICY "companies_insert" ON companies FOR INSERT WITH CHECK (
+-- INSERT: Auth only
+CREATE POLICY "companies_write" ON companies FOR INSERT WITH CHECK (
   auth.role() = 'authenticated'
 );
 
--- UPDATE: Allow owners and admins to update
-CREATE POLICY "companies_update" ON companies FOR UPDATE USING (
+-- UPDATE: Owner or Admin
+CREATE POLICY "companies_edit" ON companies FOR UPDATE USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 ) WITH CHECK (true);
 
--- DELETE: Owners and admins only
-CREATE POLICY "companies_delete" ON companies FOR DELETE USING (
+-- DELETE: Owner or Admin
+CREATE POLICY "companies_remove" ON companies FOR DELETE USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
--- 8. Policies for licenses
-DROP POLICY IF EXISTS "Users can view their own licenses" ON licenses;
-DROP POLICY IF EXISTS "Admins can view all licenses" ON licenses;
-DROP POLICY IF EXISTS "Admins can manage licenses" ON licenses;
-DROP POLICY IF EXISTS "Users can update their own device_id" ON licenses;
-DROP POLICY IF EXISTS "license_access" ON licenses;
-
-CREATE POLICY "license_access" ON licenses FOR ALL 
-USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  auth.uid()::text = user_id::text OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-)
-WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  auth.uid()::text = user_id::text OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-);
--- This avoids querying the 'companies' table inside their policies to prevent recursion.
+-- 8. Core Table Policies (Direct access via user_email or share check)
+-- This avoids querying the 'companies' table inside these policies to prevent recursion.
 
 -- Parties
 DROP POLICY IF EXISTS "parties_access" ON parties;
 DROP POLICY IF EXISTS "Parties access" ON parties;
+DROP POLICY IF EXISTS "parties_full_access" ON parties;
+
 CREATE POLICY "parties_access" ON parties FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   company_id IN (
@@ -279,6 +277,8 @@ CREATE POLICY "parties_access" ON parties FOR ALL USING (
 -- Banks
 DROP POLICY IF EXISTS "banks_access" ON banks;
 DROP POLICY IF EXISTS "Banks access" ON banks;
+DROP POLICY IF EXISTS "banks_full_access" ON banks;
+
 CREATE POLICY "banks_access" ON banks FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   company_id IN (
@@ -291,6 +291,8 @@ CREATE POLICY "banks_access" ON banks FOR ALL USING (
 -- Inventory
 DROP POLICY IF EXISTS "inventory_access" ON inventory;
 DROP POLICY IF EXISTS "Inventory access" ON inventory;
+DROP POLICY IF EXISTS "inventory_full_access" ON inventory;
+
 CREATE POLICY "inventory_access" ON inventory FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   company_id IN (
@@ -303,6 +305,8 @@ CREATE POLICY "inventory_access" ON inventory FOR ALL USING (
 -- Transactions
 DROP POLICY IF EXISTS "transactions_access" ON transactions;
 DROP POLICY IF EXISTS "Transactions access" ON transactions;
+DROP POLICY IF EXISTS "transactions_full_access" ON transactions;
+
 CREATE POLICY "transactions_access" ON transactions FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   company_id IN (
@@ -315,6 +319,8 @@ CREATE POLICY "transactions_access" ON transactions FOR ALL USING (
 -- Invoices
 DROP POLICY IF EXISTS "invoices_access" ON invoices;
 DROP POLICY IF EXISTS "Invoices access" ON invoices;
+DROP POLICY IF EXISTS "invoices_full_access" ON invoices;
+
 CREATE POLICY "invoices_access" ON invoices FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   company_id IN (
@@ -324,37 +330,38 @@ CREATE POLICY "invoices_access" ON invoices FOR ALL USING (
   )
 );
 
--- 7. Policies for payment_requests
-CREATE POLICY "Users can create their own payment requests" 
-ON payment_requests FOR INSERT 
-WITH CHECK (auth.jwt() ->> 'email' = user_email);
+-- 9. External systems Policies
+-- Licenses
+DROP POLICY IF EXISTS "Users can view their own licenses" ON licenses;
+DROP POLICY IF EXISTS "Admins can view all licenses" ON licenses;
+DROP POLICY IF EXISTS "Admins can manage licenses" ON licenses;
+DROP POLICY IF EXISTS "Users can update their own device_id" ON licenses;
+DROP POLICY IF EXISTS "license_access" ON licenses;
+DROP POLICY IF EXISTS "licenses_access" ON licenses;
 
-CREATE POLICY "Users can view their own payment requests" 
-ON payment_requests FOR SELECT 
-USING (auth.jwt() ->> 'email' = user_email);
+CREATE POLICY "licenses_access" ON licenses FOR ALL USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  auth.uid()::text = user_id::text OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+) WITH CHECK (
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  auth.uid()::text = user_id::text OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+);
 
-CREATE POLICY "Admins can view all payment requests" 
-ON payment_requests FOR SELECT 
-USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
+-- Payment Requests 
+DROP POLICY IF EXISTS "Users can create their own payment requests" ON payment_requests;
+DROP POLICY IF EXISTS "Users can view their own payment requests" ON payment_requests;
+DROP POLICY IF EXISTS "Admins can view all payment requests" ON payment_requests;
+DROP POLICY IF EXISTS "Admins can update payment requests" ON payment_requests;
+DROP POLICY IF EXISTS "payment_requests_access" ON payment_requests;
 
-CREATE POLICY "Admins can update payment requests" 
-ON payment_requests FOR UPDATE 
-USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
+CREATE POLICY "payment_requests_access" ON payment_requests FOR ALL USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+) WITH CHECK (
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+);
 
--- 8. Policies for licenses
-CREATE POLICY "Users can view their own licenses" 
-ON licenses FOR SELECT 
-USING (auth.jwt() ->> 'email' = user_email);
-
-CREATE POLICY "Admins can view all licenses" 
-ON licenses FOR SELECT 
-USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
-
-CREATE POLICY "Admins can manage licenses" 
-ON licenses FOR ALL 
-USING (auth.jwt() ->> 'email' = 'sudaiskamran31@gmail.com');
-
-CREATE POLICY "Users can update their own device_id" 
-ON licenses FOR UPDATE 
-USING (auth.jwt() ->> 'email' = user_email)
-WITH CHECK (auth.jwt() ->> 'email' = user_email);
+-- End of setup
