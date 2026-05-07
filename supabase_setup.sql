@@ -193,6 +193,9 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Profiles are viewable by authenticated users" ON profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON profiles;
+
 CREATE POLICY "Profiles are viewable by authenticated users" 
 ON profiles FOR SELECT 
 USING (auth.role() = 'authenticated');
@@ -256,6 +259,10 @@ CREATE TABLE IF NOT EXISTS company_invites (
 ALTER TABLE company_invites ENABLE ROW LEVEL SECURITY;
 
 -- company_invites policies
+DROP POLICY IF EXISTS "Invites are viewable by sender or receiver" ON company_invites;
+DROP POLICY IF EXISTS "Owners can create invites" ON company_invites;
+DROP POLICY IF EXISTS "Receivers or owners can update invites" ON company_invites;
+
 CREATE POLICY "Invites are viewable by sender or receiver"
 ON company_invites FOR SELECT
 USING (
@@ -295,6 +302,9 @@ CREATE TABLE IF NOT EXISTS company_members (
 );
 
 ALTER TABLE company_members ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Members can view their own company membership" ON company_members;
+DROP POLICY IF EXISTS "Owners can manage members" ON company_members;
 
 CREATE POLICY "Members can view their own company membership"
 ON company_members FOR SELECT
