@@ -225,6 +225,22 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT OR UPDATE ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Helper function to check ownership without recursion
+CREATE OR REPLACE FUNCTION public.is_company_owner(cid UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = cid 
+    AND (
+      LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
+      LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
+      LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+    )
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- 7. Company Invites
 CREATE TABLE IF NOT EXISTS company_invites (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -290,11 +306,9 @@ USING (
 CREATE POLICY "Owners can manage members"
 ON company_members FOR ALL
 USING (
-  EXISTS (
-    SELECT 1 FROM companies 
-    WHERE id = company_members.company_id 
-    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  auth.uid() = user_id OR
+  public.is_company_owner(company_id) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- Optimization and Sync robustness
