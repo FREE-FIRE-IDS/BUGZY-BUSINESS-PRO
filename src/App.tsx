@@ -776,7 +776,7 @@ export default function App() {
   ];
 
   const moreItems = [
-    ...(!isSharedCompany(currentCompany) ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : []),
+    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
     { id: 'companies', label: 'Companies', icon: Building2 },
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
@@ -795,7 +795,7 @@ export default function App() {
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
-    ...(!isSharedCompany(currentCompany) ? [{ id: 'sync', label: 'Sync Center', icon: Cloud, premium: false }] : []),
+    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
     { id: 'companies', label: 'Company Manage', icon: Building2 },
     { id: 'reports', label: 'Reports', icon: History, premium: true },
     ...(!isSharedCompany(currentCompany) ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true }] : []),
