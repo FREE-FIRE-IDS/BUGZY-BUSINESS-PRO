@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { Company, Party, BankAccount, InventoryItem as Item, Transaction, AppSettings, Invoice, PaymentRequest, License, Subscription } from '../types';
 import { supabase } from '../lib/supabase';
 import { addDays, isAfter } from 'date-fns';
@@ -81,7 +82,6 @@ interface AppContextType {
   updateInvitationStatus: (inviteId: string, status: 'accepted' | 'rejected') => Promise<void>;
   sentInvitations: any[];
   fetchSentInvitations: (companyId: string) => Promise<void>;
-  joinCompanyByCode: (code: string) => Promise<boolean>;
   getPartyBalance: (partyId: string) => number;
   getBankBalance: (bankId: string) => number;
   isSharedCompany: (company?: Company | null) => boolean;
@@ -507,14 +507,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const accessChannel = supabase
       .channel('access-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_access' }, (payload) => {
-        const email = settings.user_email?.toLowerCase();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_invites' }, (payload) => {
+        const email = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
+        if (!email) return;
+
+        const data = (payload.new || payload.old) as any;
+        if (data.invited_email?.toLowerCase() === email) {
+          fetchInvitations().catch(console.error);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_members' }, (payload) => {
+        const email = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
         if (!email) return;
 
         const data = (payload.new || payload.old) as any;
         if (data.user_email?.toLowerCase() === email) {
-          // If our access was modified or added, we should reload shared companies or refresh companies list
-          // For simplicity, we just trigger refresh
           refreshData(undefined, true).catch(console.error);
         }
       })
@@ -661,6 +668,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await syncOneCompany(activeCompany);
       }
       otherCompanies.forEach(comp => syncOneCompany(comp));
+
+      // 3. Fetch Invitations
+      fetchInvitations().catch(console.error);
 
       hasInitialSynced.current[activeCompany?.id || ''] = true;
       setSyncStatus({ loading: false, error: null, success: 'Synced' });
@@ -2478,114 +2488,95 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const shareCompany = async (companyId: string, shareWithEmail: string) => {
-    if (!currentCompany || currentCompany.id !== companyId) throw new Error('Company not selected');
+    if (!currentCompany) throw new Error('No company selected ❌');
     
-    // Restriction: Only owner can share (admins bypass)
-    const myEmail = (session?.user?.email || settings.user_email || currentUser || '').toLowerCase().trim();
-    if (!myEmail) throw new Error('Please login to send invitations ❌');
+    console.log('[Invite] Initiating invite for:', shareWithEmail);
 
-    const ownerEmail = (currentCompany.owner_email || currentCompany.user_email || '').toLowerCase().trim();
-    
-    console.log('[Share Debug] Checking permissions...', { 
-      myEmail, 
-      ownerEmail, 
-      isAdmin,
-      currentCompanyId: currentCompany.id 
-    });
+    const myEmail = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
+    if (!myEmail) throw new Error('Please login first ❌');
 
-    // If we have an owner email set and we are NOT that person (and not an admin), reject
-    const normalizedMyEmail = myEmail.toLowerCase().trim();
-    const normalizedOwnerEmail = ownerEmail.toLowerCase().trim();
-    const isHardcodedAdmin = normalizedMyEmail === 'sudaiskamran31@gmail.com' || normalizedMyEmail === 'sudaiskamran31';
-    
-    if (normalizedOwnerEmail && normalizedMyEmail !== normalizedOwnerEmail && !isAdmin && !isHardcodedAdmin) {
-      console.warn('[Share] Ownership mismatch', { myEmail, ownerEmail, isAdmin });
-      throw new Error(`Access Denied: Only the company owner (${ownerEmail}) can invite people. Your identity is verified as ${myEmail} ❌`);
+    // 1. Verify Sender (must be verified)
+    const isEmailVerified = session?.user?.email_confirmed_at || settings.is_verified;
+    if (!isEmailVerified) {
+      throw new Error('Please verify your email before inviting others 🛡️');
     }
 
     const inviteeEmail = shareWithEmail.toLowerCase().trim();
-    if (!inviteeEmail) throw new Error('Invitee email is required');
-    if (inviteeEmail === normalizedMyEmail) throw new Error('You cannot invite yourself ❌');
+    if (inviteeEmail === myEmail) throw new Error('You cannot invite yourself ❌');
 
-    // Generate a 6-digit code for this invitation
-    const joinCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // 2. Check if Invitee exists and is verified
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, is_verified')
+      .eq('email', inviteeEmail)
+      .maybeSingle();
 
-    // Use upsert
-    const { error } = await supabase.from('company_access').upsert({
-      company_id: companyId,
-      owner_email: normalizedOwnerEmail || normalizedMyEmail, // Use company owner if known, else current user
-      shared_email: inviteeEmail,
-      join_code: joinCode,
-      permission: 'edit',
-      status: 'pending',
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'company_id,shared_email' });
+    if (profileError) throw profileError;
+    if (!profile) throw new Error(`User "${inviteeEmail}" does not have a Bugzy account yet ❌`);
+    if (!profile.is_verified) throw new Error(`User "${inviteeEmail}" exists but is not yet verified 🛡️`);
 
-    if (error) {
-      console.error('[Share Error]', error);
-      // Helpful error message for RLS
-      if (error.message.includes('row-level security')) {
-        throw new Error(`Access Denied 🛡️ - Only the company owner can invite others. Company Owner: ${ownerEmail || 'Not Set'}. Your Email: ${myEmail}. Please ensure you are logged in with the owner email and Cloud Sync is active.`);
-      }
-      throw new Error(error.message || 'Failed to send invitation ❌');
-    }
-    
-    // Also update linked_emails for faster join queries
-    const updatedEmails = Array.from(new Set([...(currentCompany.linked_emails || []), inviteeEmail]));
-    try {
-      await supabase.from('companies').update({ linked_emails: updatedEmails }).eq('id', companyId);
-    } catch (err) {
-      console.warn('Silent skip: linked_emails update failed', err);
-    }
-    
-    await fetchSentInvitations(companyId);
-  };
-
-  const joinCompanyByCode = async (code: string) => {
-    const email = settings.user_email || session?.user?.email;
-    if (!email) throw new Error('Please login first to join ❌');
-
-    const { data, error } = await supabase
-      .from('company_access')
-      .select('*, companies(*)')
-      .eq('join_code', code)
-      .eq('shared_email', email.toLowerCase())
+    // 3. Check for existing invite
+    const { data: existingInvite } = await supabase
+      .from('company_invites')
+      .select('id')
+      .eq('company_id', companyId)
+      .eq('invited_email', inviteeEmail)
       .eq('status', 'pending')
       .maybeSingle();
 
-    if (error) throw error;
-    if (!data) throw new Error('Invalid code or not invited ❌');
+    if (existingInvite) throw new Error('An invitation is already pending for this user ⏳');
 
-    // Accept it
-    const { error: upError } = await supabase
-      .from('company_access')
-      .update({ status: 'accepted' })
-      .eq('id', data.id);
+    // 4. Check if already a member
+    const { data: existingMember } = await supabase
+      .from('company_members')
+      .select('id')
+      .eq('company_id', companyId)
+      .eq('user_id', profile.id)
+      .maybeSingle();
 
-    if (upError) throw upError;
+    if (existingMember) throw new Error('User is already a member of this company ✅');
 
-    await refreshData(undefined, true);
-    return true;
+    // 5. Create Invite
+    const { error: inviteError } = await supabase
+      .from('company_invites')
+      .insert({
+        company_id: companyId,
+        invited_email: inviteeEmail,
+        invited_by: myEmail,
+        status: 'pending'
+      });
+
+    if (inviteError) {
+      console.error('[Invite Error]', inviteError);
+      throw new Error(inviteError.message || 'Failed to create invitation ❌');
+    }
+
+    toast.success(`Invitation sent to ${inviteeEmail}! 🚀`);
+    await fetchSentInvitations(companyId);
   };
 
   const fetchInvitations = async (emailOverride?: string) => {
-    const email = emailOverride || settings.user_email || session?.user?.email;
+    const email = (emailOverride || settings.user_email || session?.user?.email || '').toLowerCase().trim();
     if (!email) return;
 
+    console.log('[Sync] Fetching invitations for:', email);
     const { data, error } = await supabase
-      .from('company_access')
+      .from('company_invites')
       .select('*, companies(*)')
-      .eq('shared_email', email.toLowerCase())
+      .eq('invited_email', email)
       .eq('status', 'pending');
 
     if (!error && data) {
       setInvitations(data);
+    } else if (error) {
+      console.error('[Fetch Invites Error]', error);
     }
   };
 
   const fetchSentInvitations = async (companyId: string) => {
+    if (!companyId) return;
     const { data, error } = await supabase
-      .from('company_access')
+      .from('company_invites')
       .select('*')
       .eq('company_id', companyId);
 
@@ -2595,55 +2586,101 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
   const updateInvitationStatus = async (inviteId: string, status: 'accepted' | 'rejected') => {
-    const { error } = await supabase
-      .from('company_access')
+    console.log('[Invitation] Updating status:', { inviteId, status });
+    
+    const { data: invite, error: fetchError } = await supabase
+      .from('company_invites')
+      .select('*')
+      .eq('id', inviteId)
+      .single();
+
+    if (fetchError || !invite) throw new Error('Invitation not found ❌');
+
+    // 1. Update Invite Status
+    const { error: inviteError } = await supabase
+      .from('company_invites')
       .update({ status })
       .eq('id', inviteId);
 
-    if (error) throw error;
+    if (inviteError) throw inviteError;
+
+    // 2. If accepted, add to company_members
+    if (status === 'accepted') {
+      const { error: memberError } = await supabase
+        .from('company_members')
+        .insert({
+          company_id: invite.company_id,
+          user_id: session?.user?.id,
+          user_email: invite.invited_email,
+          role: 'member'
+        });
+
+      if (memberError && memberError.code !== '23505') { // Ignore duplicate member
+        console.error('[Member Add Error]', memberError);
+        throw memberError;
+      }
+      toast.success('Successfully joined the company! 🎉');
+    } else {
+      toast.error('Invitation rejected.');
+    }
     
     setInvitations(prev => prev.filter(i => i.id !== inviteId));
-    if (status === 'accepted') {
-      await refreshData(undefined, true);
-    }
+    await refreshData(undefined, true);
   };
 
   const revokeCompanyAccess = async (companyId: string, sharedEmail: string) => {
-    const { error } = await supabase
-      .from('company_access')
+    console.log('[Access] Revoking access for:', sharedEmail);
+    // 1. Delete Invite
+    const { error: inviteError } = await supabase
+      .from('company_invites')
       .delete()
       .eq('company_id', companyId)
-      .eq('shared_email', sharedEmail.toLowerCase().trim());
+      .eq('invited_email', sharedEmail.toLowerCase().trim());
 
-    if (error) throw error;
+    if (inviteError) throw inviteError;
 
-    // Remove from linked_emails too
-    const company = companies.find(c => c.id === companyId);
-    if (company) {
-      const updatedEmails = (company.linked_emails || []).filter(e => e !== sharedEmail.toLowerCase().trim());
-      await updateCompany(companyId, { linked_emails: updatedEmails });
+    // 2. Delete Member
+    const { data: member } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', sharedEmail.toLowerCase().trim())
+      .single();
+
+    if (member) {
+      await supabase
+        .from('company_members')
+        .delete()
+        .eq('company_id', companyId)
+        .eq('user_id', member.id);
     }
+
+    toast.success(`Access revoked for ${sharedEmail}`);
+    await fetchSentInvitations(companyId);
   };
 
   const getSharedCompanies = async () => {
-    if (!settings.user_email) return [];
+    const myEmail = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
+    if (!myEmail) return [];
+
+    console.log('[Sync] Fetching shared companies for:', myEmail);
     
-    const { data, error } = await supabase
-      .from('company_access')
-      .select('company_id')
-      .eq('shared_email', settings.user_email.toLowerCase().trim());
+    // 1. Get memberships
+    const { data: memberships, error } = await supabase
+      .from('company_members')
+      .select('company_id, companies(*)')
+      .eq('user_email', myEmail);
 
-    if (error) throw error;
-    if (!data || data.length === 0) return [];
+    if (error) {
+      console.error('[Shared Companies Error]', error);
+      return [];
+    }
 
-    const companyIds = data.map(d => d.company_id);
-    const { data: sharedCompanies, error: cError } = await supabase
-      .from('companies')
-      .select('*')
-      .in('id', companyIds);
+    // Filter out companies I own or that are null
+    const filtered = (memberships || [])
+      .map(m => m.companies)
+      .filter((c: any) => c && c.user_email?.toLowerCase() !== myEmail && c.owner_email?.toLowerCase() !== myEmail);
 
-    if (cError) throw cError;
-    return sharedCompanies || [];
+    return filtered;
   };
 
   const getPartyBalance = (partyId: string) => {
@@ -2745,7 +2782,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       updateInvitationStatus,
       sentInvitations,
       fetchSentInvitations,
-      joinCompanyByCode,
       getPartyBalance,
       getBankBalance,
       isSharedCompany

@@ -181,43 +181,129 @@ ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
--- 6. company_access policies (Simplified to avoid recursion)
-DROP POLICY IF EXISTS "company_access_all_policy" ON company_access;
-DROP POLICY IF EXISTS "company_access_select" ON company_access;
-DROP POLICY IF EXISTS "company_access_insert" ON company_access;
-DROP POLICY IF EXISTS "company_access_update" ON company_access;
-DROP POLICY IF EXISTS "company_access_delete" ON company_access;
-DROP POLICY IF EXISTS "company_access_policy" ON company_access;
-DROP POLICY IF EXISTS "company_access_read" ON company_access;
-DROP POLICY IF EXISTS "company_access_write" ON company_access;
-DROP POLICY IF EXISTS "company_access_edit" ON company_access;
-DROP POLICY IF EXISTS "company_access_remove" ON company_access;
+-- 6. User Profiles (Synced with auth.users)
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT UNIQUE NOT NULL,
+  full_name TEXT,
+  is_verified BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
--- SELECT: Invitee or Owner can see the record
-CREATE POLICY "company_access_read" ON company_access FOR SELECT USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Profiles are viewable by authenticated users" 
+ON profiles FOR SELECT 
+USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Users can update their own profile" 
+ON profiles FOR UPDATE 
+USING (auth.uid() = id);
+
+-- Function to handle new user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, is_verified)
+  VALUES (
+    new.id, 
+    new.email, 
+    new.raw_user_meta_data->>'full_name',
+    (new.email_confirmed_at IS NOT NULL)
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    is_verified = (new.email_confirmed_at IS NOT NULL);
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger for new user
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT OR UPDATE ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 7. Company Invites
+CREATE TABLE IF NOT EXISTS company_invites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  invited_email TEXT NOT NULL,
+  invited_by TEXT NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(company_id, invited_email, status)
+);
+
+ALTER TABLE company_invites ENABLE ROW LEVEL SECURITY;
+
+-- company_invites policies
+CREATE POLICY "Invites are viewable by sender or receiver"
+ON company_invites FOR SELECT
+USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(invited_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
--- INSERT: Only owner can invite
-CREATE POLICY "company_access_write" ON company_access FOR INSERT WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
+CREATE POLICY "Owners can create invites"
+ON company_invites FOR INSERT
+WITH CHECK (
+  LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) AND
+  EXISTS (
+    SELECT 1 FROM companies 
+    WHERE id = company_id 
+    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
+  )
+);
+
+CREATE POLICY "Receivers or owners can update invites"
+ON company_invites FOR UPDATE
+USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(invited_email) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(invited_by)
+)
+WITH CHECK (true);
+
+-- 8. Company Members
+CREATE TABLE IF NOT EXISTS company_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_email TEXT NOT NULL,
+  role TEXT DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(company_id, user_id)
+);
+
+ALTER TABLE company_members ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Members can view their own company membership"
+ON company_members FOR SELECT
+USING (
+  auth.uid() = user_id OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
--- UPDATE: Owner or invitee (to accept)
-CREATE POLICY "company_access_edit" ON company_access FOR UPDATE USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(shared_email) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-) WITH CHECK (true);
-
--- DELETE: Owner only
-CREATE POLICY "company_access_remove" ON company_access FOR DELETE USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR 
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+CREATE POLICY "Owners can manage members"
+ON company_members FOR ALL
+USING (
+  EXISTS (
+    SELECT 1 FROM companies 
+    WHERE id = company_members.company_id 
+    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
+  )
 );
+
+-- Optimization and Sync robustness
+ALTER TABLE profiles REPLICA IDENTITY FULL;
+ALTER TABLE company_invites REPLICA IDENTITY FULL;
+ALTER TABLE company_members REPLICA IDENTITY FULL;
+
+-- Legacy table cleanup (optional, keeping for safety but we will switch logic)
+-- ALTER TABLE company_access RENAME TO company_access_legacy;
 
 -- 7. Companies Policies (Simplified to prevent loops)
 DROP POLICY IF EXISTS "companies_select" ON companies;
@@ -236,9 +322,9 @@ CREATE POLICY "companies_read" ON companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   (auth.jwt() ->> 'email') = ANY(linked_emails) OR
   EXISTS (
-    SELECT 1 FROM company_access 
+    SELECT 1 FROM company_members 
     WHERE company_id = companies.id 
-    AND LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
+    AND user_id = auth.uid()
   )
 );
 
@@ -311,10 +397,10 @@ DROP POLICY IF EXISTS "parties_full_access" ON parties;
 
 CREATE POLICY "parties_access" ON parties FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  company_id IN (
-    SELECT company_id FROM company_access 
-    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
-    AND status = 'accepted'
+  EXISTS (
+    SELECT 1 FROM company_members 
+    WHERE company_id = parties.company_id 
+    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
   )
 );
 
@@ -325,10 +411,10 @@ DROP POLICY IF EXISTS "banks_full_access" ON banks;
 
 CREATE POLICY "banks_access" ON banks FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  company_id IN (
-    SELECT company_id FROM company_access 
-    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
-    AND status = 'accepted'
+  EXISTS (
+    SELECT 1 FROM company_members 
+    WHERE company_id = banks.company_id 
+    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
   )
 );
 
@@ -339,10 +425,10 @@ DROP POLICY IF EXISTS "inventory_full_access" ON inventory;
 
 CREATE POLICY "inventory_access" ON inventory FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  company_id IN (
-    SELECT company_id FROM company_access 
-    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
-    AND status = 'accepted'
+  EXISTS (
+    SELECT 1 FROM company_members 
+    WHERE company_id = inventory.company_id 
+    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
   )
 );
 
@@ -353,10 +439,10 @@ DROP POLICY IF EXISTS "transactions_full_access" ON transactions;
 
 CREATE POLICY "transactions_access" ON transactions FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  company_id IN (
-    SELECT company_id FROM company_access 
-    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
-    AND status = 'accepted'
+  EXISTS (
+    SELECT 1 FROM company_members 
+    WHERE company_id = transactions.company_id 
+    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
   )
 );
 
@@ -367,10 +453,10 @@ DROP POLICY IF EXISTS "invoices_full_access" ON invoices;
 
 CREATE POLICY "invoices_access" ON invoices FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  company_id IN (
-    SELECT company_id FROM company_access 
-    WHERE LOWER(shared_email) = LOWER(auth.jwt() ->> 'email') 
-    AND status = 'accepted'
+  EXISTS (
+    SELECT 1 FROM company_members 
+    WHERE company_id = invoices.company_id 
+    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
   )
 );
 

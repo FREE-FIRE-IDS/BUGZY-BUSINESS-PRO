@@ -45,6 +45,7 @@ import { cn } from './lib/utils';
 import { differenceInDays, addDays, isAfter, format } from 'date-fns';
 
 // Pages
+import { Toaster } from 'react-hot-toast';
 import Dashboard from './pages/Dashboard';
 import Parties from './pages/Parties';
 import Banks from './pages/Banks';
@@ -910,6 +911,7 @@ export default function App() {
         "h-screen flex overflow-hidden transition-colors duration-300",
         theme === 'dark' ? "bg-slate-950 text-slate-50" : "bg-slate-50 text-slate-900"
       )}>
+      <Toaster position="top-right" reverseOrder={false} />
       {/* PC Sidebar */}
       <aside className={cn(
         "h-full shrink-0 border-r hidden md:flex flex-col transition-all duration-300 relative z-30",
