@@ -32,6 +32,8 @@ DECLARE
 BEGIN
   current_email := LOWER(auth.jwt() ->> 'email');
   IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
+  
+  -- Use a direct query that bypasses RLS because this is SECURITY DEFINER
   RETURN EXISTS (
     SELECT 1 FROM public.companies 
     WHERE id = cid 
@@ -49,30 +51,12 @@ BEGIN
   current_email := LOWER(auth.jwt() ->> 'email');
   current_uid := auth.uid();
   IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
+
+  -- Use a direct query that bypasses RLS because this is SECURITY DEFINER
   RETURN EXISTS (
     SELECT 1 FROM public.company_members 
     WHERE company_id = cid 
     AND (user_id = current_uid OR LOWER(user_email) = current_email)
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
--- New function to break the SELECT cycle specifically for company_members
-CREATE OR REPLACE FUNCTION public.can_access_members(cid UUID)
-RETURNS BOOLEAN AS $$
-DECLARE
-  current_email TEXT;
-  current_uid UUID;
-BEGIN
-  current_email := LOWER(auth.jwt() ->> 'email');
-  current_uid := auth.uid();
-  IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
-  
-  -- Check if user is owner via companies table OR already a member via members table
-  RETURN EXISTS (
-    SELECT 1 FROM public.companies WHERE id = cid AND (LOWER(owner_email) = current_email OR LOWER(user_email) = current_email)
-  ) OR EXISTS (
-    SELECT 1 FROM public.company_members WHERE company_id = cid AND (user_id = current_uid OR LOWER(user_email) = current_email)
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -346,7 +330,10 @@ DROP POLICY IF EXISTS "Owners can delete members" ON company_members;
 CREATE POLICY "Members can view their own company membership"
 ON company_members FOR SELECT
 USING (
-  public.can_access_members(company_id)
+  auth.uid() = user_id OR
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  public.is_company_owner(company_id)
 );
 
 CREATE POLICY "Owners can insert members"
