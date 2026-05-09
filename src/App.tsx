@@ -768,18 +768,18 @@ export default function App() {
 
   const menuItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
     { id: 'parties', label: 'Parties', icon: Users, premium: true },
-    { id: 'banks', label: 'Banks', icon: Landmark, premium: true },
-    { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
-    { id: 'reports', label: 'Reports', icon: History, premium: true },
     { id: 'more', label: 'More', icon: Menu },
   ];
 
   const moreItems = [
-    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
     { id: 'companies', label: 'Companies', icon: Building2 },
+    { id: 'banks', label: 'Banks', icon: Landmark, premium: true },
+    { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
+    { id: 'reports', label: 'Reports', icon: History, premium: true },
     { id: 'business-status', label: 'Business Status', icon: BarChart3, premium: true },
     { id: 'customization', label: 'Themes', icon: Sun, premium: true },
     ...(!isSharedCompany(currentCompany) ? [{ id: 'settings', label: 'App Settings', icon: SettingsIcon, premium: true }] : []),
@@ -790,14 +790,13 @@ export default function App() {
   // Specific items for PC Sidebar
   const sidebarItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
     { id: 'parties', label: 'Parties', icon: Users, premium: true },
     { id: 'banks', label: 'Banks', icon: Landmark, premium: true },
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
-    { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
-    { id: 'sync', label: 'Sync Center', icon: Cloud, premium: false },
-    { id: 'companies', label: 'Company Manage', icon: Building2 },
-    { id: 'reports', label: 'Reports', icon: History, premium: true },
+    { id: 'companies', label: 'Manage Entities', icon: Building2 },
+    { id: 'reports', label: 'Data Reports', icon: History, premium: true },
     ...(!isSharedCompany(currentCompany) ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true }] : []),
   ];
 

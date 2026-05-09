@@ -24,31 +24,58 @@ CREATE TABLE IF NOT EXISTS companies (
 );
 
 -- Helper functions to prevent recursion and check access efficiently
+-- Using SET search_path = public to ensure SECURITY DEFINER actually bypasses RLS
 CREATE OR REPLACE FUNCTION public.is_company_owner(cid UUID)
 RETURNS BOOLEAN AS $$
+DECLARE
+  current_email TEXT;
 BEGIN
+  current_email := LOWER(auth.jwt() ->> 'email');
+  IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
   RETURN EXISTS (
     SELECT 1 FROM public.companies 
     WHERE id = cid 
-    AND (
-      LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
-      LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
-      LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-    )
+    AND (LOWER(owner_email) = current_email OR LOWER(user_email) = current_email)
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION public.is_company_member(cid UUID)
 RETURNS BOOLEAN AS $$
+DECLARE
+  current_email TEXT;
+  current_uid UUID;
 BEGIN
+  current_email := LOWER(auth.jwt() ->> 'email');
+  current_uid := auth.uid();
+  IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
   RETURN EXISTS (
     SELECT 1 FROM public.company_members 
     WHERE company_id = cid 
-    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com')
+    AND (user_id = current_uid OR LOWER(user_email) = current_email)
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- New function to break the SELECT cycle specifically for company_members
+CREATE OR REPLACE FUNCTION public.can_access_members(cid UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+  current_email TEXT;
+  current_uid UUID;
+BEGIN
+  current_email := LOWER(auth.jwt() ->> 'email');
+  current_uid := auth.uid();
+  IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
+  
+  -- Check if user is owner via companies table OR already a member via members table
+  RETURN EXISTS (
+    SELECT 1 FROM public.companies WHERE id = cid AND (LOWER(owner_email) = current_email OR LOWER(user_email) = current_email)
+  ) OR EXISTS (
+    SELECT 1 FROM public.company_members WHERE company_id = cid AND (user_id = current_uid OR LOWER(user_email) = current_email)
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TABLE IF NOT EXISTS parties (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -286,18 +313,14 @@ CREATE POLICY "Owners can create invites"
 ON company_invites FOR INSERT
 WITH CHECK (
   LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) AND
-  EXISTS (
-    SELECT 1 FROM companies 
-    WHERE id = company_id 
-    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  public.is_company_owner(company_id)
 );
 
 CREATE POLICY "Receivers or owners can update invites"
 ON company_invites FOR UPDATE
 USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(invited_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(invited_by)
+  public.is_company_owner(company_id)
 )
 WITH CHECK (true);
 
@@ -323,8 +346,7 @@ DROP POLICY IF EXISTS "Owners can delete members" ON company_members;
 CREATE POLICY "Members can view their own company membership"
 ON company_members FOR SELECT
 USING (
-  auth.uid() = user_id OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  public.can_access_members(company_id)
 );
 
 CREATE POLICY "Owners can insert members"
@@ -368,6 +390,9 @@ CREATE POLICY "companies_read" ON companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   (auth.jwt() ->> 'email') = ANY(linked_emails) OR
+  -- Instead of calling is_company_member, we check directly to avoid one level of nesting
+  -- but we use a non-recursive path.
+  -- To be absolutely safe, we trust is_company_member as a SECURITY DEFINER leaf.
   public.is_company_member(id)
 );
 
