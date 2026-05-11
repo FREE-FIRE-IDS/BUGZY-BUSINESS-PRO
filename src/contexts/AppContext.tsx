@@ -1666,9 +1666,15 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       const targetUsername = (company.username || currentUser || '').toLowerCase().trim();
       if (!targetUsername) throw new Error('Username is required');
 
-      // 2. Save to cloud ONLY if it's NOT an HR company
+      // 2. Save to cloud ONLY if it's NOT an HR company AND we have a session
       if (newCompany.company_type !== 'hr') {
         const performInsert = async (payload: any): Promise<{ error: any }> => {
+          // If no session, don't even try - wait for sync later
+          if (!session?.user) {
+            console.warn('[AddCompany] No active cloud session. Business will be saved locally and synced when you sign in with Google.');
+            return { error: null };
+          }
+
           const { error: insertError } = await supabase.from('companies').insert(payload);
           if (insertError && insertError.message.includes('column')) {
              const match = insertError.message.match(/column "(.*?)"/);

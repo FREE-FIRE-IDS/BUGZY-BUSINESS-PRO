@@ -456,7 +456,7 @@ BEGIN
 END $$;
 
 -- SELECT policy is DRY and FLAT. NO subqueries or function calls here to prevent recursion.
-CREATE POLICY "companies_v10_select" ON public.companies FOR SELECT USING (
+CREATE POLICY "companies_v11_select" ON public.companies FOR SELECT USING (
   owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
@@ -464,22 +464,24 @@ CREATE POLICY "companies_v10_select" ON public.companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = ANY(COALESCE(linked_emails, '{}'))
 );
 
-CREATE POLICY "companies_v10_insert" ON public.companies FOR INSERT WITH CHECK (
-  auth.uid() IS NOT NULL
+CREATE POLICY "companies_v11_insert" ON public.companies FOR INSERT WITH CHECK (
+  auth.role() = 'authenticated' OR auth.uid() IS NOT NULL
 );
 
-CREATE POLICY "companies_v10_update" ON public.companies FOR UPDATE USING (
+CREATE POLICY "companies_v11_update" ON public.companies FOR UPDATE USING (
   owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  public.is_company_member(id)
 ) WITH CHECK (true);
 
-CREATE POLICY "companies_v10_delete" ON public.companies FOR DELETE USING (
+CREATE POLICY "companies_v11_delete" ON public.companies FOR DELETE USING (
   owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  public.is_company_owner(id)
 );
 
 -- 8. Add Licenses and Payment Requests Tables (to ensure they exist for policies)
