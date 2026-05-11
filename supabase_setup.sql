@@ -33,7 +33,8 @@ BEGIN
   current_email := LOWER(auth.jwt() ->> 'email');
   IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
   
-  -- Use a direct query that bypasses RLS because this is SECURITY DEFINER
+  -- We query the table directly. SECURITY DEFINER helps bypass RLS from the caller's context,
+  -- but we must ensure we don't call this function FROM a policy on 'companies'.
   RETURN EXISTS (
     SELECT 1 FROM public.companies 
     WHERE id = cid 
@@ -46,10 +47,11 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
 RETURNS trigger AS $$
 BEGIN
+  -- This runs as security definer to bypass RLS and update the companies table
   IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
     UPDATE public.companies 
     SET linked_emails = (
-      SELECT array_agg(DISTINCT user_email) 
+      SELECT COALESCE(array_agg(DISTINCT user_email), '{}')
       FROM public.company_members 
       WHERE company_id = NEW.company_id
     )
@@ -314,29 +316,32 @@ ALTER TABLE company_invites ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Invites are viewable by sender or receiver" ON company_invites;
 DROP POLICY IF EXISTS "Owners can create invites" ON company_invites;
 DROP POLICY IF EXISTS "Receivers or owners can update invites" ON company_invites;
+DROP POLICY IF EXISTS "invites_read" ON company_invites;
+DROP POLICY IF EXISTS "invites_write" ON company_invites;
 
-CREATE POLICY "Invites are viewable by sender or receiver"
+CREATE POLICY "invites_read"
 ON company_invites FOR SELECT
 USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(invited_email) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = company_id 
+    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
+  )
 );
 
-CREATE POLICY "Owners can create invites"
+CREATE POLICY "invites_write"
 ON company_invites FOR INSERT
 WITH CHECK (
   LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) AND
-  public.is_company_owner(company_id)
+  EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = company_id 
+    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
+  )
 );
-
-CREATE POLICY "Receivers or owners can update invites"
-ON company_invites FOR UPDATE
-USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(invited_email) OR 
-  public.is_company_owner(company_id)
-)
-WITH CHECK (true);
 
 -- 8. Company Members
 CREATE TABLE IF NOT EXISTS company_members (
@@ -356,35 +361,53 @@ DROP POLICY IF EXISTS "Owners can manage members" ON company_members;
 DROP POLICY IF EXISTS "Owners can insert members" ON company_members;
 DROP POLICY IF EXISTS "Owners can update members" ON company_members;
 DROP POLICY IF EXISTS "Owners can delete members" ON company_members;
+DROP POLICY IF EXISTS "members_read" ON company_members;
+DROP POLICY IF EXISTS "members_write" ON company_members;
 
-CREATE POLICY "Members can view their own company membership"
+CREATE POLICY "members_read"
 ON company_members FOR SELECT
 USING (
   auth.uid() = user_id OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  public.is_company_owner(company_id)
+  EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = company_id 
+    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
+  )
 );
 
 CREATE POLICY "Owners can insert members"
 ON company_members FOR INSERT
 WITH CHECK (
-  public.is_company_owner(company_id) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = company_id 
+    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
+  )
 );
 
 CREATE POLICY "Owners can update members"
 ON company_members FOR UPDATE
 USING (
-  public.is_company_owner(company_id) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = company_id 
+    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
+  )
 );
 
 CREATE POLICY "Owners can delete members"
 ON company_members FOR DELETE
 USING (
-  public.is_company_owner(company_id) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = company_id 
+    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
+  )
 );
 
 -- Optimization and Sync robustness
@@ -400,8 +423,12 @@ DROP POLICY IF EXISTS "companies_read" ON companies;
 DROP POLICY IF EXISTS "companies_write" ON companies;
 DROP POLICY IF EXISTS "companies_edit" ON companies;
 DROP POLICY IF EXISTS "companies_remove" ON companies;
+DROP POLICY IF EXISTS "companies_access" ON companies;
+DROP POLICY IF EXISTS "Companies access" ON companies;
+DROP POLICY IF EXISTS "companies_view" ON companies;
+DROP POLICY IF EXISTS "Company access" ON companies;
 
--- SELECT policy using the member helper to avoid recursion
+-- SELECT policy is DRY and FLAT. NO subqueries or function calls here.
 CREATE POLICY "companies_read" ON companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
@@ -410,12 +437,15 @@ CREATE POLICY "companies_read" ON companies FOR SELECT USING (
 );
 
 -- Seed linked_emails for existing companies
-UPDATE public.companies c
-SET linked_emails = (
-  SELECT COALESCE(array_agg(DISTINCT user_email), '{}')
-  FROM public.company_members m
-  WHERE m.company_id = c.id
-);
+DO $$
+BEGIN
+  UPDATE public.companies c
+  SET linked_emails = (
+    SELECT COALESCE(array_agg(DISTINCT user_email), '{}')
+    FROM public.company_members m
+    WHERE m.company_id = c.id
+  );
+END $$;
 
 
 -- INSERT: Auth only
