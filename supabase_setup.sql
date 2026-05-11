@@ -440,26 +440,29 @@ BEGIN
 END $$;
 
 -- SELECT policy is DRY and FLAT. NO subqueries or function calls here to prevent recursion.
-CREATE POLICY "companies_select_v4" ON public.companies FOR SELECT USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+CREATE POLICY "companies_v5_select" ON public.companies FOR SELECT USING (
+  user_id = auth.uid()::text OR 
+  LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
+  LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = ANY(linked_emails)
 );
 
-CREATE POLICY "companies_insert_v4" ON public.companies FOR INSERT WITH CHECK (
+CREATE POLICY "companies_v5_insert" ON public.companies FOR INSERT WITH CHECK (
   auth.role() = 'authenticated'
 );
 
-CREATE POLICY "companies_update_v4" ON public.companies FOR UPDATE USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+CREATE POLICY "companies_v5_update" ON public.companies FOR UPDATE USING (
+  user_id = auth.uid()::text OR 
+  LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
+  LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 ) WITH CHECK (true);
 
-CREATE POLICY "companies_delete_v4" ON public.companies FOR DELETE USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+CREATE POLICY "companies_v5_delete" ON public.companies FOR DELETE USING (
+  user_id = auth.uid()::text OR 
+  LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
+  LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 

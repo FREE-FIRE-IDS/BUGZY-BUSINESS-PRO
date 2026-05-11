@@ -345,8 +345,68 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* QUICK ACTIONS - PRIMARY ENTRY POINTS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+        <button 
+          onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Expense' }))}
+          className="relative group overflow-hidden bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-rose-500/10 transition-all hover:-translate-y-1 text-left"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+          <div className="p-4 bg-rose-500 text-white rounded-2xl shadow-lg shadow-rose-500/20 mb-4 w-fit group-hover:rotate-12 transition-transform">
+            <Receipt size={24} />
+          </div>
+          <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">Add<br />Expense</h3>
+          <ArrowUpRight size={20} className="absolute top-6 right-6 text-slate-300 group-hover:text-rose-500 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all" />
+        </button>
+
+        <button 
+          onClick={() => {
+            navigateTo('invoices');
+            setTimeout(() => window.dispatchEvent(new CustomEvent('add-invoice')), 150);
+          }}
+          className="relative group overflow-hidden bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 transition-all hover:-translate-y-1 text-left"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+          <div className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-500/20 mb-4 w-fit group-hover:rotate-12 transition-transform">
+            <FileText size={24} />
+          </div>
+          <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">Add<br />Invoice</h3>
+          <ArrowUpRight size={20} className="absolute top-6 right-6 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all" />
+        </button>
+
+        <button 
+          onClick={() => {
+            navigateTo('parties');
+            setTimeout(() => window.dispatchEvent(new CustomEvent('add-party')), 150);
+          }}
+          className="relative group overflow-hidden bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-emerald-500/10 transition-all hover:-translate-y-1 text-left"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+          <div className="p-4 bg-emerald-500 text-white rounded-2xl shadow-lg shadow-emerald-500/20 mb-4 w-fit group-hover:rotate-12 transition-transform">
+            <UserPlus size={24} />
+          </div>
+          <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">Add<br />Party</h3>
+          <ArrowUpRight size={20} className="absolute top-6 right-6 text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all" />
+        </button>
+
+        <button 
+          onClick={() => {
+            navigateTo('banks');
+            setTimeout(() => window.dispatchEvent(new CustomEvent('add-bank')), 150);
+          }}
+          className="relative group overflow-hidden bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-blue-500/10 transition-all hover:-translate-y-1 text-left"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+          <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-500/20 mb-4 w-fit group-hover:rotate-12 transition-transform">
+            <Building2 size={24} />
+          </div>
+          <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">Add<br />Bank</h3>
+          <ArrowUpRight size={20} className="absolute top-6 right-6 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all" />
+        </button>
+      </div>
+
       {/* License Status & Backup Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm mb-8">
         <div className="flex items-center gap-4">
           {isLicensed() ? (
             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-100 dark:border-emerald-800">
@@ -380,65 +440,6 @@ export default function Dashboard() {
               </button>
             </>
           )}
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
-        <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
-          <Sparkles size={16} className="text-indigo-500" />
-          Quick Actions
-        </h3>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button 
-            onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Expense' }))}
-            className="group flex flex-col items-center justify-center gap-3 p-4 bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/20 rounded-2xl hover:bg-rose-100 dark:hover:bg-rose-900/20 transition-all hover:-translate-y-1"
-          >
-            <div className="p-3 bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-500/20 group-hover:scale-110 transition-transform">
-              <Receipt size={20} />
-            </div>
-            <span className="text-xs font-bold text-rose-700 dark:text-rose-400">Add Expense</span>
-          </button>
-
-          <button 
-            onClick={() => {
-              navigateTo('invoices');
-              setTimeout(() => window.dispatchEvent(new CustomEvent('add-invoice')), 100);
-            }}
-            className="group flex flex-col items-center justify-center gap-3 p-4 bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/20 rounded-2xl hover:bg-indigo-100 dark:hover:bg-indigo-900/20 transition-all hover:-translate-y-1"
-          >
-            <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
-              <FileText size={20} />
-            </div>
-            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400">Add Invoice</span>
-          </button>
-
-          <button 
-            onClick={() => {
-              navigateTo('parties');
-              setTimeout(() => window.dispatchEvent(new CustomEvent('add-party')), 100);
-            }}
-            className="group flex flex-col items-center justify-center gap-3 p-4 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/20 rounded-2xl hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-all hover:-translate-y-1"
-          >
-            <div className="p-3 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
-              <UserPlus size={20} />
-            </div>
-            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Add Party</span>
-          </button>
-
-          <button 
-            onClick={() => {
-              navigateTo('banks');
-              setTimeout(() => window.dispatchEvent(new CustomEvent('add-bank')), 100);
-            }}
-            className="group flex flex-col items-center justify-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-2xl hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-all hover:-translate-y-1"
-          >
-            <div className="p-3 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform">
-              <Building2 size={20} />
-            </div>
-            <span className="text-xs font-bold text-blue-700 dark:text-blue-400">Add Bank</span>
-          </button>
         </div>
       </div>
 

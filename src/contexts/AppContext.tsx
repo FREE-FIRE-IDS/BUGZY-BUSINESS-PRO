@@ -1643,6 +1643,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const newCompany: Company = {
       ...company,
       id: generateId(),
+      user_id: session?.user?.id || '',
       user_email: myEmail || '',
       username: company.username?.toLowerCase().trim() || currentUser || '',
       company_type: company.company_type || 'normal',
