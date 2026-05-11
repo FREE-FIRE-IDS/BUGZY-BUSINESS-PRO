@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS companies (
   logo_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  user_id TEXT,
+  owner_id TEXT,
   user_email TEXT,
   owner_email TEXT,
   linked_emails TEXT[] DEFAULT '{}',
@@ -91,6 +91,7 @@ BEGIN
     SELECT 1 FROM public.companies 
     WHERE id = cid 
     AND (
+      owner_id = auth.uid()::text OR
       LOWER(owner_email) = current_email OR 
       LOWER(user_email) = current_email OR 
       current_email = ANY(linked_emails)
@@ -186,6 +187,13 @@ CREATE TABLE IF NOT EXISTS invoices (
 DO $$ 
 BEGIN
   -- Companies
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='owner_id') THEN
+    ALTER TABLE companies ADD COLUMN owner_id TEXT;
+  END IF;
+  -- If we have old user_id, migrate it to owner_id
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='user_id') THEN
+    UPDATE companies SET owner_id = user_id WHERE owner_id IS NULL;
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='user_email') THEN
     ALTER TABLE companies ADD COLUMN user_email TEXT;
   END IF;
@@ -440,27 +448,27 @@ BEGIN
 END $$;
 
 -- SELECT policy is DRY and FLAT. NO subqueries or function calls here to prevent recursion.
-CREATE POLICY "companies_v5_select" ON public.companies FOR SELECT USING (
-  user_id = auth.uid()::text OR 
+CREATE POLICY "companies_v7_select" ON public.companies FOR SELECT USING (
+  owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = ANY(linked_emails)
 );
 
-CREATE POLICY "companies_v5_insert" ON public.companies FOR INSERT WITH CHECK (
+CREATE POLICY "companies_v7_insert" ON public.companies FOR INSERT WITH CHECK (
   auth.role() = 'authenticated'
 );
 
-CREATE POLICY "companies_v5_update" ON public.companies FOR UPDATE USING (
-  user_id = auth.uid()::text OR 
+CREATE POLICY "companies_v7_update" ON public.companies FOR UPDATE USING (
+  owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 ) WITH CHECK (true);
 
-CREATE POLICY "companies_v5_delete" ON public.companies FOR DELETE USING (
-  user_id = auth.uid()::text OR 
+CREATE POLICY "companies_v7_delete" ON public.companies FOR DELETE USING (
+  owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'

@@ -42,6 +42,7 @@ export interface Company {
   logo_url?: string;
   currency: string;
   user_id: string;
+  owner_id?: string;
   user_email?: string;
   company_type?: CompanyType;
   trial_start?: string; // ISO date

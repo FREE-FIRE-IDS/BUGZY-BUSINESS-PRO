@@ -774,15 +774,13 @@ export default function Banks() {
                 </AnimatePresence>
               </div>
 
-              {canModify && (
-                <button 
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-bold hover:opacity-90 transition-all shadow-lg text-sm h-[38px]"
-                >
-                  <Plus size={18} />
-                  <span>Add Bank</span>
-                </button>
-              )}
+              <button 
+                onClick={() => setIsAddModalOpen(true)}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-bold hover:opacity-90 transition-all shadow-lg text-sm h-[38px]"
+              >
+                <Plus size={18} />
+                <span>Add Bank</span>
+              </button>
             </div>
           </div>
 

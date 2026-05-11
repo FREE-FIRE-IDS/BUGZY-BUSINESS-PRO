@@ -313,18 +313,16 @@ export default function Invoices() {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Invoices</h2>
           <p className="text-slate-500 dark:text-slate-400">Manage and generate professional invoices</p>
         </div>
-        {canModify && (
-          <button 
-            onClick={() => {
-              setIsAddModalOpen(true);
-              setSelectedItems([{ item_id: '', quantity: 1, price: 0 }]);
-            }}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 w-full md:w-auto"
-          >
-            <Plus size={20} />
-            Create Invoice
-          </button>
-        )}
+        <button 
+          onClick={() => {
+            setIsAddModalOpen(true);
+            setSelectedItems([{ item_id: '', quantity: 1, price: 0 }]);
+          }}
+          className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 w-full md:w-auto"
+        >
+          <Plus size={20} />
+          Create Invoice
+        </button>
       </div>
 
       <div className="relative max-w-md">

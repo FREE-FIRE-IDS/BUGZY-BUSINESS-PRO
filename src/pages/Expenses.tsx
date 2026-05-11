@@ -158,15 +158,13 @@ export default function Expenses() {
               <Download size={18} />
               PDF
             </button>
-            {canModify && (
-              <button 
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 text-sm"
-              >
-                <Plus size={20} />
-                Add
-              </button>
-            )}
+            <button 
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 text-sm"
+            >
+              <Plus size={20} />
+              Add
+            </button>
           </div>
         </div>
         <div className="bg-rose-600 p-6 md:p-8 rounded-3xl shadow-xl shadow-rose-500/20 text-white flex flex-col justify-center">

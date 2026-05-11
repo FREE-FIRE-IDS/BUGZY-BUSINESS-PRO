@@ -536,15 +536,13 @@ export default function Parties() {
                   </button>
                 ))}
               </div>
-              {canModify && (
-                <button 
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
-                >
-                  <Plus size={20} />
-                  Add Party
-                </button>
-              )}
+              <button 
+                onClick={() => setIsAddModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+              >
+                <Plus size={20} />
+                Add Party
+              </button>
             </div>
           </div>
 

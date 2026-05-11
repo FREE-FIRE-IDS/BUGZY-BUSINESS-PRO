@@ -1643,6 +1643,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const newCompany: Company = {
       ...company,
       id: generateId(),
+      owner_id: session?.user?.id || '',
       user_id: session?.user?.id || '',
       user_email: myEmail || '',
       username: company.username?.toLowerCase().trim() || currentUser || '',
@@ -2250,6 +2251,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     return emailFromSettings === adminEmail || 
            emailFromSession === adminEmail || 
            emailFromUser === 'sudaiskamran31' ||
+           emailFromUser === 'sudaiskamran31@gmail.com' ||
            settings.user_email === '16897463890072@1689746389007200';
   }, [settings.user_email, session, currentUser]);
 
@@ -2276,12 +2278,18 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (!myEmail) return false;
 
     const ownerEmail = (company.owner_email || company.user_email || '').toLowerCase().trim();
+    const myId = session?.user?.id;
+    const ownerId = company.owner_id || company.user_id;
     
-    // If I am the owner, it's not shared
-    if (ownerEmail === myEmail) return false;
+    // If I am the owner (by ID or Email), it's not shared
+    if (ownerId && myId && ownerId === myId) return false;
+    if (ownerEmail && myEmail && ownerEmail === myEmail) return false;
     
-    // If owner email is set and it's not mine, it's shared
-    if (ownerEmail && ownerEmail !== myEmail) {
+    // Check if it's explicitly shared with me
+    if (ownerId && myId && ownerId !== myId) {
+      return true;
+    }
+    if (ownerEmail && myEmail && ownerEmail !== myEmail) {
       return true;
     }
     
