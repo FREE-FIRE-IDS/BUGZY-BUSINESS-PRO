@@ -57,6 +57,12 @@ export default function Parties() {
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [editingParty, setEditingParty] = useState<Party | null>(null);
 
+  React.useEffect(() => {
+    const handleAdd = () => setIsAddModalOpen(true);
+    window.addEventListener('add-party', handleAdd);
+    return () => window.removeEventListener('add-party', handleAdd);
+  }, []);
+
   const filteredParties = useMemo(() => {
     if (!Array.isArray(parties)) return [];
     return parties.filter(p => {

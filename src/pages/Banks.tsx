@@ -95,6 +95,13 @@ export default function Banks() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingBank, setEditingBank] = useState<Bank | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    const handleAdd = () => setIsAddModalOpen(true);
+    window.addEventListener('add-bank', handleAdd);
+    return () => window.removeEventListener('add-bank', handleAdd);
+  }, []);
+
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [showCashTransactions, setShowCashTransactions] = useState(false);
 

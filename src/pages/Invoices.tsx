@@ -33,6 +33,16 @@ export default function Invoices() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<any | null>(null);
+
+  useEffect(() => {
+    const handleAdd = () => {
+      setIsAddModalOpen(true);
+      setSelectedItems([{ item_id: '', quantity: 1, price: 0 }]);
+    };
+    window.addEventListener('add-invoice', handleAdd);
+    return () => window.removeEventListener('add-invoice', handleAdd);
+  }, []);
+
   const [selectedItems, setSelectedItems] = useState<{ 
     item_id: string, 
     quantity: number, 

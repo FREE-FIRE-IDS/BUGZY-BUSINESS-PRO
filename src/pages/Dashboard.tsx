@@ -20,7 +20,8 @@ import {
   Download,
   Upload,
   Clock,
-  FileText
+  FileText,
+  UserPlus
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -379,6 +380,65 @@ export default function Dashboard() {
               </button>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+        <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+          <Sparkles size={16} className="text-indigo-500" />
+          Quick Actions
+        </h3>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <button 
+            onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Expense' }))}
+            className="group flex flex-col items-center justify-center gap-3 p-4 bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/20 rounded-2xl hover:bg-rose-100 dark:hover:bg-rose-900/20 transition-all hover:-translate-y-1"
+          >
+            <div className="p-3 bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-500/20 group-hover:scale-110 transition-transform">
+              <Receipt size={20} />
+            </div>
+            <span className="text-xs font-bold text-rose-700 dark:text-rose-400">Add Expense</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              navigateTo('invoices');
+              setTimeout(() => window.dispatchEvent(new CustomEvent('add-invoice')), 100);
+            }}
+            className="group flex flex-col items-center justify-center gap-3 p-4 bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/20 rounded-2xl hover:bg-indigo-100 dark:hover:bg-indigo-900/20 transition-all hover:-translate-y-1"
+          >
+            <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
+              <FileText size={20} />
+            </div>
+            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400">Add Invoice</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              navigateTo('parties');
+              setTimeout(() => window.dispatchEvent(new CustomEvent('add-party')), 100);
+            }}
+            className="group flex flex-col items-center justify-center gap-3 p-4 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/20 rounded-2xl hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-all hover:-translate-y-1"
+          >
+            <div className="p-3 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
+              <UserPlus size={20} />
+            </div>
+            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Add Party</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              navigateTo('banks');
+              setTimeout(() => window.dispatchEvent(new CustomEvent('add-bank')), 100);
+            }}
+            className="group flex flex-col items-center justify-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-2xl hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-all hover:-translate-y-1"
+          >
+            <div className="p-3 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform">
+              <Building2 size={20} />
+            </div>
+            <span className="text-xs font-bold text-blue-700 dark:text-blue-400">Add Bank</span>
+          </button>
         </div>
       </div>
 
