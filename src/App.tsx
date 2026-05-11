@@ -795,6 +795,7 @@ export default function App() {
     { id: 'banks', label: 'Banks', icon: Landmark, premium: true },
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
+    { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
     { id: 'companies', label: 'Manage Entities', icon: Building2 },
     { id: 'reports', label: 'Data Reports', icon: History, premium: true },
     ...(!isSharedCompany(currentCompany) ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true }] : []),

@@ -78,8 +78,8 @@ export default function SyncCenter() {
 
   const isOwner = currentCompany && (
     isAdmin ||
-    currentCompany.user_email?.toLowerCase() === settings.user_email?.toLowerCase() ||
-    currentCompany.owner_email?.toLowerCase() === settings.user_email?.toLowerCase() ||
+    currentCompany.user_email?.toLowerCase() === (session?.user?.email || settings.user_email)?.toLowerCase() ||
+    currentCompany.owner_email?.toLowerCase() === (session?.user?.email || settings.user_email)?.toLowerCase() ||
     !currentCompany.owner_email
   );
 

@@ -419,6 +419,7 @@ ALTER TABLE company_members REPLICA IDENTITY FULL;
 -- ALTER TABLE company_access RENAME TO company_access_legacy;
 
 -- 7. Companies Policies (Simplified to prevent loops)
+-- Drop ALL possible policy names for companies table to ensure clean state
 DROP POLICY IF EXISTS "companies_read" ON companies;
 DROP POLICY IF EXISTS "companies_write" ON companies;
 DROP POLICY IF EXISTS "companies_edit" ON companies;
@@ -427,8 +428,10 @@ DROP POLICY IF EXISTS "companies_access" ON companies;
 DROP POLICY IF EXISTS "Companies access" ON companies;
 DROP POLICY IF EXISTS "companies_view" ON companies;
 DROP POLICY IF EXISTS "Company access" ON companies;
+DROP POLICY IF EXISTS "Owners can update their own companies" ON companies;
+DROP POLICY IF EXISTS "Companies are viewable by owners and members" ON companies;
 
--- SELECT policy is DRY and FLAT. NO subqueries or function calls here.
+-- SELECT policy is DRY and FLAT. NO subqueries or function calls here to prevent recursion.
 CREATE POLICY "companies_read" ON companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
@@ -436,21 +439,23 @@ CREATE POLICY "companies_read" ON companies FOR SELECT USING (
   (auth.jwt() ->> 'email') = ANY(linked_emails)
 );
 
--- Seed linked_emails for existing companies
-DO $$
-BEGIN
-  UPDATE public.companies c
-  SET linked_emails = (
-    SELECT COALESCE(array_agg(DISTINCT user_email), '{}')
-    FROM public.company_members m
-    WHERE m.company_id = c.id
-  );
-END $$;
-
-
--- INSERT: Auth only
+-- INSERT: Authenticated users can create companies
 CREATE POLICY "companies_write" ON companies FOR INSERT WITH CHECK (
   auth.role() = 'authenticated'
+);
+
+-- UPDATE: Owner or Admin
+CREATE POLICY "companies_edit" ON companies FOR UPDATE USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+) WITH CHECK (true);
+
+-- DELETE: Owner or Admin
+CREATE POLICY "companies_remove" ON companies FOR DELETE USING (
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- 8. Add Licenses and Payment Requests Tables (to ensure they exist for policies)
@@ -492,73 +497,64 @@ END $$;
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
 
--- 9. UPDATE: Owner or Admin
-CREATE POLICY "companies_edit" ON companies FOR UPDATE USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-) WITH CHECK (true);
-
--- DELETE: Owner or Admin
-CREATE POLICY "companies_remove" ON companies FOR DELETE USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-);
-
 -- 8. Core Table Policies (Direct access via user_email or share check)
 -- This avoids querying the 'companies' table inside these policies to prevent recursion.
 
 -- Parties
-DROP POLICY IF EXISTS "parties_access" ON parties;
-DROP POLICY IF EXISTS "Parties access" ON parties;
-DROP POLICY IF EXISTS "parties_full_access" ON parties;
+DROP POLICY IF EXISTS "parties_access" ON public.parties;
+DROP POLICY IF EXISTS "Parties access" ON public.parties;
+DROP POLICY IF EXISTS "parties_full_access" ON public.parties;
+DROP POLICY IF EXISTS "parties_policy" ON public.parties;
 
-CREATE POLICY "parties_access" ON parties FOR ALL USING (
+CREATE POLICY "parties_access" ON public.parties FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   public.is_company_member(company_id) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- Banks
-DROP POLICY IF EXISTS "banks_access" ON banks;
-DROP POLICY IF EXISTS "Banks access" ON banks;
-DROP POLICY IF EXISTS "banks_full_access" ON banks;
+DROP POLICY IF EXISTS "banks_access" ON public.banks;
+DROP POLICY IF EXISTS "Banks access" ON public.banks;
+DROP POLICY IF EXISTS "banks_full_access" ON public.banks;
+DROP POLICY IF EXISTS "banks_policy" ON public.banks;
 
-CREATE POLICY "banks_access" ON banks FOR ALL USING (
+CREATE POLICY "banks_access" ON public.banks FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   public.is_company_member(company_id) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- Inventory
-DROP POLICY IF EXISTS "inventory_access" ON inventory;
-DROP POLICY IF EXISTS "Inventory access" ON inventory;
-DROP POLICY IF EXISTS "inventory_full_access" ON inventory;
+DROP POLICY IF EXISTS "inventory_access" ON public.inventory;
+DROP POLICY IF EXISTS "Inventory access" ON public.inventory;
+DROP POLICY IF EXISTS "inventory_full_access" ON public.inventory;
+DROP POLICY IF EXISTS "inventory_policy" ON public.inventory;
 
-CREATE POLICY "inventory_access" ON inventory FOR ALL USING (
+CREATE POLICY "inventory_access" ON public.inventory FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   public.is_company_member(company_id) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- Transactions
-DROP POLICY IF EXISTS "transactions_access" ON transactions;
-DROP POLICY IF EXISTS "Transactions access" ON transactions;
-DROP POLICY IF EXISTS "transactions_full_access" ON transactions;
+DROP POLICY IF EXISTS "transactions_access" ON public.transactions;
+DROP POLICY IF EXISTS "Transactions access" ON public.transactions;
+DROP POLICY IF EXISTS "transactions_full_access" ON public.transactions;
+DROP POLICY IF EXISTS "transactions_policy" ON public.transactions;
 
-CREATE POLICY "transactions_access" ON transactions FOR ALL USING (
+CREATE POLICY "transactions_access" ON public.transactions FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   public.is_company_member(company_id) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- Invoices
-DROP POLICY IF EXISTS "invoices_access" ON invoices;
-DROP POLICY IF EXISTS "Invoices access" ON invoices;
-DROP POLICY IF EXISTS "invoices_full_access" ON invoices;
+DROP POLICY IF EXISTS "invoices_access" ON public.invoices;
+DROP POLICY IF EXISTS "Invoices access" ON public.invoices;
+DROP POLICY IF EXISTS "invoices_full_access" ON public.invoices;
+DROP POLICY IF EXISTS "invoices_policy" ON public.invoices;
 
-CREATE POLICY "invoices_access" ON invoices FOR ALL USING (
+CREATE POLICY "invoices_access" ON public.invoices FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   public.is_company_member(company_id) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
@@ -597,5 +593,16 @@ CREATE POLICY "payment_requests_access" ON payment_requests FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
+
+-- Seed linked_emails for existing companies
+DO $$
+BEGIN
+  UPDATE public.companies c
+  SET linked_emails = (
+    SELECT COALESCE(array_agg(DISTINCT user_email), '{}')
+    FROM public.company_members m
+    WHERE m.company_id = c.id
+  );
+END $$;
 
 -- End of setup
