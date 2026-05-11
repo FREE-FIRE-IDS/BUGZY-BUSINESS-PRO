@@ -203,24 +203,20 @@ export default function Parties() {
               </div>
             </div>
             <div className="flex gap-3">
-              {canModify && (
-                <button 
-                  onClick={() => { setEditingParty(currentSelectedParty); setIsAddModalOpen(true); }}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 border border-slate-100 rounded-xl hover:bg-slate-100 transition-all text-sm font-bold"
-                >
-                  <FileText size={18} />
-                  Edit
-                </button>
-              )}
-              {canModify && (
-                <button 
-                  onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
-                  className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold"
-                >
-                  <Plus size={18} />
-                  New Transaction
-                </button>
-              )}
+              <button 
+                onClick={() => { setEditingParty(currentSelectedParty); setIsAddModalOpen(true); }}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 border border-slate-100 rounded-xl hover:bg-slate-100 transition-all text-sm font-bold"
+              >
+                <FileText size={18} />
+                Edit
+              </button>
+              <button 
+                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
+                className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold"
+              >
+                <Plus size={18} />
+                New Transaction
+              </button>
             </div>
           </div>
 

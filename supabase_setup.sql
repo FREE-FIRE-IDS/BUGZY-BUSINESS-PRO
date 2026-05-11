@@ -29,17 +29,23 @@ CREATE OR REPLACE FUNCTION public.is_company_owner(cid UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
   current_email TEXT;
+  current_uid TEXT;
 BEGIN
   current_email := LOWER(auth.jwt() ->> 'email');
+  current_uid := auth.uid()::text;
+  
   -- Root Admin Bypass
   IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
-  -- Basic validity
-  IF current_email IS NULL OR current_email = '' THEN RETURN FALSE; END IF;
   
   RETURN EXISTS (
     SELECT 1 FROM public.companies 
     WHERE id = cid 
-    AND (LOWER(owner_email) = current_email OR LOWER(user_email) = current_email)
+    AND (
+      owner_id = current_uid OR
+      LOWER(owner_email) = current_email OR 
+      LOWER(user_email) = current_email OR
+      current_email = ANY(COALESCE(linked_emails, '{}'))
+    )
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -79,8 +85,10 @@ CREATE OR REPLACE FUNCTION public.is_company_member(cid UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
   current_email TEXT;
+  current_uid TEXT;
 BEGIN
   current_email := LOWER(auth.jwt() ->> 'email');
+  current_uid := auth.uid()::text;
   -- Root Admin Bypass
   IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
   -- Basic validity
@@ -91,10 +99,10 @@ BEGIN
     SELECT 1 FROM public.companies 
     WHERE id = cid 
     AND (
-      owner_id = auth.uid()::text OR
+      owner_id = current_uid OR
       LOWER(owner_email) = current_email OR 
       LOWER(user_email) = current_email OR 
-      current_email = ANY(linked_emails)
+      current_email = ANY(COALESCE(linked_emails, '{}'))
     )
   );
 END;
@@ -448,26 +456,26 @@ BEGIN
 END $$;
 
 -- SELECT policy is DRY and FLAT. NO subqueries or function calls here to prevent recursion.
-CREATE POLICY "companies_v7_select" ON public.companies FOR SELECT USING (
+CREATE POLICY "companies_v10_select" ON public.companies FOR SELECT USING (
   owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  LOWER(auth.jwt() ->> 'email') = ANY(linked_emails)
+  LOWER(auth.jwt() ->> 'email') = ANY(COALESCE(linked_emails, '{}'))
 );
 
-CREATE POLICY "companies_v7_insert" ON public.companies FOR INSERT WITH CHECK (
-  auth.role() = 'authenticated'
+CREATE POLICY "companies_v10_insert" ON public.companies FOR INSERT WITH CHECK (
+  auth.uid() IS NOT NULL
 );
 
-CREATE POLICY "companies_v7_update" ON public.companies FOR UPDATE USING (
+CREATE POLICY "companies_v10_update" ON public.companies FOR UPDATE USING (
   owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 ) WITH CHECK (true);
 
-CREATE POLICY "companies_v7_delete" ON public.companies FOR DELETE USING (
+CREATE POLICY "companies_v10_delete" ON public.companies FOR DELETE USING (
   owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
