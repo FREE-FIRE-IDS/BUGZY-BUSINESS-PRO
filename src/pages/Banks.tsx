@@ -43,8 +43,9 @@ const DrCrToggle = ({ enabled, onToggle }: { enabled: boolean, onToggle: (val: b
 );
 
 export default function Banks() {
-  const { banks, transactions, invoices, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, updateSettings, parties, currentCompany, setSelectedBankId, refreshData, getBankBalance, isSharedCompany } = useApp();
+  const { banks, transactions, invoices, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, updateSettings, parties, currentCompany, setSelectedBankId, refreshData, getBankBalance, isSharedCompany, isAdmin } = useApp();
   const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
+  const canModify = !isShared || isAdmin;
   const [isSyncing, setIsSyncing] = useState(false);
 
   const handleSync = async () => {
@@ -766,7 +767,7 @@ export default function Banks() {
                 </AnimatePresence>
               </div>
 
-              {!isShared && (
+              {canModify && (
                 <button 
                   onClick={() => setIsAddModalOpen(true)}
                   className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-bold hover:opacity-90 transition-all shadow-lg text-sm h-[38px]"

@@ -24,8 +24,9 @@ interface jsPDFWithAutoTable extends jsPDF {
 }
 
 export default function Invoices() {
-  const { invoices, addInvoice, updateInvoice, deleteInvoice, settings, parties, items, currentCompany, banks, isSharedCompany } = useApp();
+  const { invoices, addInvoice, updateInvoice, deleteInvoice, settings, parties, items, currentCompany, banks, isSharedCompany, isAdmin } = useApp();
   const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
+  const canModify = !isShared || isAdmin;
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -302,7 +303,7 @@ export default function Invoices() {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Invoices</h2>
           <p className="text-slate-500 dark:text-slate-400">Manage and generate professional invoices</p>
         </div>
-        {!isShared && (
+        {canModify && (
           <button 
             onClick={() => {
               setIsAddModalOpen(true);

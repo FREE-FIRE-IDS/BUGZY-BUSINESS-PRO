@@ -2239,16 +2239,24 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [isDeviceLicensed]);
 
-  const isAdmin = (settings.user_email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') || 
-                  (session?.user?.email?.trim().toLowerCase() === 'sudaiskamran31@gmail.com') ||
-                  (settings.user_email === '16897463890072@1689746389007200') ||
-                  (currentUser?.toLowerCase() === 'sudaiskamran31');
+  // Centralized Admin check
+  const isAdmin = React.useMemo(() => {
+    const adminEmail = 'sudaiskamran31@gmail.com';
+    const emailFromSettings = settings.user_email?.trim().toLowerCase();
+    const emailFromSession = session?.user?.email?.trim().toLowerCase();
+    const emailFromUser = currentUser?.trim().toLowerCase();
+
+    return emailFromSettings === adminEmail || 
+           emailFromSession === adminEmail || 
+           emailFromUser === 'sudaiskamran31' ||
+           settings.user_email === '16897463890072@1689746389007200';
+  }, [settings.user_email, session, currentUser]);
 
   useEffect(() => {
     if (isAdmin) {
-      console.log('Admin access granted for:', settings.user_email || session?.user?.email);
+      console.log('[App] Root Admin Access Detected');
     }
-  }, [isAdmin, settings.user_email, session?.user?.email]);
+  }, [isAdmin]);
 
   const signOut = async () => {
     localStorage.removeItem('currentUser');
@@ -2261,22 +2269,24 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const isSharedCompany = (company?: Company | null) => {
     if (!company) return false;
-    if (isAdmin) return false; // Admin has full access, treat as non-shared (owner)
+    if (isAdmin) return false; // Admin is never shared (has full control)
     
     const myEmail = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
     if (!myEmail) return false;
 
     const ownerEmail = (company.owner_email || company.user_email || '').toLowerCase().trim();
     
+    // If I am the owner, it's not shared
+    if (ownerEmail === myEmail) return false;
+    
     // If owner email is set and it's not mine, it's shared
     if (ownerEmail && ownerEmail !== myEmail) {
       return true;
     }
     
-    // Check linked emails too
+    // Check shared memberships
     if (company.linked_emails?.includes(myEmail)) {
-        // If it's in linked_emails but we are NOT the owner, it's shared
-        return ownerEmail !== myEmail;
+        return true;
     }
 
     return false;

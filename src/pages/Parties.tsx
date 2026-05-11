@@ -25,8 +25,9 @@ import { Party, Transaction, TransactionType } from '../types';
 import { generatePartyStatement } from '../lib/pdfGenerator';
 
 export default function Parties() {
-  const { parties, transactions, invoices, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany, setSelectedPartyId, isLicensed, getPartyBalance, isSharedCompany } = useApp();
+  const { parties, transactions, invoices, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany, setSelectedPartyId, isLicensed, getPartyBalance, isSharedCompany, isAdmin } = useApp();
   const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
+  const canModify = !isShared || isAdmin;
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [amountFilter, setAmountFilter] = useState<'all' | 'positive' | 'negative'>('all');
@@ -196,7 +197,7 @@ export default function Parties() {
               </div>
             </div>
             <div className="flex gap-3">
-              {!isShared && (
+              {canModify && (
                 <button 
                   onClick={() => { setEditingParty(currentSelectedParty); setIsAddModalOpen(true); }}
                   className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 border border-slate-100 rounded-xl hover:bg-slate-100 transition-all text-sm font-bold"
@@ -205,7 +206,7 @@ export default function Parties() {
                   Edit
                 </button>
               )}
-              {!isShared && (
+              {canModify && (
                 <button 
                   onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
                   className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold"
@@ -529,7 +530,7 @@ export default function Parties() {
                   </button>
                 ))}
               </div>
-              {!isShared && (
+              {canModify && (
                 <button 
                   onClick={() => setIsAddModalOpen(true)}
                   className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"

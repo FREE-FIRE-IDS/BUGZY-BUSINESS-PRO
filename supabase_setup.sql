@@ -31,8 +31,10 @@ DECLARE
   current_email TEXT;
 BEGIN
   current_email := LOWER(auth.jwt() ->> 'email');
-  IF current_email = NULL OR current_email = '' THEN RETURN FALSE; END IF;
+  -- Root Admin Bypass
   IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
+  -- Basic validity
+  IF current_email IS NULL OR current_email = '' THEN RETURN FALSE; END IF;
   
   RETURN EXISTS (
     SELECT 1 FROM public.companies 
@@ -79,11 +81,12 @@ DECLARE
   current_email TEXT;
 BEGIN
   current_email := LOWER(auth.jwt() ->> 'email');
+  -- Root Admin Bypass
   IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
+  -- Basic validity
+  IF current_email IS NULL OR current_email = '' THEN RETURN FALSE; END IF;
 
   -- Use a direct query that bypasses RLS because this is SECURITY DEFINER
-  -- We query companies table and check linked_emails to avoid querying company_members if possible
-  -- This breaks the loop because this function bypasses RLS anyway.
   RETURN EXISTS (
     SELECT 1 FROM public.companies 
     WHERE id = cid 
@@ -437,27 +440,24 @@ BEGIN
 END $$;
 
 -- SELECT policy is DRY and FLAT. NO subqueries or function calls here to prevent recursion.
-CREATE POLICY "companies_read_v2" ON companies FOR SELECT USING (
+CREATE POLICY "companies_select_v3" ON public.companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = ANY(linked_emails)
 );
 
--- INSERT: Authenticated users can create companies
-CREATE POLICY "companies_write_v2" ON companies FOR INSERT WITH CHECK (
+CREATE POLICY "companies_insert_v3" ON public.companies FOR INSERT WITH CHECK (
   auth.role() = 'authenticated'
 );
 
--- UPDATE: Owner or Admin
-CREATE POLICY "companies_edit_v2" ON companies FOR UPDATE USING (
+CREATE POLICY "companies_update_v3" ON public.companies FOR UPDATE USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 ) WITH CHECK (true);
 
--- DELETE: Owner or Admin
-CREATE POLICY "companies_remove_v2" ON companies FOR DELETE USING (
+CREATE POLICY "companies_delete_v3" ON public.companies FOR DELETE USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
@@ -513,8 +513,16 @@ DROP POLICY IF EXISTS "parties_policy" ON public.parties;
 
 CREATE POLICY "parties_access" ON public.parties FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  public.is_company_member(company_id) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = company_id 
+    AND (
+      LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
+      LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
+      LOWER(auth.jwt() ->> 'email') = ANY(linked_emails)
+    )
+  )
 );
 
 -- Banks
@@ -525,8 +533,16 @@ DROP POLICY IF EXISTS "banks_policy" ON public.banks;
 
 CREATE POLICY "banks_access" ON public.banks FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  public.is_company_member(company_id) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = company_id 
+    AND (
+      LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
+      LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
+      LOWER(auth.jwt() ->> 'email') = ANY(linked_emails)
+    )
+  )
 );
 
 -- Inventory
@@ -537,8 +553,16 @@ DROP POLICY IF EXISTS "inventory_policy" ON public.inventory;
 
 CREATE POLICY "inventory_access" ON public.inventory FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  public.is_company_member(company_id) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = company_id 
+    AND (
+      LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
+      LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
+      LOWER(auth.jwt() ->> 'email') = ANY(linked_emails)
+    )
+  )
 );
 
 -- Transactions
@@ -549,8 +573,16 @@ DROP POLICY IF EXISTS "transactions_policy" ON public.transactions;
 
 CREATE POLICY "transactions_access" ON public.transactions FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  public.is_company_member(company_id) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = company_id 
+    AND (
+      LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
+      LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
+      LOWER(auth.jwt() ->> 'email') = ANY(linked_emails)
+    )
+  )
 );
 
 -- Invoices
@@ -561,8 +593,16 @@ DROP POLICY IF EXISTS "invoices_policy" ON public.invoices;
 
 CREATE POLICY "invoices_access" ON public.invoices FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  public.is_company_member(company_id) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = company_id 
+    AND (
+      LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
+      LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
+      LOWER(auth.jwt() ->> 'email') = ANY(linked_emails)
+    )
+  )
 );
 
 -- 9. External systems Policies

@@ -26,7 +26,9 @@ interface jsPDFWithAutoTable extends jsPDF {
 }
 
 export default function Expenses() {
-  const { transactions, addTransaction, updateTransaction, deleteTransaction, settings, banks, parties, currentCompany, items } = useApp();
+  const { transactions, addTransaction, updateTransaction, deleteTransaction, settings, banks, parties, currentCompany, items, isSharedCompany, isAdmin } = useApp();
+  const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
+  const canModify = !isShared || isAdmin;
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<'All' | 'This Month' | '7 Days'>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -156,13 +158,15 @@ export default function Expenses() {
               <Download size={18} />
               PDF
             </button>
-            <button 
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 text-sm"
-            >
-              <Plus size={20} />
-              Add
-            </button>
+            {canModify && (
+              <button 
+                onClick={() => setIsAddModalOpen(true)}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 text-sm"
+              >
+                <Plus size={20} />
+                Add
+              </button>
+            )}
           </div>
         </div>
         <div className="bg-rose-600 p-6 md:p-8 rounded-3xl shadow-xl shadow-rose-500/20 text-white flex flex-col justify-center">
