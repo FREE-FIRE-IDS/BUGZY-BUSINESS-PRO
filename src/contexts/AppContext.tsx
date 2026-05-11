@@ -383,6 +383,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [companies, currentUser]);
 
   useEffect(() => {
+    if (currentUser && companies.length === 0 && !syncStatus.loading) {
+      console.log(`[Auto-Sync] No companies found for ${currentUser}, triggering refresh...`);
+      refreshData(undefined, true);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
     if (currentCompany) {
       localStorage.setItem('currentCompany', JSON.stringify(currentCompany));
       // Trigger data pull when company changes
@@ -2434,9 +2441,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       const { data } = result;
       if (data.session) {
         setSession(data.session);
-        updateSettings({ is_verified: true, user_email: normalizedEmail, sync_enabled: true });
-        // Immediately trigger invitations fetch
-        fetchInvitations(normalizedEmail).catch(e => console.error('Early fetch invites error:', e));
+        const email = normalizedEmail || data.session.user?.email || '';
+        updateSettings({ is_verified: true, user_email: email, sync_enabled: true });
+        // Immediately trigger refresh
+        refreshData(email, true).catch(e => console.error('Sync verify refresh error:', e));
+        fetchInvitations(email).catch(e => console.error('Early fetch invites error:', e));
         return true;
       }
       
@@ -2499,6 +2508,14 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       // CRITICAL: Force update both session and settings
       if (data.session) {
         setSession(data.session);
+        const email = normalizedEmail || data.session.user?.email || '';
+        updateSettings({ is_verified: true, user_email: email, sync_enabled: true });
+        
+        // Immediately pull data
+        refreshData(email, true).catch(e => console.error('Confirm login refresh error:', e));
+        fetchInvitations(email).catch(e => console.error('Confirm login fetch invites error:', e));
+        
+        return true;
       }
       
       updateSettings({ user_email: normalizedEmail, sync_enabled: true, is_verified: true });

@@ -456,7 +456,8 @@ CREATE POLICY "companies_v14_select" ON public.companies FOR SELECT USING (
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  LOWER(auth.jwt() ->> 'email') = ANY(COALESCE(linked_emails, '{}'))
+  LOWER(auth.jwt() ->> 'email') = ANY(COALESCE(linked_emails, '{}')) OR
+  (username IS NOT NULL AND auth.uid() IS NULL) -- Allow lookup if not logged in
 );
 
 CREATE POLICY "companies_v14_insert" ON public.companies FOR INSERT WITH CHECK (

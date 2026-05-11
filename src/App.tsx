@@ -884,7 +884,7 @@ export default function App() {
     return <Onboarding onComplete={() => updateSettings({ onboarding_completed: true })} />;
   }
 
-  if (!currentCompany && companies.length === 0) {
+  if (!currentCompany && companies.length === 0 && !syncStatus.loading && !showSplash) {
     return <SetupCompany />;
   }
 
