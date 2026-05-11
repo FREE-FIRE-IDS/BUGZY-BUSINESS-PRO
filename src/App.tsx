@@ -718,8 +718,12 @@ export default function App() {
   } = useApp();
   const { theme, toggleTheme } = useTheme();
 
-  const isOwner = !currentCompany || !currentCompany.owner_email || 
-    (session?.user?.email && currentCompany.owner_email.toLowerCase() === session.user.email.toLowerCase());
+  const isOwner = currentCompany && (
+    isAdmin ||
+    !currentCompany.owner_email || 
+    currentCompany.owner_email.toLowerCase() === (session?.user?.email || settings.user_email || '').toLowerCase() ||
+    currentCompany.user_email?.toLowerCase() === (session?.user?.email || settings.user_email || '').toLowerCase()
+  );
   const [showSplash, setShowSplash] = useState(true);
   const [forceUpgrade, setForceUpgrade] = useState(false);
   const [dismissedPayment, setDismissedPayment] = useState(false);

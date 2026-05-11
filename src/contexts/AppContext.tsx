@@ -2261,16 +2261,20 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const isSharedCompany = (company?: Company | null) => {
     if (!company) return false;
-    const myEmail = (settings.user_email || session?.user?.email || '').toLowerCase();
-    const ownerEmail = (company.owner_email || company.user_email || '').toLowerCase();
+    if (isAdmin) return false; // Admin has full access, treat as non-shared (owner)
+    
+    const myEmail = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
+    if (!myEmail) return false;
+
+    const ownerEmail = (company.owner_email || company.user_email || '').toLowerCase().trim();
     
     // If owner email is set and it's not mine, it's shared
-    if (ownerEmail && myEmail && ownerEmail !== myEmail) {
+    if (ownerEmail && ownerEmail !== myEmail) {
       return true;
     }
     
     // Check linked emails too
-    if (myEmail && company.linked_emails?.includes(myEmail)) {
+    if (company.linked_emails?.includes(myEmail)) {
         // If it's in linked_emails but we are NOT the owner, it's shared
         return ownerEmail !== myEmail;
     }

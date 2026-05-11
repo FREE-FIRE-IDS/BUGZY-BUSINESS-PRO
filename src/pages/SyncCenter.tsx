@@ -78,9 +78,10 @@ export default function SyncCenter() {
 
   const isOwner = currentCompany && (
     isAdmin ||
-    currentCompany.user_email?.toLowerCase() === (session?.user?.email || settings.user_email)?.toLowerCase() ||
-    currentCompany.owner_email?.toLowerCase() === (session?.user?.email || settings.user_email)?.toLowerCase() ||
-    !currentCompany.owner_email
+    !currentCompany.owner_email ||
+    currentCompany.owner_email.toLowerCase() === (session?.user?.email || settings.user_email || '').toLowerCase().trim() ||
+    currentCompany.user_email?.toLowerCase() === (session?.user?.email || settings.user_email || '').toLowerCase().trim() ||
+    !currentCompany.user_email // Fallback if no email is set yet
   );
 
   React.useEffect(() => {
