@@ -31,10 +31,9 @@ DECLARE
   current_email TEXT;
 BEGIN
   current_email := LOWER(auth.jwt() ->> 'email');
+  IF current_email = NULL OR current_email = '' THEN RETURN FALSE; END IF;
   IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
   
-  -- We query the table directly. SECURITY DEFINER helps bypass RLS from the caller's context,
-  -- but we must ensure we don't call this function FROM a policy on 'companies'.
   RETURN EXISTS (
     SELECT 1 FROM public.companies 
     WHERE id = cid 
@@ -51,7 +50,7 @@ BEGIN
   IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
     UPDATE public.companies 
     SET linked_emails = (
-      SELECT COALESCE(array_agg(DISTINCT user_email), '{}')
+      SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
       FROM public.company_members 
       WHERE company_id = NEW.company_id
     )
@@ -59,7 +58,7 @@ BEGIN
   ELSIF TG_OP = 'DELETE' THEN
     UPDATE public.companies 
     SET linked_emails = (
-      SELECT COALESCE(array_agg(DISTINCT user_email), '{}')
+      SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
       FROM public.company_members 
       WHERE company_id = OLD.company_id
     )
@@ -78,17 +77,21 @@ CREATE OR REPLACE FUNCTION public.is_company_member(cid UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
   current_email TEXT;
-  current_uid UUID;
 BEGIN
   current_email := LOWER(auth.jwt() ->> 'email');
-  current_uid := auth.uid();
   IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
 
   -- Use a direct query that bypasses RLS because this is SECURITY DEFINER
+  -- We query companies table and check linked_emails to avoid querying company_members if possible
+  -- This breaks the loop because this function bypasses RLS anyway.
   RETURN EXISTS (
-    SELECT 1 FROM public.company_members 
-    WHERE company_id = cid 
-    AND (user_id = current_uid OR LOWER(user_email) = current_email)
+    SELECT 1 FROM public.companies 
+    WHERE id = cid 
+    AND (
+      LOWER(owner_email) = current_email OR 
+      LOWER(user_email) = current_email OR 
+      current_email = ANY(linked_emails)
+    )
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -419,40 +422,42 @@ ALTER TABLE company_members REPLICA IDENTITY FULL;
 -- ALTER TABLE company_access RENAME TO company_access_legacy;
 
 -- 7. Companies Policies (Simplified to prevent loops)
--- Drop ALL possible policy names for companies table to ensure clean state
-DROP POLICY IF EXISTS "companies_read" ON companies;
-DROP POLICY IF EXISTS "companies_write" ON companies;
-DROP POLICY IF EXISTS "companies_edit" ON companies;
-DROP POLICY IF EXISTS "companies_remove" ON companies;
-DROP POLICY IF EXISTS "companies_access" ON companies;
-DROP POLICY IF EXISTS "Companies access" ON companies;
-DROP POLICY IF EXISTS "companies_view" ON companies;
-DROP POLICY IF EXISTS "Company access" ON companies;
-DROP POLICY IF EXISTS "Owners can update their own companies" ON companies;
-DROP POLICY IF EXISTS "Companies are viewable by owners and members" ON companies;
+-- Use a DO block to aggressively drop ALL existing policies on companies table
+DO $$
+DECLARE
+    policy_record RECORD;
+BEGIN
+    FOR policy_record IN 
+        SELECT policyname 
+        FROM pg_policies 
+        WHERE tablename = 'companies' AND schemaname = 'public'
+    LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON public.companies', policy_record.policyname);
+    END LOOP;
+END $$;
 
 -- SELECT policy is DRY and FLAT. NO subqueries or function calls here to prevent recursion.
-CREATE POLICY "companies_read" ON companies FOR SELECT USING (
+CREATE POLICY "companies_read_v2" ON companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  (auth.jwt() ->> 'email') = ANY(linked_emails)
+  LOWER(auth.jwt() ->> 'email') = ANY(linked_emails)
 );
 
 -- INSERT: Authenticated users can create companies
-CREATE POLICY "companies_write" ON companies FOR INSERT WITH CHECK (
+CREATE POLICY "companies_write_v2" ON companies FOR INSERT WITH CHECK (
   auth.role() = 'authenticated'
 );
 
 -- UPDATE: Owner or Admin
-CREATE POLICY "companies_edit" ON companies FOR UPDATE USING (
+CREATE POLICY "companies_edit_v2" ON companies FOR UPDATE USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 ) WITH CHECK (true);
 
 -- DELETE: Owner or Admin
-CREATE POLICY "companies_remove" ON companies FOR DELETE USING (
+CREATE POLICY "companies_remove_v2" ON companies FOR DELETE USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
@@ -599,7 +604,7 @@ DO $$
 BEGIN
   UPDATE public.companies c
   SET linked_emails = (
-    SELECT COALESCE(array_agg(DISTINCT user_email), '{}')
+    SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
     FROM public.company_members m
     WHERE m.company_id = c.id
   );
