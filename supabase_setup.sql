@@ -42,6 +42,36 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+-- Function to sync linked_emails for faster RLS
+CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
+RETURNS trigger AS $$
+BEGIN
+  IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+    UPDATE public.companies 
+    SET linked_emails = (
+      SELECT array_agg(DISTINCT user_email) 
+      FROM public.company_members 
+      WHERE company_id = NEW.company_id
+    )
+    WHERE id = NEW.company_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE public.companies 
+    SET linked_emails = (
+      SELECT COALESCE(array_agg(DISTINCT user_email), '{}')
+      FROM public.company_members 
+      WHERE company_id = OLD.company_id
+    )
+    WHERE id = OLD.company_id;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS on_company_member_change ON public.company_members;
+CREATE TRIGGER on_company_member_change
+  AFTER INSERT OR UPDATE OR DELETE ON public.company_members
+  FOR EACH ROW EXECUTE FUNCTION public.sync_company_linked_emails();
+
 CREATE OR REPLACE FUNCTION public.is_company_member(cid UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -376,11 +406,15 @@ CREATE POLICY "companies_read" ON companies FOR SELECT USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(owner_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  (auth.jwt() ->> 'email') = ANY(linked_emails) OR
-  -- Instead of calling is_company_member, we check directly to avoid one level of nesting
-  -- but we use a non-recursive path.
-  -- To be absolutely safe, we trust is_company_member as a SECURITY DEFINER leaf.
-  public.is_company_member(id)
+  (auth.jwt() ->> 'email') = ANY(linked_emails)
+);
+
+-- Seed linked_emails for existing companies
+UPDATE public.companies c
+SET linked_emails = (
+  SELECT COALESCE(array_agg(DISTINCT user_email), '{}')
+  FROM public.company_members m
+  WHERE m.company_id = c.id
 );
 
 
@@ -452,11 +486,8 @@ DROP POLICY IF EXISTS "parties_full_access" ON parties;
 
 CREATE POLICY "parties_access" ON parties FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  EXISTS (
-    SELECT 1 FROM company_members 
-    WHERE company_id = parties.company_id 
-    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  public.is_company_member(company_id) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- Banks
@@ -466,11 +497,8 @@ DROP POLICY IF EXISTS "banks_full_access" ON banks;
 
 CREATE POLICY "banks_access" ON banks FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  EXISTS (
-    SELECT 1 FROM company_members 
-    WHERE company_id = banks.company_id 
-    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  public.is_company_member(company_id) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- Inventory
@@ -480,11 +508,8 @@ DROP POLICY IF EXISTS "inventory_full_access" ON inventory;
 
 CREATE POLICY "inventory_access" ON inventory FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  EXISTS (
-    SELECT 1 FROM company_members 
-    WHERE company_id = inventory.company_id 
-    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  public.is_company_member(company_id) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- Transactions
@@ -494,11 +519,8 @@ DROP POLICY IF EXISTS "transactions_full_access" ON transactions;
 
 CREATE POLICY "transactions_access" ON transactions FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  EXISTS (
-    SELECT 1 FROM company_members 
-    WHERE company_id = transactions.company_id 
-    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  public.is_company_member(company_id) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- Invoices
@@ -508,11 +530,8 @@ DROP POLICY IF EXISTS "invoices_full_access" ON invoices;
 
 CREATE POLICY "invoices_access" ON invoices FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  EXISTS (
-    SELECT 1 FROM company_members 
-    WHERE company_id = invoices.company_id 
-    AND (user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  public.is_company_member(company_id) OR
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
 );
 
 -- 9. External systems Policies
