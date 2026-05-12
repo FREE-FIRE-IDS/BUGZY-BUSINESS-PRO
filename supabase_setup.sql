@@ -454,35 +454,15 @@ BEGIN
     END LOOP;
 END $$;
 
--- SELECT policy is DRY and FLAT. NO subqueries or function calls here to prevent recursion.
-CREATE POLICY "companies_v14_select" ON public.companies FOR SELECT USING (
+-- Consolidated policy for companies to ensure sync works reliably
+CREATE POLICY "companies_v15_full_access" ON public.companies FOR ALL USING (
   owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  LOWER(auth.jwt() ->> 'email') = ANY(COALESCE(linked_emails, '{}')) OR
-  (username IS NOT NULL AND auth.uid() IS NULL) -- Allow lookup if not logged in
-);
-
-CREATE POLICY "companies_v14_insert" ON public.companies FOR INSERT WITH CHECK (
-  true
-);
-
-CREATE POLICY "companies_v14_update" ON public.companies FOR UPDATE USING (
-  owner_id = auth.uid()::text OR 
-  LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
-  LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  public.is_company_member(id)
+  public.is_company_member(id) OR
+  (username IS NOT NULL AND auth.uid() IS NULL)
 ) WITH CHECK (true);
-
-CREATE POLICY "companies_v14_delete" ON public.companies FOR DELETE USING (
-  owner_id = auth.uid()::text OR 
-  LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
-  LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  public.is_company_owner(id)
-);
 
 -- 8. Add Licenses and Payment Requests Tables (to ensure they exist for policies)
 CREATE TABLE IF NOT EXISTS licenses (
