@@ -361,22 +361,31 @@ USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(invited_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  EXISTS (
-    SELECT 1 FROM public.companies 
-    WHERE id = company_id 
-    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  public.is_company_member(company_id)
 );
 
 CREATE POLICY "invites_write"
 ON company_invites FOR INSERT
 WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) AND
-  EXISTS (
-    SELECT 1 FROM public.companies 
-    WHERE id = company_id 
-    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  (LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) AND public.is_company_member(company_id))
+);
+
+CREATE POLICY "invites_update"
+ON company_invites FOR UPDATE
+USING (
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(invited_email) OR
+  public.is_company_member(company_id)
+);
+
+CREATE POLICY "invites_delete"
+ON company_invites FOR DELETE
+USING (
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) OR
+  public.is_company_member(company_id)
 );
 
 -- 8. Company Members
@@ -398,44 +407,28 @@ USING (
   auth.uid() = user_id OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  EXISTS (
-    SELECT 1 FROM public.companies 
-    WHERE id = company_id 
-    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  public.is_company_member(company_id)
 );
 
-CREATE POLICY "Owners can insert members"
+CREATE POLICY "members_insert"
 ON company_members FOR INSERT
 WITH CHECK (
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  EXISTS (
-    SELECT 1 FROM public.companies 
-    WHERE id = company_id 
-    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  public.is_company_member(company_id)
 );
 
-CREATE POLICY "Owners can update members"
+CREATE POLICY "members_update"
 ON company_members FOR UPDATE
 USING (
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  EXISTS (
-    SELECT 1 FROM public.companies 
-    WHERE id = company_id 
-    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  public.is_company_member(company_id)
 );
 
-CREATE POLICY "Owners can delete members"
+CREATE POLICY "members_delete"
 ON company_members FOR DELETE
 USING (
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  EXISTS (
-    SELECT 1 FROM public.companies 
-    WHERE id = company_id 
-    AND (LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email'))
-  )
+  public.is_company_member(company_id)
 );
 
 -- Optimization and Sync robustness
