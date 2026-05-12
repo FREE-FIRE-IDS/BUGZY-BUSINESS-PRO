@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS companies (
 
 -- Helper functions to prevent recursion and check access efficiently
 -- Using SET search_path = public to ensure SECURITY DEFINER actually bypasses RLS
+DROP FUNCTION IF EXISTS public.is_company_owner(UUID);
 CREATE OR REPLACE FUNCTION public.is_company_owner(cid UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -51,6 +52,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Function to sync linked_emails for faster RLS
+DROP FUNCTION IF EXISTS public.sync_company_linked_emails();
 CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
 RETURNS trigger AS $$
 BEGIN
@@ -81,6 +83,7 @@ CREATE TRIGGER on_company_member_change
   AFTER INSERT OR UPDATE OR DELETE ON public.company_members
   FOR EACH ROW EXECUTE FUNCTION public.sync_company_linked_emails();
 
+DROP FUNCTION IF EXISTS public.is_company_member(UUID);
 CREATE OR REPLACE FUNCTION public.is_company_member(cid UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -292,6 +295,7 @@ CREATE POLICY "profiles_insert" ON public.profiles FOR INSERT WITH CHECK (true);
 CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Function to handle new user signup
+DROP FUNCTION IF EXISTS public.handle_new_user();
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
