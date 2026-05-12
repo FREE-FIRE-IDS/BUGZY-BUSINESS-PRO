@@ -1,6 +1,34 @@
 -- Supabase Setup SQL for Bugzy Business Pro SaaS
 
--- 1. Ensure core tables exist with proper schema
+-- 1. Aggressively drop ALL existing policies on core tables first to resolve dependency issues
+DO $$
+DECLARE
+    table_name_rec RECORD;
+    policy_record RECORD;
+BEGIN
+    FOR table_name_rec IN 
+        SELECT tablename 
+        FROM pg_tables 
+        WHERE schemaname = 'public' 
+        AND tablename IN ('companies', 'company_members', 'company_invites', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests')
+    LOOP
+        FOR policy_record IN 
+            SELECT policyname 
+            FROM pg_policies 
+            WHERE tablename = table_name_rec.tablename AND schemaname = 'public'
+        LOOP
+            EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', policy_record.policyname, table_name_rec.tablename);
+        END LOOP;
+    END LOOP;
+END $$;
+
+-- 2. Now safe to drop functions that policies depended on
+DROP FUNCTION IF EXISTS public.is_company_owner(UUID);
+DROP FUNCTION IF EXISTS public.is_company_member(UUID);
+DROP FUNCTION IF EXISTS public.sync_company_linked_emails() CASCADE;
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+
+-- 3. Ensure core tables exist with proper schema
 CREATE TABLE IF NOT EXISTS companies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -25,7 +53,6 @@ CREATE TABLE IF NOT EXISTS companies (
 
 -- Helper functions to prevent recursion and check access efficiently
 -- Using SET search_path = public to ensure SECURITY DEFINER actually bypasses RLS
-DROP FUNCTION IF EXISTS public.is_company_owner(UUID);
 CREATE OR REPLACE FUNCTION public.is_company_owner(cid UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -52,7 +79,6 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Function to sync linked_emails for faster RLS
-DROP FUNCTION IF EXISTS public.sync_company_linked_emails();
 CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
 RETURNS trigger AS $$
 BEGIN
@@ -83,7 +109,6 @@ CREATE TRIGGER on_company_member_change
   AFTER INSERT OR UPDATE OR DELETE ON public.company_members
   FOR EACH ROW EXECUTE FUNCTION public.sync_company_linked_emails();
 
-DROP FUNCTION IF EXISTS public.is_company_member(UUID);
 CREATE OR REPLACE FUNCTION public.is_company_member(cid UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -288,14 +313,10 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Profiles are viewable by authenticated users" ON profiles;
-DROP POLICY IF EXISTS "Users can update their own profile" ON profiles;
-
 CREATE POLICY "profiles_insert" ON public.profiles FOR INSERT WITH CHECK (true);
 CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Function to handle new user signup
-DROP FUNCTION IF EXISTS public.handle_new_user();
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
@@ -334,12 +355,6 @@ CREATE TABLE IF NOT EXISTS company_invites (
 ALTER TABLE company_invites ENABLE ROW LEVEL SECURITY;
 
 -- company_invites policies
-DROP POLICY IF EXISTS "Invites are viewable by sender or receiver" ON company_invites;
-DROP POLICY IF EXISTS "Owners can create invites" ON company_invites;
-DROP POLICY IF EXISTS "Receivers or owners can update invites" ON company_invites;
-DROP POLICY IF EXISTS "invites_read" ON company_invites;
-DROP POLICY IF EXISTS "invites_write" ON company_invites;
-
 CREATE POLICY "invites_read"
 ON company_invites FOR SELECT
 USING (
@@ -376,14 +391,6 @@ CREATE TABLE IF NOT EXISTS company_members (
 );
 
 ALTER TABLE company_members ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Members can view their own company membership" ON company_members;
-DROP POLICY IF EXISTS "Owners can manage members" ON company_members;
-DROP POLICY IF EXISTS "Owners can insert members" ON company_members;
-DROP POLICY IF EXISTS "Owners can update members" ON company_members;
-DROP POLICY IF EXISTS "Owners can delete members" ON company_members;
-DROP POLICY IF EXISTS "members_read" ON company_members;
-DROP POLICY IF EXISTS "members_write" ON company_members;
 
 CREATE POLICY "members_read"
 ON company_members FOR SELECT
@@ -440,20 +447,6 @@ ALTER TABLE company_members REPLICA IDENTITY FULL;
 -- ALTER TABLE company_access RENAME TO company_access_legacy;
 
 -- 7. Companies Policies (Simplified to prevent loops)
--- Use a DO block to aggressively drop ALL existing policies on companies table
-DO $$
-DECLARE
-    policy_record RECORD;
-BEGIN
-    FOR policy_record IN 
-        SELECT policyname 
-        FROM pg_policies 
-        WHERE tablename = 'companies' AND schemaname = 'public'
-    LOOP
-        EXECUTE format('DROP POLICY IF EXISTS %I ON public.companies', policy_record.policyname);
-    END LOOP;
-END $$;
-
 -- Consolidated policy for companies to ensure sync works reliably
 CREATE POLICY "companies_v15_full_access" ON public.companies FOR ALL USING (
   owner_id = auth.uid()::text OR 
@@ -507,11 +500,6 @@ ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
 -- This avoids querying the 'companies' table inside these policies to prevent recursion.
 
 -- Parties
-DROP POLICY IF EXISTS "parties_access" ON public.parties;
-DROP POLICY IF EXISTS "Parties access" ON public.parties;
-DROP POLICY IF EXISTS "parties_full_access" ON public.parties;
-DROP POLICY IF EXISTS "parties_policy" ON public.parties;
-
 CREATE POLICY "parties_access" ON public.parties FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
@@ -519,11 +507,6 @@ CREATE POLICY "parties_access" ON public.parties FOR ALL USING (
 );
 
 -- Banks
-DROP POLICY IF EXISTS "banks_access" ON public.banks;
-DROP POLICY IF EXISTS "Banks access" ON public.banks;
-DROP POLICY IF EXISTS "banks_full_access" ON public.banks;
-DROP POLICY IF EXISTS "banks_policy" ON public.banks;
-
 CREATE POLICY "banks_access" ON public.banks FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
@@ -531,11 +514,6 @@ CREATE POLICY "banks_access" ON public.banks FOR ALL USING (
 );
 
 -- Inventory
-DROP POLICY IF EXISTS "inventory_access" ON public.inventory;
-DROP POLICY IF EXISTS "Inventory access" ON public.inventory;
-DROP POLICY IF EXISTS "inventory_full_access" ON public.inventory;
-DROP POLICY IF EXISTS "inventory_policy" ON public.inventory;
-
 CREATE POLICY "inventory_access" ON public.inventory FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
@@ -543,11 +521,6 @@ CREATE POLICY "inventory_access" ON public.inventory FOR ALL USING (
 );
 
 -- Transactions
-DROP POLICY IF EXISTS "transactions_access" ON public.transactions;
-DROP POLICY IF EXISTS "Transactions access" ON public.transactions;
-DROP POLICY IF EXISTS "transactions_full_access" ON public.transactions;
-DROP POLICY IF EXISTS "transactions_policy" ON public.transactions;
-
 CREATE POLICY "transactions_access" ON public.transactions FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
@@ -555,11 +528,6 @@ CREATE POLICY "transactions_access" ON public.transactions FOR ALL USING (
 );
 
 -- Invoices
-DROP POLICY IF EXISTS "invoices_access" ON public.invoices;
-DROP POLICY IF EXISTS "Invoices access" ON public.invoices;
-DROP POLICY IF EXISTS "invoices_full_access" ON public.invoices;
-DROP POLICY IF EXISTS "invoices_policy" ON public.invoices;
-
 CREATE POLICY "invoices_access" ON public.invoices FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
@@ -568,13 +536,6 @@ CREATE POLICY "invoices_access" ON public.invoices FOR ALL USING (
 
 -- 9. External systems Policies
 -- Licenses
-DROP POLICY IF EXISTS "Users can view their own licenses" ON licenses;
-DROP POLICY IF EXISTS "Admins can view all licenses" ON licenses;
-DROP POLICY IF EXISTS "Admins can manage licenses" ON licenses;
-DROP POLICY IF EXISTS "Users can update their own device_id" ON licenses;
-DROP POLICY IF EXISTS "license_access" ON licenses;
-DROP POLICY IF EXISTS "licenses_access" ON licenses;
-
 CREATE POLICY "licenses_access" ON licenses FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   auth.uid()::text = user_id::text OR
@@ -586,12 +547,6 @@ CREATE POLICY "licenses_access" ON licenses FOR ALL USING (
 );
 
 -- Payment Requests 
-DROP POLICY IF EXISTS "Users can create their own payment requests" ON payment_requests;
-DROP POLICY IF EXISTS "Users can view their own payment requests" ON payment_requests;
-DROP POLICY IF EXISTS "Admins can view all payment requests" ON payment_requests;
-DROP POLICY IF EXISTS "Admins can update payment requests" ON payment_requests;
-DROP POLICY IF EXISTS "payment_requests_access" ON payment_requests;
-
 CREATE POLICY "payment_requests_access" ON payment_requests FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
