@@ -2550,18 +2550,14 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const inviteeEmail = shareWithEmail.toLowerCase().trim();
     if (inviteeEmail === myEmail) throw new Error('You cannot invite yourself ❌');
 
-    // 2. Check if Invitee exists and is verified
-    const { data: profile, error: profileError } = await supabase
+    // 2. Check if Invitee already has a profile (optional)
+    const { data: profile } = await supabase
       .from('profiles')
       .select('id, is_verified')
       .eq('email', inviteeEmail)
       .maybeSingle();
 
-    if (profileError) throw profileError;
-    if (!profile) throw new Error(`User "${inviteeEmail}" does not have a Bugzy account yet ❌`);
-    if (!profile.is_verified) throw new Error(`User "${inviteeEmail}" exists but is not yet verified 🛡️`);
-
-    // 3. Check for existing invite
+    // 3. Check for existing pending invite
     const { data: existingInvite } = await supabase
       .from('company_invites')
       .select('id')
@@ -2577,7 +2573,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       .from('company_members')
       .select('id')
       .eq('company_id', companyId)
-      .eq('user_id', profile.id)
+      .filter('user_email', 'eq', inviteeEmail)
       .maybeSingle();
 
     if (existingMember) throw new Error('User is already a member of this company ✅');
