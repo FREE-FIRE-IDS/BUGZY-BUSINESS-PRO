@@ -391,6 +391,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (currentCompany) {
+      // Clear data immediately when switching companies to prevent leakage
+      setParties([]);
+      setBanks([]);
+      setItems([]);
+      setTransactions([]);
+      setInvoices([]);
+      
       localStorage.setItem('currentCompany', JSON.stringify(currentCompany));
       // Trigger data pull when company changes
       refreshData(undefined, true);
@@ -888,7 +895,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 // Hard fallback for specific common missing columns if regex fails
-                const commonProblems = ['opening_stock', 'unit', 'category'];
+                const commonProblems = ['opening_stock', 'unit', 'category', 'price', 'quantity'];
                 for (const col of commonProblems) {
                     if (err.message.includes(col)) {
                         console.warn(`[Sync Robustness] Manually stripping "${col}" and retrying...`);

@@ -428,7 +428,7 @@ BEGIN
   RETURN QUERY
   SELECT 
     i.id, i.company_id, i.invited_email, i.invited_by, i.status, i.created_at, i.updated_at,
-    to_jsonb(c.*) as companies
+    pg_catalog.to_jsonb(c.*) as companies
   FROM public.company_invites i
   JOIN public.companies c ON i.company_id = c.id
   WHERE LOWER(i.invited_email) = LOWER(req_email) AND i.status = 'pending';
@@ -465,7 +465,7 @@ BEGIN
     RAISE EXCEPTION 'Table not allowed';
   END IF;
 
-  RETURN QUERY EXECUTE format('SELECT to_jsonb(t.*) FROM public.%I t WHERE company_id = %L', req_table, req_company_id);
+  RETURN QUERY EXECUTE format('SELECT pg_catalog.to_jsonb(t.*) FROM public.%I t WHERE company_id = %L', req_table, req_company_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
@@ -503,10 +503,10 @@ BEGIN
   IF jsonb_typeof(req_payload) = 'array' THEN
     FOR v_item IN SELECT jsonb_array_elements(req_payload) LOOP
       EXECUTE format(
-        'INSERT INTO public.%I SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
+        'INSERT INTO public.%I t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
         'ON CONFLICT (id) DO UPDATE SET ' ||
         '( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
-        'RETURNING to_jsonb(*)',
+        'RETURNING pg_catalog.to_jsonb(t.*)',
         req_table, req_table, v_item,
         (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),
         (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),
@@ -516,10 +516,10 @@ BEGIN
     v_result := '{"status": "success", "message": "Bulk upsert complete"}'::jsonb;
   ELSE
     EXECUTE format(
-      'INSERT INTO public.%I SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
+      'INSERT INTO public.%I t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
       'ON CONFLICT (id) DO UPDATE SET ' ||
       '( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
-      'RETURNING to_jsonb(*)',
+      'RETURNING pg_catalog.to_jsonb(t.*)',
       req_table, req_table, req_payload,
       (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),
       (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),

@@ -27,7 +27,8 @@ import { generatePartyStatement } from '../lib/pdfGenerator';
 export default function Parties() {
   const { parties, transactions, invoices, addParty, updateParty, deleteParty, addTransaction, updateTransaction, deleteTransaction, settings, banks, currentCompany, setSelectedPartyId, isLicensed, getPartyBalance, isSharedCompany, isAdmin } = useApp();
   const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
-  const canModify = !isShared || isAdmin;
+  // Enable editing for all members (shared or owner)
+  const canModify = true; 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [amountFilter, setAmountFilter] = useState<'all' | 'positive' | 'negative'>('all');
@@ -56,12 +57,15 @@ export default function Parties() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [editingParty, setEditingParty] = useState<Party | null>(null);
+  const [isDebit, setIsDebit] = useState(true);
 
   React.useEffect(() => {
-    const handleAdd = () => setIsAddModalOpen(true);
-    window.addEventListener('add-party', handleAdd);
-    return () => window.removeEventListener('add-party', handleAdd);
-  }, []);
+    if (editingParty) {
+      setIsDebit((editingParty.opening_balance || 0) >= 0);
+    } else {
+      setIsDebit(true);
+    }
+  }, [editingParty, isAddModalOpen]);
 
   const filteredParties = useMemo(() => {
     if (!Array.isArray(parties)) return [];
@@ -202,21 +206,44 @@ export default function Parties() {
                 </div>
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-2">
               <button 
                 onClick={() => { setEditingParty(currentSelectedParty); setIsAddModalOpen(true); }}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 border border-slate-100 rounded-xl hover:bg-slate-100 transition-all text-sm font-bold"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-slate-50 text-slate-600 border border-slate-100 rounded-xl hover:bg-slate-100 transition-all text-xs sm:text-sm font-bold"
               >
                 <FileText size={18} />
                 Edit
               </button>
-              <button 
-                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
-                className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold"
-              >
-                <Plus size={18} />
-                New Transaction
-              </button>
+              <div className="flex bg-slate-50 dark:bg-slate-800 p-1 rounded-xl border border-slate-100 dark:border-slate-700">
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all shadow-sm text-[10px] font-black uppercase"
+                >
+                  <ArrowDownLeft size={14} />
+                  Receive
+                </button>
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment Out' }))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-all shadow-sm text-[10px] font-black uppercase ml-1"
+                >
+                  <ArrowUpRight size={14} />
+                  Pay
+                </button>
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Sale' }))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all shadow-sm text-[10px] font-black uppercase ml-1 sm:inline-flex hidden"
+                >
+                  <Plus size={14} />
+                  Sale
+                </button>
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Purchase' }))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all shadow-sm text-[10px] font-black uppercase ml-1 sm:inline-flex hidden"
+                >
+                  <Plus size={14} />
+                  Buy
+                </button>
+              </div>
             </div>
           </div>
 
@@ -332,8 +359,7 @@ export default function Parties() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         {tx.id !== 'opening' && tx.source === 'transaction' && (
-                <div className="flex justify-end gap-2">
-                  {!isShared && (
+                  <div className="flex justify-end gap-2">
                     <button 
                       onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))}
                       className="flex items-center gap-1 px-2 py-1 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors text-xs font-bold"
@@ -341,16 +367,13 @@ export default function Parties() {
                       <FileText size={14} />
                       Edit
                     </button>
-                  )}
-                  {!isShared && (
                     <button 
                       onClick={() => deleteTransaction(tx.id)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
                     >
                       <Trash2 size={14} />
                     </button>
-                  )}
-                </div>
+                  </div>
                         )}
                       </td>
                     </tr>
@@ -672,6 +695,9 @@ export default function Parties() {
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
+                const rawOpeningBalance = Number(formData.get('opening_balance')) || 0;
+                const opening_balance = isDebit ? Math.abs(rawOpeningBalance) : -Math.abs(rawOpeningBalance);
+                
                 const partyData = {
                   company_id: currentCompany?.id,
                   name: formData.get('name') as string,
@@ -679,8 +705,8 @@ export default function Parties() {
                   email: formData.get('email') as string,
                   address: formData.get('address') as string,
                   type: formData.get('type') as any,
-                  opening_balance: Number(formData.get('opening_balance')) || 0,
-                  balance: Number(formData.get('opening_balance')) || 0,
+                  opening_balance,
+                  balance: opening_balance,
                 };
 
                 if (editingParty) {
@@ -718,9 +744,40 @@ export default function Parties() {
                       ))}
                     </datalist>
                   </div>
-                  <div>
+                  <div className="col-span-2 sm:col-span-1">
                     <label className="block text-sm font-medium text-slate-500 mb-1">Opening Balance</label>
-                    <input name="opening_balance" type="number" defaultValue={editingParty?.opening_balance} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
+                    <div className="flex gap-2">
+                       <input 
+                         name="opening_balance" 
+                         type="number" 
+                         step="0.01"
+                         defaultValue={Math.abs(editingParty?.opening_balance || 0)} 
+                         className="flex-1 p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 font-bold" 
+                         placeholder="0.00" 
+                       />
+                       <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => setIsDebit(true)}
+                            className={cn(
+                              "px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all",
+                              isDebit ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400"
+                            )}
+                          >
+                            DR
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsDebit(false)}
+                            className={cn(
+                              "px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all",
+                              !isDebit ? "bg-rose-600 text-white shadow-sm" : "text-slate-400"
+                            )}
+                          >
+                            CR
+                          </button>
+                       </div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">

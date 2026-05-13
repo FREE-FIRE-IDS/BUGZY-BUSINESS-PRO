@@ -45,7 +45,8 @@ const DrCrToggle = ({ enabled, onToggle }: { enabled: boolean, onToggle: (val: b
 export default function Banks() {
   const { banks, transactions, invoices, addBank, updateBank, deleteBank, addTransaction, updateTransaction, deleteTransaction, settings, updateSettings, parties, currentCompany, setSelectedBankId, refreshData, getBankBalance, isSharedCompany, isAdmin } = useApp();
   const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
-  const canModify = !isShared || isAdmin;
+  // Enable editing for all members (shared or owner)
+  const canModify = true; 
   const [isSyncing, setIsSyncing] = useState(false);
 
   const handleSync = async () => {
@@ -95,15 +96,17 @@ export default function Banks() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingBank, setEditingBank] = useState<Bank | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
-
-  React.useEffect(() => {
-    const handleAdd = () => setIsAddModalOpen(true);
-    window.addEventListener('add-bank', handleAdd);
-    return () => window.removeEventListener('add-bank', handleAdd);
-  }, []);
-
+  const [isDebit, setIsDebit] = useState(true);
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [showCashTransactions, setShowCashTransactions] = useState(false);
+
+  React.useEffect(() => {
+    if (editingBank) {
+      setIsDebit((editingBank.opening_balance || 0) >= 0);
+    } else {
+      setIsDebit(true);
+    }
+  }, [editingBank, isAddModalOpen, isEditModalOpen]);
 
   const cashTransactions = useMemo(() => {
     const txs = transactions.filter(t => {
@@ -415,7 +418,7 @@ export default function Banks() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 md:gap-3">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3">
               <div className="flex items-center gap-2 mr-2">
                 <button 
                   onClick={handleSync}
@@ -433,35 +436,36 @@ export default function Banks() {
                   onToggle={(val) => updateSettings({ show_dr_cr: val })} 
                 />
               </div>
-              <div className="grid grid-cols-2 md:flex gap-2 md:gap-3">
-              {!isShared && (
+              <div className="grid grid-cols-2 lg:flex gap-2 md:gap-3 w-full lg:w-auto">
                 <button 
                   onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Deposit' }))}
-                  className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold text-sm"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold text-[10px] uppercase"
                 >
                   <ArrowDownLeft size={16} />
-                  Cash Receive
+                  Receive Cash
                 </button>
-              )}
-              {!isShared && (
                 <button 
                   onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Withdraw' }))}
-                  className="flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 font-bold text-sm"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 font-bold text-[10px] uppercase"
                 >
                   <ArrowUpRight size={16} />
                   Cash Paid
                 </button>
-              )}
-              {!isShared && (
                 <button 
                   onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Bank To Bank' }))}
-                  className="col-span-2 md:col-auto flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold text-sm"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 font-bold text-[10px] uppercase"
                 >
                   <ArrowLeftRight size={16} />
-                  Transfer
+                  Bank Transfer
                 </button>
-              )}
-            </div>
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Adjust Bank' }))}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all font-bold text-[10px] uppercase"
+                >
+                  <RefreshCw size={16} />
+                  Adjust
+                </button>
+              </div>
           </div>
         </div>
 
@@ -585,7 +589,7 @@ export default function Banks() {
                          tx.to_bank_id === selectedBank.id ? formatCurrency(tx.amount, settings.currency) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {tx.id !== 'opening' && !isShared && (
+                        {tx.id !== 'opening' && (
                           <div className="flex justify-end gap-2">
                           <button 
                             onClick={() => handleEditTx(tx)}
@@ -900,12 +904,15 @@ export default function Banks() {
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
+                const rawOpeningBalance = Number(formData.get('opening_balance')) || 0;
+                const opening_balance = isDebit ? Math.abs(rawOpeningBalance) : -Math.abs(rawOpeningBalance);
+                
                 addBank({
                   company_id: currentCompany?.id,
                   name: formData.get('name') as string,
                   account_number: formData.get('account_number') as string,
-                  opening_balance: Number(formData.get('opening_balance')) || 0,
-                  balance: Number(formData.get('opening_balance')) || 0,
+                  opening_balance,
+                  balance: opening_balance,
                 });
                 setIsAddModalOpen(false);
               }}>
@@ -918,9 +925,40 @@ export default function Banks() {
                     <label className="block text-sm font-medium text-slate-500 mb-1">Account Number</label>
                     <input name="account_number" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. 1234567890" />
                   </div>
-                  <div>
+                  <div className="col-span-2 sm:col-span-1">
                     <label className="block text-sm font-medium text-slate-500 mb-1">Opening Balance</label>
-                    <input name="opening_balance" type="number" className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
+                    <div className="flex gap-2">
+                       <input 
+                         name="opening_balance" 
+                         type="number" 
+                         step="0.01"
+                         defaultValue={0} 
+                         className="flex-1 p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 font-bold" 
+                         placeholder="0.00" 
+                       />
+                       <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => setIsDebit(true)}
+                            className={cn(
+                              "px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all",
+                              isDebit ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400"
+                            )}
+                          >
+                            DR
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsDebit(false)}
+                            className={cn(
+                              "px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all",
+                              !isDebit ? "bg-rose-600 text-white shadow-sm" : "text-slate-400"
+                            )}
+                          >
+                            CR
+                          </button>
+                       </div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
@@ -943,11 +981,14 @@ export default function Banks() {
               <form className="p-8 space-y-6" onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
+                const rawOpeningBalance = Number(formData.get('opening_balance')) || 0;
+                const opening_balance = isDebit ? Math.abs(rawOpeningBalance) : -Math.abs(rawOpeningBalance);
+                
                 updateBank(editingBank.id, {
                   name: formData.get('name') as string,
                   account_number: formData.get('account_number') as string,
-                  opening_balance: Number(formData.get('opening_balance')) || 0,
-                  balance: Number(formData.get('opening_balance')) || 0,
+                  opening_balance,
+                  balance: opening_balance,
                 });
                 setIsEditModalOpen(false);
               }}>
@@ -960,9 +1001,40 @@ export default function Banks() {
                     <label className="block text-sm font-medium text-slate-500 mb-1">Account Number</label>
                     <input name="account_number" defaultValue={editingBank.account_number} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
-                  <div>
+                  <div className="col-span-2 sm:col-span-1">
                     <label className="block text-sm font-medium text-slate-500 mb-1">Opening Balance</label>
-                    <input name="opening_balance" type="number" defaultValue={editingBank.opening_balance} className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <div className="flex gap-2">
+                       <input 
+                         name="opening_balance" 
+                         type="number" 
+                         step="0.01"
+                         defaultValue={Math.abs(editingBank.opening_balance || 0)} 
+                         className="flex-1 p-3 rounded-xl border border-slate-200 dark:border-slate-200 dark:bg-white outline-none focus:ring-2 focus:ring-indigo-500 font-bold" 
+                         placeholder="0.00" 
+                       />
+                       <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => setIsDebit(true)}
+                            className={cn(
+                              "px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all",
+                              isDebit ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400"
+                            )}
+                          >
+                            DR
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsDebit(false)}
+                            className={cn(
+                              "px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all",
+                              !isDebit ? "bg-rose-600 text-white shadow-sm" : "text-slate-400"
+                            )}
+                          >
+                            CR
+                          </button>
+                       </div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
