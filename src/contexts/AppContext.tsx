@@ -2384,28 +2384,50 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     console.log(`[Sync] Quick-verifying email: ${normalizedEmail}`);
     
     try {
-      // 1. Mark as verified in settings immediately
+      // 1. Mark as verified in settings
       updateSettings({ 
         user_email: normalizedEmail, 
         sync_enabled: true, 
         is_verified: true 
       });
 
-      // 2. Start initial sync in background
+      // 2. CRITICAL: Migrate local session to email session to prevent "Login Page" redirect
+      const oldUser = currentUser;
+      const newUser = normalizedEmail.split('@')[0] || normalizedEmail; 
+      
+      if (oldUser && oldUser !== newUser) {
+        // Copy current local companies to the new email-based key in localStorage
+        const localData = localStorage.getItem(`companies_${oldUser}`);
+        if (localData) {
+          localStorage.setItem(`companies_${newUser}`, localData);
+        }
+        
+        const localCurrent = localStorage.getItem(`currentCompany_${oldUser}`);
+        if (localCurrent) {
+          localStorage.setItem(`currentCompany_${newUser}`, localCurrent);
+        }
+
+        // Switch context
+        setCurrentUser(newUser);
+        localStorage.setItem('currentUser', newUser);
+      } else if (!oldUser) {
+        setCurrentUser(newUser);
+        localStorage.setItem('currentUser', newUser);
+      }
+
+      // 3. Start background sync
       refreshData(normalizedEmail, true).catch(e => console.error('Quick sync error:', e));
       fetchInvitations(normalizedEmail).catch(e => console.error('Quick fetch invites error:', e));
       
-      // 3. Attempt a background sign-in with OTP just to have it available in email if they want it
-      // But we don't wait for it and we don't ask the user for the code anymore
+      // 4. Silent background sign-in attempt (optional, doesn't block)
       supabase.auth.signInWithOtp({ 
         email: normalizedEmail,
         options: { shouldCreateUser: true }
-      }).catch(e => console.log('Silent background login initiated:', normalizedEmail));
+      }).catch(() => {});
 
       return true;
     } catch (err: any) {
       console.error('[Quick Verify Error]', err);
-      // Even if background tasks fail, we've already updated settings to proceed
       return true;
     }
   };
