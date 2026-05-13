@@ -77,6 +77,7 @@ interface AppContextType {
   shareCompany: (companyId: string, shareWithEmail: string) => Promise<void>;
   revokeCompanyAccess: (companyId: string, sharedEmail: string) => Promise<void>;
   getSharedCompanies: () => Promise<Company[]>;
+  addTransactions: (txs: Omit<Transaction, 'id' | 'created_at'>[]) => Promise<void>;
   invitations: any[];
   fetchInvitations: () => Promise<void>;
   updateInvitationStatus: (inviteId: string, status: 'accepted' | 'rejected') => Promise<void>;
@@ -158,6 +159,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   
+  const currentCompanyIdRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    currentCompanyIdRef.current = currentCompany?.id || null;
+  }, [currentCompany]);
+
   // Load data when user or company changes
   useEffect(() => {
     if (!currentUser) {
@@ -663,7 +670,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const { merged, toUpload } = mergeData<any>(localData, (data as any[]) || []);
             
             localStorage.setItem(localKey, JSON.stringify(merged));
-            if (comp.id === activeCompany?.id) {
+            if (comp.id === currentCompanyIdRef.current) {
               isInternalUpdate.current = true;
               setter(merged.filter(i => {
                   if (!i) return false;
@@ -690,15 +697,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ]);
       };
 
+      // 3. Sync individual companies sequentially to prevent network saturation and state races
       if (activeCompany) {
           await syncOneCompany(activeCompany);
+          hasInitialSynced.current[activeCompany.id] = true;
       }
-      otherCompanies.forEach(comp => syncOneCompany(comp));
-
-      // 3. Fetch Invitations
+      
+      // Sync others in background without awaiting, but sequentially to be gentle
+      const syncOthers = async () => {
+        for (const comp of otherCompanies) {
+          if (!comp || comp.id === activeCompany?.id) continue;
+          await syncOneCompany(comp);
+          hasInitialSynced.current[comp.id] = true;
+        }
+      };
+      
+      syncOthers().catch(console.error);
       fetchInvitations().catch(console.error);
 
-      hasInitialSynced.current[activeCompany?.id || ''] = true;
       setSyncStatus({ loading: false, error: null, success: 'Synced' });
     } catch (error: any) {
       console.error('Sync error:', error);
@@ -835,12 +851,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Sanitize data: replace empty strings with null for date fields and strip local metadata
         const sanitize = (obj: any) => {
           const sanitized = { ...obj };
-          if (dbTable === 'transactions' && sanitized.category) {
-            sanitized.description = sanitized.description 
-              ? `[${sanitized.category}] ${sanitized.description}`
-              : `[${sanitized.category}]`;
-            delete sanitized.category;
-          }
           Object.keys(sanitized).forEach(key => {
             // Strip local metadata starting with _ (like _synced)
             if (key.startsWith('_')) {
@@ -1171,91 +1181,114 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     return () => clearTimeout(timer);
   }, [transactions, parties, banks, items, invoices, currentCompany?.id]);
 
+  const isRecalculating = React.useRef(false);
+
   const recalculateBalances = async (allTransactions: Transaction[], allParties: Party[], allBanks: BankAccount[], allItems: Item[], allInvoices: Invoice[]) => {
-    if (!currentCompany) return;
+    if (!currentCompany || isRecalculating.current) return;
+    
+    isRecalculating.current = true;
+    try {
+      const partyBalances: Record<string, number> = {};
+      const bankBalances: Record<string, number> = {};
+      const itemStock: Record<string, number> = {};
 
-    const partyBalances: Record<string, number> = {};
-    const bankBalances: Record<string, number> = {};
-    const itemStock: Record<string, number> = {};
+      allParties.forEach(p => partyBalances[p.id] = p.opening_balance || 0);
+      allBanks.forEach(b => bankBalances[b.id] = b.opening_balance || 0);
+      allItems.forEach(i => itemStock[i.id] = i.opening_stock || 0);
 
-    allParties.forEach(p => partyBalances[p.id] = p.opening_balance || 0);
-    allBanks.forEach(b => bankBalances[b.id] = b.opening_balance || 0);
-    allItems.forEach(i => itemStock[i.id] = i.opening_stock || 0);
+      // 1. Process Invoices
+      allInvoices.forEach(inv => {
+        if (!inv || inv.deleted_at) return;
+        if (inv.party_id && partyBalances[inv.party_id] !== undefined) {
+          if (inv.type === 'Sale') partyBalances[inv.party_id] += (inv.total || 0);
+          if (inv.type === 'Purchase') partyBalances[inv.party_id] -= (inv.total || 0);
+        }
+        
+        if (inv.status === 'Paid' && inv.payment_type === 'Bank' && inv.bank_id && bankBalances[inv.bank_id] !== undefined) {
+          if (inv.type === 'Sale') bankBalances[inv.bank_id] += (inv.total || 0);
+          if (inv.type === 'Purchase') bankBalances[inv.bank_id] -= (inv.total || 0);
+        }
+        
+        if (inv.items) {
+          inv.items.forEach(item => {
+            if (item.item_id && itemStock[item.item_id] !== undefined) {
+              if (inv.type === 'Sale') itemStock[item.item_id] -= (item.quantity || 0);
+              if (inv.type === 'Purchase') itemStock[item.item_id] += (item.quantity || 0);
+            }
+          });
+        }
+      });
 
-    // 1. Process Invoices
-    allInvoices.forEach(inv => {
-      if (inv.party_id && partyBalances[inv.party_id] !== undefined) {
-        if (inv.type === 'Sale') partyBalances[inv.party_id] += inv.total;
-        if (inv.type === 'Purchase') partyBalances[inv.party_id] -= inv.total;
-      }
+      // 2. Process Transactions (Sort once)
+      const sortedTxs = [...allTransactions].filter(t => t && !t.deleted_at).sort((a, b) => a.date.localeCompare(b.date));
       
-      if (inv.status === 'Paid' && inv.payment_type === 'Bank' && inv.bank_id && bankBalances[inv.bank_id] !== undefined) {
-        if (inv.type === 'Sale') bankBalances[inv.bank_id] += inv.total;
-        if (inv.type === 'Purchase') bankBalances[inv.bank_id] -= inv.total;
-      }
-      
-      if (inv.items) {
-        inv.items.forEach(item => {
-          if (item.item_id && itemStock[item.item_id] !== undefined) {
-            if (inv.type === 'Sale') itemStock[item.item_id] -= item.quantity;
-            if (inv.type === 'Purchase') itemStock[item.item_id] += item.quantity;
+      sortedTxs.forEach(tx => {
+        if (tx.party_id && partyBalances[tx.party_id] !== undefined) {
+          if (tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Bank To Party') partyBalances[tx.party_id] += (tx.amount || 0);
+          if (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Party' || tx.type === 'Party To Bank' || tx.type === 'Party To Cash') partyBalances[tx.party_id] -= (tx.amount || 0);
+        }
+        if (tx.to_party_id && partyBalances[tx.to_party_id] !== undefined) {
+          partyBalances[tx.to_party_id] += (tx.amount || 0);
+        }
+
+        if (tx.bank_id && bankBalances[tx.bank_id] !== undefined) {
+          const isBankIn = ['Deposit', 'Cash Deposit', 'Payment In', 'Sale', 'Party To Bank', 'Cash To Bank', 'Bank To Bank'].includes(tx.type);
+          const isBankOut = ['Withdraw', 'Cash Withdraw', 'Payment Out', 'Expense', 'Bank To Party', 'Bank To Cash'].includes(tx.type);
+          
+          // Special case for Bank To Bank: bank_id is source (out), to_bank_id is dest (in)
+          if (tx.type === 'Bank To Bank') {
+             bankBalances[tx.bank_id] -= (tx.amount || 0);
+          } else if (isBankIn) {
+             bankBalances[tx.bank_id] += (tx.amount || 0);
+          } else if (isBankOut) {
+             bankBalances[tx.bank_id] -= (tx.amount || 0);
           }
-        });
+        }
+        if (tx.to_bank_id && bankBalances[tx.to_bank_id] !== undefined) {
+          bankBalances[tx.to_bank_id] += (tx.amount || 0);
+        }
+
+        if (tx.item_id && tx.quantity && itemStock[tx.item_id] !== undefined) {
+          if (tx.type === 'Sale' || tx.type === 'Stock Out') itemStock[tx.item_id] -= (tx.quantity || 0);
+          if (tx.type === 'Purchase' || tx.type === 'Stock In') itemStock[tx.item_id] += (tx.quantity || 0);
+        }
+      });
+
+      const updatedParties = allParties.map(p => ({ ...p, balance: partyBalances[p.id] || 0 }));
+      const updatedBanks = allBanks.map(b => ({ ...b, balance: bankBalances[b.id] || 0 }));
+      const updatedItems = allItems.map(i => ({ ...i, stock: itemStock[i.id] || 0 }));
+
+      // Update state if anything changed
+      const anyPartyChanged = updatedParties.some((p, idx) => p.balance !== allParties[idx]?.balance);
+      const anyBankChanged = updatedBanks.some((b, idx) => b.balance !== allBanks[idx]?.balance);
+      const anyItemChanged = updatedItems.some((i, idx) => i.stock !== allItems[idx]?.stock);
+
+      if (anyPartyChanged) setParties(updatedParties);
+      if (anyBankChanged) setBanks(updatedBanks);
+      if (anyItemChanged) setItems(updatedItems);
+
+      if (anyPartyChanged || anyBankChanged || anyItemChanged) {
+        localStorage.setItem(`parties_${currentCompany.id}`, JSON.stringify(updatedParties));
+        localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(updatedBanks));
+        localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(updatedItems));
+
+        if (settings.sync_enabled && !isInternalUpdate.current && !syncStatus.loading) {
+          if (anyPartyChanged) updatedParties.forEach(p => {
+             const old = allParties.find(op => op.id === p.id);
+             if (old && old.balance !== p.balance) syncToCloud('parties', p, false, currentCompany.id);
+          });
+          if (anyBankChanged) updatedBanks.forEach(b => {
+             const old = allBanks.find(ob => ob.id === b.id);
+             if (old && old.balance !== b.balance) syncToCloud('banks', b, false, currentCompany.id);
+          });
+          if (anyItemChanged) updatedItems.forEach(i => {
+             const old = allItems.find(oi => oi.id === i.id);
+             if (old && old.stock !== i.stock) syncToCloud('inventory', i, false, currentCompany.id);
+          });
+        }
       }
-    });
-
-    // 2. Process Transactions
-    [...allTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach(tx => {
-      if (tx.party_id && partyBalances[tx.party_id] !== undefined) {
-        if (tx.type === 'Payment In' || tx.type === 'Sale') partyBalances[tx.party_id] += tx.amount;
-        if (tx.type === 'Payment Out' || tx.type === 'Purchase' || tx.type === 'Expense' || tx.type === 'Party To Party' || tx.type === 'Party To Bank') partyBalances[tx.party_id] -= tx.amount;
-        if (tx.type === 'Bank To Party') partyBalances[tx.party_id] += tx.amount;
-      }
-      if (tx.to_party_id && partyBalances[tx.to_party_id] !== undefined) {
-        partyBalances[tx.to_party_id] += tx.amount;
-      }
-
-      if (tx.bank_id && bankBalances[tx.bank_id] !== undefined) {
-        if (tx.type === 'Deposit' || tx.type === 'Cash Deposit' || tx.type === 'Payment In' || tx.type === 'Sale' || tx.type === 'Party To Bank' || tx.type === 'Cash To Bank') bankBalances[tx.bank_id] += tx.amount;
-        if (tx.type === 'Withdraw' || tx.type === 'Cash Withdraw' || tx.type === 'Payment Out' || tx.type === 'Expense' || tx.type === 'Bank To Bank' || tx.type === 'Bank To Party' || tx.type === 'Bank To Cash') bankBalances[tx.bank_id] -= tx.amount;
-      }
-      if (tx.to_bank_id && bankBalances[tx.to_bank_id] !== undefined) {
-        bankBalances[tx.to_bank_id] += tx.amount;
-      }
-
-      if (tx.item_id && tx.quantity && itemStock[tx.item_id] !== undefined) {
-        if (tx.type === 'Sale' || tx.type === 'Stock Out') itemStock[tx.item_id] -= tx.quantity;
-        if (tx.type === 'Purchase' || tx.type === 'Stock In') itemStock[tx.item_id] += tx.quantity;
-      }
-    });
-
-    const updatedParties = allParties.map(p => ({ ...p, balance: partyBalances[p.id] }));
-    const updatedBanks = allBanks.map(b => ({ ...b, balance: bankBalances[b.id] }));
-    const updatedItems = allItems.map(i => ({ ...i, stock: itemStock[i.id] }));
-
-    // Only sync if values actually changed to save API calls
-    const changedParties = updatedParties.filter((p, idx) => p.balance !== allParties[idx].balance);
-    const changedBanks = updatedBanks.filter((b, idx) => b.balance !== allBanks[idx].balance);
-    const changedItems = updatedItems.filter((i, idx) => i.stock !== allItems[idx].stock);
-
-    setParties(updatedParties);
-    setBanks(updatedBanks);
-    setItems(updatedItems);
-
-    localStorage.setItem(`parties_${currentCompany.id}`, JSON.stringify(updatedParties));
-    localStorage.setItem(`banks_${currentCompany.id}`, JSON.stringify(updatedBanks));
-    localStorage.setItem(`items_${currentCompany.id}`, JSON.stringify(updatedItems));
-
-    // Only sync if there are actual changes and we're not in the middle of an internal update
-    if (settings.sync_enabled && !isInternalUpdate.current && !syncStatus.loading) {
-      const partiesToSync = changedParties.map(p => syncToCloud('parties', p));
-      const banksToSync = changedBanks.map(b => syncToCloud('banks', b));
-      const itemsToSync = changedItems.map(i => syncToCloud('items', i));
-
-      if (partiesToSync.length > 0 || banksToSync.length > 0 || itemsToSync.length > 0) {
-        Promise.all([...partiesToSync, ...banksToSync, ...itemsToSync])
-          .catch(err => console.error('Recalculate Sync Error:', err));
-      }
+    } finally {
+      isRecalculating.current = false;
     }
   };
 
@@ -1274,19 +1307,48 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       created_at: now,
       updated_at: now,
     };
-    const updated = [newTx, ...transactions];
     
-    // Instant UI Update
-    setTransactions(updated);
-    localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
+    // Instant UI Update with functional setter to prevent race conditions
+    setTransactions(prev => {
+      const updated = [newTx, ...prev];
+      localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
+      recalculateBalances(updated, parties, banks, items, invoices);
+      return updated;
+    });
     
     // Background Sync
     if (settings.sync_enabled) {
       syncToCloud('transactions', newTx, true).catch(err => console.error('Add Transaction Sync Error:', err));
     }
+  };
+
+  const addTransactions = async (txs: Omit<Transaction, 'id' | 'created_at'>[]) => {
+    if (!currentCompany || txs.length === 0) return;
+
+    if (isTrialExpired) {
+      alert('Package Expired! Please upgrade to Pro ❌');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const newTxs: Transaction[] = txs.map(tx => ({
+      ...tx,
+      id: crypto.randomUUID(),
+      created_at: now,
+      updated_at: now,
+    }));
     
-    // Recalculate balances (also optimistic)
-    await recalculateBalances(updated, parties, banks, items, invoices);
+    setTransactions(prev => {
+      const updated = [...newTxs, ...prev];
+      localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
+      recalculateBalances(updated, parties, banks, items, invoices);
+      return updated;
+    });
+
+    if (settings.sync_enabled) {
+      // Small delay for cloud sync to not overwhelm
+      syncToCloud('transactions', newTxs, true).catch(err => console.error('Bulk Sync Error:', err));
+    }
   };
 
   const updateTransaction = async (id: string, tx: Partial<Transaction>) => {

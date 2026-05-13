@@ -26,7 +26,7 @@ interface jsPDFWithAutoTable extends jsPDF {
 }
 
 export default function Expenses() {
-  const { transactions, addTransaction, updateTransaction, deleteTransaction, settings, banks, parties, currentCompany, items, isSharedCompany, isAdmin } = useApp();
+  const { transactions, addTransaction, addTransactions, updateTransaction, deleteTransaction, settings, banks, parties, currentCompany, items, isSharedCompany, isAdmin } = useApp();
   const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
   // Enable editing for all members
   const canModify = true;
@@ -50,7 +50,9 @@ export default function Expenses() {
     price?: number;
   }[]>([{ description: '', category: '', amount: 0 }]);
 
-  const categories = Array.from(new Set(transactions.filter(t => t.type === 'Expense').map(t => t.category).filter(Boolean)));
+  const categories = React.useMemo(() => {
+    return Array.from(new Set(transactions.filter(t => t.type === 'Expense' && t.category).map(t => t.category as string)));
+  }, [transactions]);
 
   const handleAddExpenseItem = () => {
     setExpenseItems([...expenseItems, { description: '', category: '', amount: 0 }]);
@@ -86,30 +88,34 @@ export default function Expenses() {
     fileName: ''
   });
 
-  const expenses = transactions.filter(t => t.type === 'Expense');
-  const filteredExpenses = expenses.filter(e => {
-    const matchesSearch = e.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        e.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        e.amount.toString().includes(searchTerm);
-    
-    const matchesCategory = selectedCategory === 'All' || e.category === selectedCategory;
+  const filteredExpenses = React.useMemo(() => {
+    const expenses = transactions.filter(t => t.type === 'Expense');
+    return expenses.filter(e => {
+      const matchesSearch = (e.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                          (e.category?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                          (e.amount?.toString() || '').includes(searchTerm);
+      
+      const matchesCategory = selectedCategory === 'All' || e.category === selectedCategory;
 
-    let matchesDate = true;
-    if (dateRange === 'This Month') {
-      const date = new Date(e.date);
-      const now = new Date();
-      matchesDate = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    } else if (dateRange === '7 Days') {
-      const date = new Date(e.date);
-      const now = new Date();
-      const diff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
-      matchesDate = diff <= 7;
-    }
+      let matchesDate = true;
+      if (dateRange === 'This Month' && e.date) {
+        const date = new Date(e.date);
+        const now = new Date();
+        matchesDate = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+      } else if (dateRange === '7 Days' && e.date) {
+        const date = new Date(e.date);
+        const now = new Date();
+        const diff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
+        matchesDate = diff <= 7;
+      }
 
-    return matchesSearch && matchesDate && matchesCategory;
-  });
+      return matchesSearch && matchesDate && matchesCategory;
+    });
+  }, [transactions, searchTerm, selectedCategory, dateRange]);
 
-  const totalFilteredExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalFilteredExpenses = React.useMemo(() => {
+    return filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+  }, [filteredExpenses]);
 
   const exportPDF = () => {
     const doc = new jsPDF() as jsPDFWithAutoTable;
@@ -449,24 +455,26 @@ export default function Expenses() {
                 const date = dateStr ? new Date(dateStr).toISOString() : new Date().toISOString();
                 
                 // Add each item as a transaction
-                expenseItems.forEach(item => {
-                  if (item.amount > 0) {
-                    addTransaction({
-                      company_id: currentCompany?.id,
-                      date,
-                      type: 'Expense',
-                      amount: item.amount,
-                      description: item.description,
-                      category: item.category,
-                      quantity: item.quantity,
-                      price: item.price,
-                      unit: item.unit,
-                      payment_type: paymentType,
-                      bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
-                      party_id: paymentType === 'Credit' ? formData.get('party_id') as string : undefined,
-                    });
-                  }
-                });
+                const transactionsToAdd = expenseItems
+                  .filter(item => item.amount > 0)
+                  .map(item => ({
+                    company_id: currentCompany?.id || '',
+                    date,
+                    type: 'Expense' as const,
+                    amount: item.amount,
+                    description: item.description,
+                    category: item.category,
+                    quantity: item.quantity,
+                    price: item.price,
+                    unit: item.unit,
+                    payment_type: paymentType,
+                    bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
+                    party_id: paymentType === 'Credit' ? formData.get('party_id') as string : undefined,
+                  }));
+
+                if (transactionsToAdd.length > 0) {
+                  addTransactions(transactionsToAdd);
+                }
                 setIsAddModalOpen(false);
               }}>
                 <div className="space-y-6">
@@ -592,7 +600,9 @@ export default function Expenses() {
                         <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Paid From (Bank Account)</label>
                         <select name="bank_id" required className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-rose-500 appearance-none transition-all">
                           <option value="">Choose bank account...</option>
-                          {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                          {banks.filter(b => b?.id).map(b => (
+                            <option key={b.id} value={b.id}>{b.name || 'Unnamed'}</option>
+                          ))}
                         </select>
                       </motion.div>
                     )}
@@ -602,7 +612,9 @@ export default function Expenses() {
                         <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Party / Creditor (To Pay Later)</label>
                         <select name="party_id" required className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-rose-500 appearance-none transition-all">
                           <option value="">Select party...</option>
-                          {parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          {parties.filter(p => p?.id).map(p => (
+                            <option key={p.id} value={p.id}>{p.name || 'Unnamed'}</option>
+                          ))}
                         </select>
                       </motion.div>
                     )}
@@ -782,7 +794,9 @@ export default function Expenses() {
                     <div>
                       <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Paid From (Bank)</label>
                       <select name="bank_id" defaultValue={editingExpense.bank_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
-                        {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        {banks.filter(b => b?.id).map(b => (
+                          <option key={b.id} value={b.id}>{b.name || 'Unnamed'}</option>
+                        ))}
                       </select>
                     </div>
                   )}
@@ -791,7 +805,9 @@ export default function Expenses() {
                       <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Party (To Pay)</label>
                       <select name="party_id" defaultValue={editingExpense.party_id} required className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="">Select Party</option>
-                        {parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {parties.filter(p => p?.id).map(p => (
+                          <option key={p.id} value={p.id}>{p.name || 'Unnamed'}</option>
+                        ))}
                       </select>
                     </div>
                   )}
