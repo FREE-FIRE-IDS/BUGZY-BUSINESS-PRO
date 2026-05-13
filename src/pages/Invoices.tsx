@@ -26,7 +26,8 @@ interface jsPDFWithAutoTable extends jsPDF {
 export default function Invoices() {
   const { invoices, addInvoice, updateInvoice, deleteInvoice, settings, parties, items, currentCompany, banks, isSharedCompany, isAdmin } = useApp();
   const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
-  const canModify = !isShared || isAdmin;
+  // Enable editing for all members
+  const canModify = true;
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -359,21 +360,15 @@ export default function Invoices() {
                   </span>
                 </div>
                 <div className="flex gap-2">
-                  {!isShared && (
                     <button onClick={() => exportInvoicePDF(invoice)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors">
                       <Download size={18} />
                     </button>
-                  )}
-                  {!isShared && (
                     <button onClick={() => handleEditInvoice(invoice)} className="p-2 text-slate-400 hover:text-emerald-600 transition-colors">
                       <Plus size={18} className="rotate-45" />
                     </button>
-                  )}
-                  {!isShared && (
                     <button onClick={() => setIsDeleteConfirmOpen(invoice.id)} className="p-2 text-slate-400 hover:text-rose-600 transition-colors">
                       <Trash2 size={18} />
                     </button>
-                  )}
                 </div>
               </div>
               <h3 className="font-bold text-lg mb-1 text-slate-900 dark:text-white">{invoice.invoice_number}</h3>

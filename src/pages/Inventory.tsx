@@ -21,7 +21,10 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function Inventory() {
-  const { items, addItem, updateItem, deleteItem, addTransaction, settings, currentCompany, isLicensed } = useApp();
+  const { items, addItem, updateItem, deleteItem, addTransaction, settings, currentCompany, isLicensed, isSharedCompany, isAdmin } = useApp();
+  const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
+  // Enable editing for all members
+  const canModify = true; 
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);

@@ -268,24 +268,20 @@ export default function Banks() {
                </div>
                
                <div className="flex gap-2">
-                 {!isShared && (
-                   <button 
-                     onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Adjustment In' }))}
-                     className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold text-xs"
-                   >
-                     <Plus size={14} />
-                     Adjust Cash
-                   </button>
-                 )}
-                 {!isShared && (
-                   <button 
-                     onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Adjustment Out' }))}
-                     className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 font-bold text-xs"
-                   >
-                     <ArrowDownLeft size={14} className="rotate-45" />
-                     Reduce Cash
-                   </button>
-                 )}
+                 <button 
+                   onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Adjustment In' }))}
+                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold text-xs"
+                 >
+                   <Plus size={14} />
+                   Adjust Cash
+                 </button>
+                 <button 
+                   onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Cash Adjustment Out' }))}
+                   className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 font-bold text-xs"
+                 >
+                   <ArrowDownLeft size={14} className="rotate-45" />
+                   Reduce Cash
+                 </button>
                </div>
 
                <div className="bg-emerald-50 dark:bg-emerald-900/20 px-6 py-2 rounded-2xl border border-emerald-100 dark:border-emerald-800 flex flex-col justify-center min-w-[120px]">
@@ -333,19 +329,19 @@ export default function Banks() {
                           {!isIncome ? formatCurrency(tx.amount, settings.currency) : '-'}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          {!(tx as any).isInvoice && !isShared && (
-                            <div className="flex justify-end gap-2">
-                              <button 
-                                onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))} 
-                                className="p-2 text-slate-400 hover:text-indigo-600"
-                              >
-                                <FileText size={16} />
-                              </button>
-                              <button onClick={() => deleteTransaction(tx.id)} className="p-2 text-slate-400 hover:text-rose-600">
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          )}
+                          {!(tx as any).isInvoice && (
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))} 
+                              className="p-2 text-slate-400 hover:text-indigo-600"
+                            >
+                              <FileText size={16} />
+                            </button>
+                            <button onClick={() => deleteTransaction(tx.id)} className="p-2 text-slate-400 hover:text-rose-600">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )}
                         </td>
                       </tr>
                     );
@@ -376,7 +372,7 @@ export default function Banks() {
                         <p className={cn("text-lg font-black", isIncome ? "text-emerald-600" : "text-rose-600")}>
                           {isIncome ? '+' : '-'}{formatCurrency(tx.amount, settings.currency)}
                         </p>
-                        {!isShared && !(tx as any).isInvoice && (
+                        {!(tx as any).isInvoice && (
                           <div className="flex gap-2">
                             <button 
                               onClick={() => window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))} 
@@ -648,22 +644,18 @@ export default function Banks() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      {!isShared && (
-                        <button 
-                          onClick={() => handleEditTx(tx)}
-                          className="p-2 text-slate-400 hover:text-indigo-600"
-                        >
-                          <Plus size={16} className="rotate-45" />
-                        </button>
-                      )}
-                      {!isShared && (
-                        <button 
-                          onClick={() => deleteTransaction(tx.id)}
-                          className="p-2 text-slate-400 hover:text-rose-600"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
+                      <button 
+                        onClick={() => handleEditTx(tx)}
+                        className="p-2 text-slate-400 hover:text-indigo-600"
+                      >
+                        <Plus size={16} className="rotate-45" />
+                      </button>
+                      <button 
+                        onClick={() => deleteTransaction(tx.id)}
+                        className="p-2 text-slate-400 hover:text-rose-600"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -820,7 +812,6 @@ export default function Banks() {
                     </div>
                   </div>
                 <div className="flex gap-2">
-                  {!isShared && (
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -830,8 +821,6 @@ export default function Banks() {
                     >
                       <Plus size={16} className="rotate-45" />
                     </button>
-                  )}
-                  {!isShared && (
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -841,7 +830,6 @@ export default function Banks() {
                     >
                       <Trash2 size={16} />
                     </button>
-                  )}
                 </div>
                 </div>
               </motion.div>

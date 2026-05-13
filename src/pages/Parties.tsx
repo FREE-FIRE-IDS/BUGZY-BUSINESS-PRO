@@ -414,22 +414,18 @@ export default function Parties() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      {!isShared && (
-                        <button 
-                          onClick={() => tx.source === 'transaction' && window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))}
-                          className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg"
-                        >
-                          <FileText size={16} />
-                        </button>
-                      )}
-                      {!isShared && (
-                        <button 
-                          onClick={() => tx.source === 'transaction' && deleteTransaction(tx.id)}
-                          className="p-2 text-slate-400 hover:text-rose-600"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
+                      <button 
+                        onClick={() => tx.source === 'transaction' && window.dispatchEvent(new CustomEvent('open-tx', { detail: tx }))}
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg"
+                      >
+                        <FileText size={16} />
+                      </button>
+                      <button 
+                        onClick={() => tx.source === 'transaction' && deleteTransaction(tx.id)}
+                        className="p-2 text-slate-400 hover:text-rose-600"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -604,22 +600,18 @@ export default function Parties() {
                 </div>
                 <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-end items-center">
                   <div className="flex gap-2">
-                    {!isShared && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setEditingParty(party); setIsAddModalOpen(true); }}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
-                      >
-                        <FileText size={16} />
-                      </button>
-                    )}
-                    {!isShared && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setIsDeleteConfirmOpen(party.id); }}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setEditingParty(party); setIsAddModalOpen(true); }}
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                    >
+                      <FileText size={16} />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setIsDeleteConfirmOpen(party.id); }}
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
               </motion.div>

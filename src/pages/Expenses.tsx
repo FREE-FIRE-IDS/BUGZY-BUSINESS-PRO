@@ -28,15 +28,55 @@ interface jsPDFWithAutoTable extends jsPDF {
 export default function Expenses() {
   const { transactions, addTransaction, updateTransaction, deleteTransaction, settings, banks, parties, currentCompany, items, isSharedCompany, isAdmin } = useApp();
   const isShared = currentCompany ? isSharedCompany(currentCompany) : false;
-  const canModify = !isShared || isAdmin;
+  // Enable editing for all members
+  const canModify = true;
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<'All' | 'This Month' | '7 Days'>('All');
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState<string | null>(null);
   const [isHardDelete, setIsHardDelete] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Transaction | null>(null);
   const [paymentType, setPaymentType] = useState<'Cash' | 'Bank' | 'Credit'>('Cash');
+
+  // Multi-item Support
+  const [expenseItems, setExpenseItems] = useState<{
+    description: string;
+    category: string;
+    amount: number;
+    quantity?: number;
+    unit?: string;
+    price?: number;
+  }[]>([{ description: '', category: '', amount: 0 }]);
+
+  const categories = Array.from(new Set(transactions.filter(t => t.type === 'Expense').map(t => t.category).filter(Boolean)));
+
+  const handleAddExpenseItem = () => {
+    setExpenseItems([...expenseItems, { description: '', category: '', amount: 0 }]);
+  };
+
+  const removeExpenseItem = (idx: number) => {
+    if (expenseItems.length > 1) {
+       setExpenseItems(expenseItems.filter((_, i) => i !== idx));
+    }
+  };
+
+  const updateExpenseItem = (idx: number, field: string, value: any) => {
+    const updated = [...expenseItems];
+    updated[idx] = { ...updated[idx], [field]: value };
+    
+    // Auto calculate amount if qty/price changed
+    if (field === 'quantity' || field === 'price') {
+       const qty = Number(field === 'quantity' ? value : (updated[idx].quantity || 0));
+       const p = Number(field === 'price' ? value : (updated[idx].price || 0));
+       if (qty > 0 && p > 0) {
+         updated[idx].amount = qty * p;
+       }
+    }
+    
+    setExpenseItems(updated);
+  };
 
   // PDF Preview State
   const [pdfPreview, setPdfPreview] = useState<{ isOpen: boolean, url: string, title: string, fileName: string }>({
@@ -52,6 +92,8 @@ export default function Expenses() {
                         e.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         e.amount.toString().includes(searchTerm);
     
+    const matchesCategory = selectedCategory === 'All' || e.category === selectedCategory;
+
     let matchesDate = true;
     if (dateRange === 'This Month') {
       const date = new Date(e.date);
@@ -64,19 +106,16 @@ export default function Expenses() {
       matchesDate = diff <= 7;
     }
 
-    return matchesSearch && matchesDate;
+    return matchesSearch && matchesDate && matchesCategory;
   });
 
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalFilteredExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   const exportPDF = () => {
     const doc = new jsPDF() as jsPDFWithAutoTable;
     const companyName = currentCompany?.name || settings.companyName || 'My Business';
     
     try {
-      const doc = new jsPDF() as jsPDFWithAutoTable;
-      const companyName = currentCompany?.name || settings.companyName || 'My Business';
-      
       doc.setFontSize(22);
       doc.setTextColor(30, 41, 59);
       doc.text(companyName, 14, 20);
@@ -85,10 +124,17 @@ export default function Expenses() {
       doc.setTextColor(225, 29, 72); // Rose-600
       doc.text('Expense Report', 14, 30);
       
+      if (selectedCategory !== 'All') {
+        doc.setFontSize(12);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Category: ${selectedCategory}`, 14, 38);
+      }
+      
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139);
-      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 38);
-      doc.text(`Total Expenses: ${formatCurrency(totalExpenses, settings.currency)}`, 14, 44);
+      const statsY = selectedCategory !== 'All' ? 46 : 38;
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, statsY);
+      doc.text(`Total Amount: ${formatCurrency(totalFilteredExpenses, settings.currency)}`, 14, statsY + 6);
 
       const tableData = filteredExpenses.map(e => [
         formatDate(e.date),
@@ -107,7 +153,7 @@ export default function Expenses() {
       autoTable(doc, {
         head: [['Date', 'Category', 'Description', 'Qty', 'Price', 'Paid Via', 'Amount']],
         body: tableData,
-        startY: 50,
+        startY: statsY + 12,
         theme: 'grid',
         headStyles: { fillColor: [225, 29, 72] },
         styles: { fontSize: 8, cellPadding: 2 },
@@ -116,7 +162,7 @@ export default function Expenses() {
           6: { halign: 'right' }
         },
         foot: [[
-          'Total', '', '', '', '', '', formatCurrency(totalExpenses, settings.currency)
+          'Total', '', '', '', '', '', formatCurrency(totalFilteredExpenses, settings.currency)
         ]],
         footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' }
       });
@@ -131,7 +177,7 @@ export default function Expenses() {
       });
     } catch (error) {
       console.error('Expense PDF failed:', error);
-      alert('Failed to generate Expense PDF. Please try again or check console for details.');
+      alert('Failed to generate Expense PDF. Please try again.');
     }
   };
 
@@ -159,7 +205,10 @@ export default function Expenses() {
               PDF
             </button>
             <button 
-              onClick={() => setIsAddModalOpen(true)}
+              onClick={() => {
+                setExpenseItems([{ description: '', category: '', amount: 0 }]);
+                setIsAddModalOpen(true);
+              }}
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 text-sm"
             >
               <Plus size={20} />
@@ -169,7 +218,7 @@ export default function Expenses() {
         </div>
         <div className="bg-rose-600 p-6 md:p-8 rounded-3xl shadow-xl shadow-rose-500/20 text-white flex flex-col justify-center">
           <p className="text-rose-100 text-[10px] md:text-sm font-black uppercase tracking-widest mb-1">Total Expenses</p>
-          <p className="text-2xl md:text-3xl font-black">{formatCurrency(totalExpenses, settings.currency)}</p>
+          <p className="text-2xl md:text-3xl font-black">{formatCurrency(totalFilteredExpenses, settings.currency)}</p>
         </div>
       </div>
 
@@ -179,24 +228,38 @@ export default function Expenses() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
-            placeholder="Search expenses by description, category or amount..."
+            placeholder="Search expenses..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-900 dark:text-white font-bold text-sm"
           />
         </div>
         
-        <div className="flex items-center gap-2">
-          <Filter size={16} className="text-slate-400 ml-2" />
-          <select 
-            value={dateRange}
-            onChange={(e) => setDateRange(e.target.value as any)}
-            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
-          >
-            <option value="All">All Time</option>
-            <option value="This Month">This Month</option>
-            <option value="7 Days">Last 7 Days</option>
-          </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 min-w-[120px]">
+            <Filter size={14} className="text-slate-400" />
+            <select 
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
+            >
+              <option value="All">All Categories</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 min-w-[120px]">
+            <Calendar size={14} className="text-slate-400" />
+            <select 
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value as any)}
+              className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
+            >
+              <option value="All">All Time</option>
+              <option value="This Month">This Month</option>
+              <option value="7 Days">Last 7 Days</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -383,19 +446,26 @@ export default function Expenses() {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
                 const dateStr = formData.get('date') as string;
-                addTransaction({
-                  company_id: currentCompany?.id,
-                  date: dateStr ? new Date(dateStr).toISOString() : new Date().toISOString(),
-                  type: 'Expense',
-                  amount: Number(formData.get('amount')),
-                  description: formData.get('description') as string,
-                  category: formData.get('category') as string,
-                  quantity: Number(formData.get('quantity')) || undefined,
-                  price: Number(formData.get('price')) || undefined,
-                  unit: formData.get('unit') as string || undefined,
-                  payment_type: paymentType,
-                  bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
-                  party_id: paymentType === 'Credit' ? formData.get('party_id') as string : undefined,
+                const date = dateStr ? new Date(dateStr).toISOString() : new Date().toISOString();
+                
+                // Add each item as a transaction
+                expenseItems.forEach(item => {
+                  if (item.amount > 0) {
+                    addTransaction({
+                      company_id: currentCompany?.id,
+                      date,
+                      type: 'Expense',
+                      amount: item.amount,
+                      description: item.description,
+                      category: item.category,
+                      quantity: item.quantity,
+                      price: item.price,
+                      unit: item.unit,
+                      payment_type: paymentType,
+                      bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
+                      party_id: paymentType === 'Credit' ? formData.get('party_id') as string : undefined,
+                    });
+                  }
                 });
                 setIsAddModalOpen(false);
               }}>
@@ -403,93 +473,96 @@ export default function Expenses() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Expense Date</label>
-                      <input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 transition-all" />
+                      <input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 transition-all font-bold" />
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Category</label>
-                      <input 
-                        name="category" 
-                        list="expense-categories"
-                        className="w-full p-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 transition-all font-medium" 
-                        placeholder="e.g. Rent, Utilities..." 
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Description / Item Name</label>
-                    <div className="relative">
-                      <Type size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input 
-                        name="description" 
-                        required 
-                        className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 transition-all font-bold placeholder:font-normal" 
-                        placeholder="Office supplies purchase" 
-                      />
+                    <div className="space-y-1.5 flex flex-col justify-end">
+                       <button 
+                         type="button" 
+                         onClick={handleAddExpenseItem}
+                         className="flex items-center justify-center gap-2 p-3.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl border border-indigo-100 dark:border-indigo-900/20 font-black text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all"
+                       >
+                         <Plus size={16} /> Add Multiple Items
+                       </button>
                     </div>
                   </div>
 
-                  <div className="p-5 bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Breakdown (Line Item)</h4>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Quantity</label>
-                        <input 
-                          name="quantity" 
-                          type="number" 
-                          step="any"
-                          placeholder="1"
-                          onChange={(e) => {
-                            const form = e.target.form!;
-                            const qty = Number(e.target.value);
-                            const price = Number((form.elements.namedItem('price') as HTMLInputElement).value);
-                            const amountInput = form.elements.namedItem('amount') as HTMLInputElement;
-                            if (qty && price) {
-                              amountInput.value = (qty * price).toFixed(2);
-                            }
-                          }}
-                          className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold" 
-                        />
+                  <div className="space-y-4">
+                    {expenseItems.map((item, idx) => (
+                      <div key={idx} className="p-5 bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4 relative group">
+                        {expenseItems.length > 1 && (
+                          <button 
+                            type="button" 
+                            onClick={() => removeExpenseItem(idx)}
+                            className="absolute -top-2 -right-2 w-8 h-8 bg-white dark:bg-slate-900 shadow-md border border-slate-100 dark:border-slate-800 rounded-full flex items-center justify-center text-rose-500 hover:scale-110 transition-all"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase">Description</label>
+                            <input 
+                              required 
+                              value={item.description}
+                              onChange={(e) => updateExpenseItem(idx, 'description', e.target.value)}
+                              className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold" 
+                              placeholder="e.g. Office Supplies" 
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase">Category</label>
+                            <input 
+                              list="expense-categories"
+                              value={item.category}
+                              onChange={(e) => updateExpenseItem(idx, 'category', e.target.value)}
+                              className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold" 
+                              placeholder="e.g. Utilities" 
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase">Qty</label>
+                            <input 
+                              type="number" 
+                              step="any"
+                              value={item.quantity || ''}
+                              onChange={(e) => updateExpenseItem(idx, 'quantity', e.target.value)}
+                              className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold" 
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase">Price</label>
+                            <input 
+                              type="number" 
+                              step="any"
+                              value={item.price || ''}
+                              onChange={(e) => updateExpenseItem(idx, 'price', e.target.value)}
+                              className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold" 
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase">Total</label>
+                            <input 
+                              type="number" 
+                              step="any"
+                              required
+                              value={item.amount || ''}
+                              onChange={(e) => updateExpenseItem(idx, 'amount', Number(e.target.value))}
+                              className="w-full p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-900/30 rounded-xl text-rose-600 dark:text-rose-400 outline-none focus:ring-2 focus:ring-rose-500 text-sm font-black" 
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Unit</label>
-                        <input name="unit" list="expense-units" placeholder="pcs" className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 text-sm font-medium" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase">Price / unit</label>
-                        <input 
-                          name="price" 
-                          type="number" 
-                          step="any"
-                          placeholder="0.00"
-                          onChange={(e) => {
-                            const form = e.target.form!;
-                            const price = Number(e.target.value);
-                            const qty = Number((form.elements.namedItem('quantity') as HTMLInputElement).value);
-                            const amountInput = form.elements.namedItem('amount') as HTMLInputElement;
-                            if (qty && price) {
-                              amountInput.value = (qty * price).toFixed(2);
-                            }
-                          }}
-                          className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold" 
-                        />
-                      </div>
-                    </div>
+                    ))}
                   </div>
 
-                  <div className="p-6 bg-rose-50/50 dark:bg-rose-900/10 rounded-3xl border border-rose-100 dark:border-rose-900/20">
-                    <label className="block text-sm font-bold text-rose-600 dark:text-rose-400 mb-2">Total Amount</label>
-                    <div className="relative">
-                      <Calculator size={24} className="absolute left-4 top-1/2 -translate-y-1/2 text-rose-400" />
-                      <input 
-                        name="amount" 
-                        type="number" 
-                        required 
-                        step="any"
-                        className="w-full pl-14 pr-4 py-4 bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/30 rounded-2xl text-2xl font-black text-rose-600 dark:text-rose-400 outline-none focus:ring-2 focus:ring-rose-500 transition-all shadow-sm" 
-                        placeholder="0.00" 
-                      />
-                    </div>
+                  <div className="p-6 bg-slate-100/50 dark:bg-slate-800/50 rounded-3xl border border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                    <span className="text-sm font-bold text-slate-500 uppercase">Grand Total</span>
+                    <span className="text-2xl font-black text-rose-600">
+                      {formatCurrency(expenseItems.reduce((sum, item) => sum + (item.amount || 0), 0), settings.currency)}
+                    </span>
                   </div>
 
                   <div className="space-y-3">

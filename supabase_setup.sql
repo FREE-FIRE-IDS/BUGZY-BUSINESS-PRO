@@ -409,6 +409,7 @@ BEGIN
     LOWER(owner_email) = LOWER(req_email) OR
     LOWER(user_email) = LOWER(req_email) OR
     LOWER(req_email) = ANY(COALESCE(linked_emails, '{}')) OR
+    id IN (SELECT company_id FROM public.company_members WHERE LOWER(user_email) = LOWER(req_email)) OR
     id IN (SELECT company_id FROM public.company_invites WHERE status = 'pending' AND LOWER(invited_email) = LOWER(req_email));
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -503,7 +504,7 @@ BEGIN
   IF jsonb_typeof(req_payload) = 'array' THEN
     FOR v_item IN SELECT jsonb_array_elements(req_payload) LOOP
       EXECUTE format(
-        'INSERT INTO public.%I t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
+        'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
         'ON CONFLICT (id) DO UPDATE SET ' ||
         '( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
         'RETURNING pg_catalog.to_jsonb(t.*)',
@@ -516,7 +517,7 @@ BEGIN
     v_result := '{"status": "success", "message": "Bulk upsert complete"}'::jsonb;
   ELSE
     EXECUTE format(
-      'INSERT INTO public.%I t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
+      'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
       'ON CONFLICT (id) DO UPDATE SET ' ||
       '( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
       'RETURNING pg_catalog.to_jsonb(t.*)',
