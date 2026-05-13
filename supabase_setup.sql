@@ -469,6 +469,90 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+CREATE OR REPLACE FUNCTION public.upsert_table_data_by_email(req_table TEXT, req_payload JSONB, req_email TEXT)
+RETURNS JSONB AS $$
+DECLARE
+  v_company_id UUID;
+  v_item JSONB;
+  v_result JSONB;
+  v_id UUID;
+BEGIN
+  -- 1. Extract company_id and validate access
+  -- We support both single object and array of objects
+  IF jsonb_typeof(req_payload) = 'array' THEN
+    FOR v_item IN SELECT jsonb_array_elements(req_payload) LOOP
+      v_company_id := (v_item->>'company_id')::UUID;
+      IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+        RAISE EXCEPTION 'Not authorized for company %', v_company_id;
+      END IF;
+    END LOOP;
+  ELSE
+    v_company_id := (req_payload->>'company_id')::UUID;
+    IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+      RAISE EXCEPTION 'Not authorized for company %', v_company_id;
+    END IF;
+  END IF;
+
+  -- 2. Validate table name
+  IF req_table NOT IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access') THEN
+    RAISE EXCEPTION 'Table % not allowed', req_table;
+  END IF;
+
+  -- 3. Perform Upsert
+  -- For Primary Key 'id', we use ON CONFLICT (id) DO UPDATE
+  IF jsonb_typeof(req_payload) = 'array' THEN
+    FOR v_item IN SELECT jsonb_array_elements(req_payload) LOOP
+      EXECUTE format(
+        'INSERT INTO public.%I SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
+        'ON CONFLICT (id) DO UPDATE SET ' ||
+        '( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
+        'RETURNING to_jsonb(*)',
+        req_table, req_table, v_item,
+        (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),
+        (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),
+        req_table, v_item
+      ) INTO v_result;
+    END LOOP;
+    v_result := '{"status": "success", "message": "Bulk upsert complete"}'::jsonb;
+  ELSE
+    EXECUTE format(
+      'INSERT INTO public.%I SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
+      'ON CONFLICT (id) DO UPDATE SET ' ||
+      '( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
+      'RETURNING to_jsonb(*)',
+      req_table, req_table, req_payload,
+      (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),
+      (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),
+      req_table, req_payload
+    ) INTO v_result;
+  END IF;
+
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.delete_table_data_by_email(req_table TEXT, req_id UUID, req_email TEXT)
+RETURNS VOID AS $$
+DECLARE
+  v_company_id UUID;
+BEGIN
+  -- 1. Get company_id of the record to check authorization
+  EXECUTE format('SELECT company_id FROM public.%I WHERE id = %L', req_table, req_id) INTO v_company_id;
+
+  IF v_company_id IS NULL THEN
+    RETURN; -- Already deleted or doesn't exist
+  END IF;
+
+  -- 2. Validate authorization
+  IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+    RAISE EXCEPTION 'Not authorized to delete from company %', v_company_id;
+  END IF;
+
+  -- 3. Perform Delete
+  EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 CREATE OR REPLACE FUNCTION public.respond_to_invite_by_email(req_invite_id UUID, req_status TEXT, req_email TEXT)
 RETURNS VOID AS $$
 DECLARE

@@ -119,13 +119,23 @@ export default function ManageCompanies() {
     }
   };
 
-  const myCompanies = companies.filter(c => c.company_type !== 'hr');
+  const myCompanies = companies.filter(c => 
+    c.company_type !== 'hr' && 
+    (c.owner_email === settings.user_email || !c.owner_email)
+  );
+  
+  const joinedCompanies = companies.filter(c => 
+    c.company_type !== 'hr' && 
+    c.owner_email && 
+    c.owner_email !== settings.user_email
+  );
+
   const hrCompanies = companies.filter(c => c.company_type === 'hr');
 
   const renderCompanyCard = (company: any, isSharedTab = false) => {
     const isActive = currentCompany?.id === company.id;
     const isHR = company.company_type === 'hr';
-    const isShared = isSharedCompany(company);
+    const isShared = isSharedTab || (company.owner_email && company.owner_email !== settings.user_email);
 
     return (
       <motion.div
@@ -279,12 +289,14 @@ export default function ManageCompanies() {
 
         {activeTab === 'shared' && (
           <>
+            {joinedCompanies.map(c => renderCompanyCard(c, true))}
+            
             {isLoadingShared ? (
               <div className="col-span-full py-20 text-center">
                 <RefreshCw size={40} className="mx-auto text-indigo-500 animate-spin mb-4" />
                 <p className="font-bold text-slate-500">Checking for invitations...</p>
               </div>
-            ) : sharedCompanies.length === 0 ? (
+            ) : (joinedCompanies.length === 0 && sharedCompanies.length === 0) ? (
               <div className="col-span-full py-20 text-center">
                  <div className="w-20 h-20 bg-slate-100 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 text-slate-400">
                     <Mail size={40} />

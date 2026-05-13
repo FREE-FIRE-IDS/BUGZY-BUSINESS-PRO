@@ -858,7 +858,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         
         // Robust Upsert with Recursive Column Stripping
         const performUpsert = async (payload: any): Promise<{ data: any, error: any }> => {
-            const { data: res, error: err } = await supabase.from(dbTable).upsert(payload).select();
+            let res, err;
+
+            if (!session && settings.user_email) {
+              // Use secure RPC for email-sync mode
+              const { data: rpcRes, error: rpcErr } = await supabase.rpc('upsert_table_data_by_email', {
+                req_table: dbTable,
+                req_payload: payload,
+                req_email: settings.user_email.toLowerCase().trim()
+              });
+              res = rpcRes;
+              err = rpcErr;
+            } else {
+              const { data: directRes, error: directErr } = await supabase.from(dbTable).upsert(payload).select();
+              res = directRes;
+              err = directErr;
+            }
             
             if (err && (err.message.includes('column') || err.message.includes('schema cache'))) {
                 const match = err.message.match(/column "(.*?)"/);
@@ -937,11 +952,23 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     console.log(`[Delete Start] Table: ${dbTable}, ID: ${id}, Email: ${email}`);
     try {
-        const { error } = await supabase.from(dbTable).delete().eq('id', id);
-        if (error) {
-            console.error(`[Delete Error] ${dbTable}:`, error);
-            if (error.code === 'PGRST116' || error.message.includes('relation')) return;
-            throw error;
+        let err;
+        if (!session && email) {
+          const { error: rpcErr } = await supabase.rpc('delete_table_data_by_email', {
+            req_table: dbTable,
+            req_id: id,
+            req_email: email.toLowerCase().trim()
+          });
+          err = rpcErr;
+        } else {
+          const { error: deleteErr } = await supabase.from(dbTable).delete().eq('id', id);
+          err = deleteErr;
+        }
+
+        if (err) {
+            console.error(`[Delete Error] ${dbTable}:`, err);
+            if (err.code === 'PGRST116' || err.message.includes('relation')) return;
+            throw err;
         }
         console.log(`[Delete Success] ${dbTable} record deleted from cloud`);
     } catch (error) {
