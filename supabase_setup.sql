@@ -416,3 +416,45 @@ BEGIN
   WHERE LOWER(i.invited_email) = LOWER(req_email) AND i.status = 'pending';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.respond_to_invite_by_email(req_invite_id UUID, req_status TEXT, req_email TEXT)
+RETURNS VOID AS $$
+DECLARE
+  v_company_id UUID;
+  v_invited_email TEXT;
+BEGIN
+  -- 1. Check if invite exists and matches email
+  SELECT company_id, invited_email INTO v_company_id, v_invited_email
+  FROM public.company_invites
+  WHERE id = req_invite_id AND LOWER(invited_email) = LOWER(req_email);
+
+  IF v_company_id IS NULL THEN
+    RAISE EXCEPTION 'Invitation not found for ID % and email %', req_invite_id, req_email;
+  END IF;
+
+  -- 2. Check if already processed
+  IF EXISTS (SELECT 1 FROM public.company_invites WHERE id = req_invite_id AND status != 'pending') THEN
+    RAISE EXCEPTION 'Invitation already processed';
+  END IF;
+
+  -- 3. Update status
+  UPDATE public.company_invites SET status = req_status, updated_at = NOW() WHERE id = req_invite_id;
+
+  -- 3. If accepted, add to members (ignore if already member)
+  IF req_status = 'accepted' THEN
+    IF NOT EXISTS (SELECT 1 FROM public.company_members WHERE company_id = v_company_id AND LOWER(user_email) = LOWER(v_invited_email)) THEN
+      INSERT INTO public.company_members (company_id, user_email, role)
+      VALUES (v_company_id, LOWER(v_invited_email), 'member');
+    END IF;
+
+    -- 4. Update linked_emails in companies
+    UPDATE public.companies
+    SET linked_emails = (
+      SELECT array_agg(DISTINCT LOWER(user_email))
+      FROM public.company_members
+      WHERE company_id = v_company_id
+    )
+    WHERE id = v_company_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

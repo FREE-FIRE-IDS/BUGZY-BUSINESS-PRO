@@ -2676,47 +2676,74 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const updateInvitationStatus = async (inviteId: string, status: 'accepted' | 'rejected') => {
     console.log('[Invitation] Updating status:', { inviteId, status });
-    
-    const { data: invite, error: fetchError } = await supabase
-      .from('company_invites')
-      .select('*')
-      .eq('id', inviteId)
-      .single();
+    const email = (settings.user_email || session?.user?.email || '').toLowerCase().trim();
+    if (!email) throw new Error('Email required to process invitation');
 
-    if (fetchError || !invite) throw new Error('Invitation not found ❌');
-
-    // 1. Update Invite Status
-    const { error: inviteError } = await supabase
-      .from('company_invites')
-      .update({ status })
-      .eq('id', inviteId);
-
-    if (inviteError) throw inviteError;
-
-    // 2. If accepted, add to company_members
-    if (status === 'accepted') {
-      const { error: memberError } = await supabase
-        .from('company_members')
-        .insert({
-          company_id: invite.company_id,
-          user_id: session?.user?.id,
-          user_email: invite.invited_email,
-          role: 'member'
+    try {
+      if (!session) {
+        // Use RPC for email-only sync mode to bypass RLS
+        const { error: rpcError } = await supabase.rpc('respond_to_invite_by_email', {
+          req_invite_id: inviteId,
+          req_status: status,
+          req_email: email
         });
+        if (rpcError) throw rpcError;
+        
+        if (status === 'accepted') {
+          toast.success('Successfully joined the company! 🎉');
+          refreshData(email, true);
+        } else {
+          toast.error('Invitation rejected.');
+        }
+      } else {
+        // Logged in via Supabase, can use direct queries if RLS allows
+        const { data: invite, error: fetchError } = await supabase
+          .from('company_invites')
+          .select('*')
+          .eq('id', inviteId)
+          .single();
 
-      if (memberError && memberError.code !== '23505') { // Ignore duplicate member
-        console.error('[Member Add Error]', memberError);
-        throw memberError;
+        if (fetchError || !invite) throw new Error('Invitation not found ❌');
+
+        // 1. Update Invite Status
+        const { error: inviteError } = await supabase
+          .from('company_invites')
+          .update({ status })
+          .eq('id', inviteId);
+
+        if (inviteError) throw inviteError;
+
+        // 2. If accepted, add to company_members
+        if (status === 'accepted') {
+          const { error: memberError } = await supabase
+            .from('company_members')
+            .insert({
+              company_id: invite.company_id,
+              user_id: session?.user?.id,
+              user_email: invite.invited_email,
+              role: 'member'
+            });
+
+          if (memberError && memberError.code !== '23505') {
+            console.error('[Member Add Error]', memberError);
+            throw memberError;
+          }
+
+          // Trigger linked_emails update on backend (or if there's no trigger, it needs care)
+          // For consistency with RPC, let's assume we might need a refresh
+          toast.success('Successfully joined the company! 🎉');
+          refreshData(invite.invited_email, true);
+        } else {
+          toast.error('Invitation rejected.');
+        }
       }
-      toast.success('Successfully joined the company! 🎉');
-      // Refresh to include the newly joined company
-      refreshData(invite.invited_email, true);
-    } else {
-      toast.error('Invitation rejected.');
+      
+      setInvitations(prev => prev.filter(i => i.id !== inviteId));
+    } catch (err: any) {
+      console.error('[Invitation Status Update Error]', err);
+      toast.error(err.message || 'Failed to update invitation status');
+      throw err;
     }
-    
-    setInvitations(prev => prev.filter(i => i.id !== inviteId));
-    await refreshData(undefined, true);
   };
 
   const revokeCompanyAccess = async (companyId: string, sharedEmail: string) => {
