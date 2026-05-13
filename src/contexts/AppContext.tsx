@@ -555,19 +555,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSyncStatus(prev => ({ ...prev, loading: true, error: null }));
     try {
       // 1. Pull Companies
-      let query = supabase.from('companies').select('*');
+      let query;
       
       if (email) {
-        // Attempt to filter by user_email or linked_emails. 
-        // If the columns doesn't exist yet, this might fail, so we wrap it.
-        try {
-          query = query.or(`user_email.eq."${email}",linked_emails.cs.{"${email}"},owner_email.eq."${email}"`);
-        } catch (e) {
-          console.warn('[Sync] Fallback query due to missing columns');
-          query = supabase.from('companies').select('*');
+        if (!session) {
+          query = supabase.rpc('get_companies_for_email', { req_email: email });
+        } else {
+          query = supabase.from('companies').select('*')
+            .or(`user_email.eq."${email}",linked_emails.cs.{"${email}"},owner_email.eq."${email}"`);
         }
       } else if (username) {
-        query = query.eq('username', username);
+        query = supabase.from('companies').select('*').eq('username', username);
+      } else {
+        query = supabase.from('companies').select('*');
       }
 
       const localCompanies = companies;
@@ -596,9 +596,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      const { merged: mergedCompanies, toUpload: companiesToUpload } = mergeData(localCompanies, cloudCompanies || []);
+      const { merged: mergedCompanies, toUpload: companiesToUpload } = mergeData<Company>(localCompanies, (cloudCompanies as Company[]) || []);
       
-      const nonDeletedCompanies = mergedCompanies.filter(c => !c.deleted_at);
+      const nonDeletedCompanies = mergedCompanies.filter(c => !c.deleted_at) as Company[];
       if (JSON.stringify(companies) !== JSON.stringify(nonDeletedCompanies)) {
         setCompanies(nonDeletedCompanies);
       }
@@ -633,7 +633,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const fetchAndMerge = async (table: string, setter: (data: any[]) => void) => {
           try {
             const dbTable = table === 'items' ? 'inventory' : table;
-            const { data, error } = await supabase.from(dbTable).select('*').eq('company_id', comp.id);
+            let query;
+            
+            if (!session && email) {
+              query = supabase.rpc('get_table_data_by_email', { 
+                req_table: dbTable, 
+                req_company_id: comp.id, 
+                req_email: email 
+              });
+            } else {
+              query = supabase.from(dbTable).select('*').eq('company_id', comp.id);
+            }
+
+            const { data, error } = await query;
             if (error) {
               if (error.code === 'PGRST116' || error.message.includes('relation')) return;
               throw error;
@@ -641,7 +653,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             
             const localKey = `${table}_${comp.id}`;
             const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
-            const { merged, toUpload } = mergeData(localData, data || []);
+            const { merged, toUpload } = mergeData<any>(localData, (data as any[]) || []);
             
             localStorage.setItem(localKey, JSON.stringify(merged));
             if (comp.id === activeCompany?.id) {

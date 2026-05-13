@@ -417,6 +417,40 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+CREATE OR REPLACE FUNCTION public.is_authorized_for_company(req_company_id UUID, req_email TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.companies
+    WHERE id = req_company_id AND (
+      LOWER(owner_email) = LOWER(req_email) OR
+      LOWER(user_email) = LOWER(req_email) OR
+      LOWER(req_email) = ANY(COALESCE(linked_emails, '{}'))
+    )
+  ) OR EXISTS (
+    SELECT 1 FROM public.company_members
+    WHERE company_id = req_company_id AND LOWER(user_email) = LOWER(req_email)
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.get_table_data_by_email(req_table TEXT, req_company_id UUID, req_email TEXT)
+RETURNS SETOF JSONB AS $$
+BEGIN
+  -- Authorization check
+  IF NOT public.is_authorized_for_company(req_company_id, req_email) THEN
+    RAISE EXCEPTION 'Not authorized for this company';
+  END IF;
+
+  -- Dynamic query based on table name (validated against allowlist)
+  IF req_table NOT IN ('parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access') THEN
+    RAISE EXCEPTION 'Table not allowed';
+  END IF;
+
+  RETURN QUERY EXECUTE format('SELECT to_jsonb(t.*) FROM public.%I t WHERE company_id = %L', req_table, req_company_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 CREATE OR REPLACE FUNCTION public.respond_to_invite_by_email(req_invite_id UUID, req_status TEXT, req_email TEXT)
 RETURNS VOID AS $$
 DECLARE
