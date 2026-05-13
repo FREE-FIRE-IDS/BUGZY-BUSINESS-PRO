@@ -711,12 +711,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     
     setSyncStatus({ loading: true, error: null, success: null });
     try {
-      let query = supabase.from('companies').select('*');
+      let query;
       
       if (targetEmail) {
-        query = query.or(`user_email.eq."${targetEmail}",linked_emails.cs.{"${targetEmail}"}`);
+        // Use RPC to bypass RLS for email-sync mode if not fully logged in via session
+        if (!session) {
+          query = supabase.rpc('get_companies_for_email', { req_email: targetEmail });
+        } else {
+          query = supabase.from('companies').select('*')
+            .or(`user_email.eq."${targetEmail}",linked_emails.cs.{"${targetEmail}"},owner_email.eq."${targetEmail}"`);
+        }
       } else {
-        query = query.eq('username', username);
+        query = supabase.from('companies').select('*').eq('username', username);
       }
       
       const { data, error } = await query;
@@ -726,8 +732,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data && data.length > 0) {
         const { merged, toUpload } = mergeData(companies, data);
         const nonDeleted = merged.filter(c => !c.deleted_at);
-        // Actually, companies state should probably only have non-deleted ones for UI
+        
+        // Save to state and local storage
         setCompanies(nonDeleted);
+        
+        // CRITICAL: Determine which user context to save under
+        const effectiveUser = username || targetEmail?.split('@')[0] || 'user';
+        if (!currentUser) {
+          setCurrentUser(effectiveUser);
+          localStorage.setItem('currentUser', effectiveUser);
+        }
+        
+        localStorage.setItem(`companies_${effectiveUser}`, JSON.stringify(nonDeleted));
         
         if (toUpload.length > 0) {
           await syncToCloud('companies', toUpload);
@@ -735,6 +751,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         
         if (!currentCompany && nonDeleted.length > 0) {
           setCurrentCompany(nonDeleted[0]);
+          localStorage.setItem(`currentCompany_${effectiveUser}`, JSON.stringify(nonDeleted[0]));
         }
         
         setSyncStatus({ loading: false, error: null, success: `Successfully pulled ${data.length} companies` });
@@ -2597,16 +2614,24 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     await fetchSentInvitations(companyId);
   };
 
-  const fetchInvitations = async (emailOverride?: string) => {
+   const fetchInvitations = async (emailOverride?: string) => {
     const email = (emailOverride || settings.user_email || session?.user?.email || '').toLowerCase().trim();
     if (!email) return;
 
     console.log('[Sync] Fetching invitations for:', email);
-    const { data, error } = await supabase
-      .from('company_invites')
-      .select('*, companies(*)')
-      .eq('invited_email', email)
-      .eq('status', 'pending');
+    
+    let result;
+    if (!session) {
+      result = await supabase.rpc('get_invites_for_email', { req_email: email });
+    } else {
+      result = await supabase
+        .from('company_invites')
+        .select('*, companies(*)')
+        .eq('invited_email', email)
+        .eq('status', 'pending');
+    }
+
+    const { data, error } = result;
 
     if (!error && data) {
       setInvitations(data);
@@ -2662,6 +2687,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         throw memberError;
       }
       toast.success('Successfully joined the company! 🎉');
+      // Refresh to include the newly joined company
+      refreshData(invite.invited_email, true);
     } else {
       toast.error('Invitation rejected.');
     }

@@ -306,6 +306,8 @@ CREATE POLICY "companies_access" ON public.companies FOR ALL USING (
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = ANY(COALESCE(linked_emails, '{}')) OR
+  id IN (SELECT company_id FROM public.company_invites WHERE status = 'pending' AND LOWER(invited_email) = LOWER(auth.jwt() ->> 'email')) OR
+  id IN (SELECT company_id FROM public.company_members WHERE user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email')) OR
   (username IS NOT NULL AND auth.uid() IS NULL)
 ) WITH CHECK (true);
 
@@ -379,13 +381,38 @@ ALTER TABLE profiles REPLICA IDENTITY FULL;
 ALTER TABLE company_invites REPLICA IDENTITY FULL;
 ALTER TABLE company_members REPLICA IDENTITY FULL;
 
--- 7. Seed linked_emails
-DO $$
+-- 8. RPC Functions for bypassing RLS securely via email
+CREATE OR REPLACE FUNCTION public.get_companies_for_email(req_email TEXT)
+RETURNS SETOF public.companies AS $$
 BEGIN
-  UPDATE public.companies c
-  SET linked_emails = (
-    SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
-    FROM public.company_members m
-    WHERE m.company_id = c.id
-  );
-END $$;
+  RETURN QUERY
+  SELECT * FROM public.companies
+  WHERE 
+    LOWER(owner_email) = LOWER(req_email) OR
+    LOWER(user_email) = LOWER(req_email) OR
+    LOWER(req_email) = ANY(COALESCE(linked_emails, '{}')) OR
+    id IN (SELECT company_id FROM public.company_invites WHERE status = 'pending' AND LOWER(invited_email) = LOWER(req_email));
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.get_invites_for_email(req_email TEXT)
+RETURNS TABLE (
+  id UUID,
+  company_id UUID,
+  invited_email TEXT,
+  invited_by TEXT,
+  status TEXT,
+  created_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE,
+  companies JSONB
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    i.id, i.company_id, i.invited_email, i.invited_by, i.status, i.created_at, i.updated_at,
+    to_jsonb(c.*) as companies
+  FROM public.company_invites i
+  JOIN public.companies c ON i.company_id = c.id
+  WHERE LOWER(i.invited_email) = LOWER(req_email) AND i.status = 'pending';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

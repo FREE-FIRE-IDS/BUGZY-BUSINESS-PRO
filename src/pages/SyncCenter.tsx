@@ -24,12 +24,9 @@ export default function SyncCenter() {
     revokeCompanyAccess, isAdmin
   } = useApp();
   const [email, setEmail] = useState(settings.user_email || '');
-  const [otp, setOtp] = useState('');
   const [step, setStep] = useState((settings.sync_enabled && settings.is_verified) || session ? 'active' : 'intro');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [otpSent, setOtpSent] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
   const [inviteEmail, setInviteEmail] = useState('');
   const [isInviting, setIsInviting] = useState(false);
 
@@ -84,17 +81,7 @@ export default function SyncCenter() {
     !currentCompany.user_email // Fallback if no email is set yet
   );
 
-  React.useEffect(() => {
-    let timer: any;
-    if (cooldown > 0) {
-      timer = setInterval(() => {
-        setCooldown(prev => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [cooldown]);
-
-  const handleVerifyFast = async (e: React.FormEvent) => {
+  const handleEnableSync = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !email.includes('@') || loading) return;
     
@@ -163,7 +150,7 @@ export default function SyncCenter() {
               </p>
             </div>
 
-            <form onSubmit={handleVerifyFast} className="max-w-md mx-auto space-y-4">
+            <form onSubmit={handleEnableSync} className="max-w-md mx-auto space-y-4">
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <Mail className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={20} />
@@ -172,11 +159,13 @@ export default function SyncCenter() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-900 dark:text-slate-50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                  disabled={loading}
+                  className="block w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-900 dark:text-slate-50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium disabled:opacity-50"
                   placeholder="Enter your Gmail address"
                   required
                 />
               </div>
+
               {error && (
                 <div className="flex items-center gap-2 text-red-500 text-sm font-bold bg-red-50 dark:bg-red-900/10 p-4 rounded-xl">
                   <AlertCircle size={16} />
