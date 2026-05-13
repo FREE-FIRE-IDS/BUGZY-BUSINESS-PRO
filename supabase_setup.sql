@@ -10,7 +10,7 @@ BEGIN
         SELECT tablename 
         FROM pg_tables 
         WHERE schemaname = 'public' 
-        AND tablename IN ('companies', 'company_members', 'company_invites', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests')
+        AND tablename IN ('companies', 'company_members', 'company_invites', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access')
     LOOP
         FOR policy_record IN 
             SELECT policyname 
@@ -23,12 +23,12 @@ BEGIN
 END $$;
 
 -- 2. Now safe to drop functions that policies depended on
-DROP FUNCTION IF EXISTS public.is_company_owner(UUID);
-DROP FUNCTION IF EXISTS public.is_company_member(UUID);
+DROP FUNCTION IF EXISTS public.is_company_owner(UUID) CASCADE;
+DROP FUNCTION IF EXISTS public.is_company_member(UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.sync_company_linked_emails() CASCADE;
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 
--- 3. Ensure core tables exist with proper schema
+-- 3. Core Tables with proper schema
 CREATE TABLE IF NOT EXISTS companies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -51,90 +51,35 @@ CREATE TABLE IF NOT EXISTS companies (
   recovery_code TEXT
 );
 
--- Helper functions to prevent recursion and check access efficiently
--- Using SET search_path = public to ensure SECURITY DEFINER actually bypasses RLS
-CREATE OR REPLACE FUNCTION public.is_company_owner(cid UUID)
-RETURNS BOOLEAN AS $$
-DECLARE
-  current_email TEXT;
-  current_uid TEXT;
-BEGIN
-  current_email := LOWER(auth.jwt() ->> 'email');
-  current_uid := auth.uid()::text;
-  
-  -- Root Admin Bypass
-  IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
-  
-  RETURN EXISTS (
-    SELECT 1 FROM public.companies 
-    WHERE id = cid 
-    AND (
-      owner_id = current_uid OR
-      LOWER(owner_email) = current_email OR 
-      LOWER(user_email) = current_email OR
-      current_email = ANY(COALESCE(linked_emails, '{}'))
-    )
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT UNIQUE NOT NULL,
+  full_name TEXT,
+  is_verified BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
--- Function to sync linked_emails for faster RLS
-CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
-RETURNS trigger AS $$
-BEGIN
-  -- This runs as security definer to bypass RLS and update the companies table
-  IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
-    UPDATE public.companies 
-    SET linked_emails = (
-      SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
-      FROM public.company_members 
-      WHERE company_id = NEW.company_id
-    )
-    WHERE id = NEW.company_id;
-  ELSIF TG_OP = 'DELETE' THEN
-    UPDATE public.companies 
-    SET linked_emails = (
-      SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
-      FROM public.company_members 
-      WHERE company_id = OLD.company_id
-    )
-    WHERE id = OLD.company_id;
-  END IF;
-  RETURN NULL;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+CREATE TABLE IF NOT EXISTS company_invites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  invited_email TEXT NOT NULL,
+  invited_by TEXT NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(company_id, invited_email, status)
+);
 
-DROP TRIGGER IF EXISTS on_company_member_change ON public.company_members;
-CREATE TRIGGER on_company_member_change
-  AFTER INSERT OR UPDATE OR DELETE ON public.company_members
-  FOR EACH ROW EXECUTE FUNCTION public.sync_company_linked_emails();
-
-CREATE OR REPLACE FUNCTION public.is_company_member(cid UUID)
-RETURNS BOOLEAN AS $$
-DECLARE
-  current_email TEXT;
-  current_uid TEXT;
-BEGIN
-  current_email := LOWER(auth.jwt() ->> 'email');
-  current_uid := auth.uid()::text;
-  -- Root Admin Bypass
-  IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
-  -- Basic validity
-  IF current_email IS NULL OR current_email = '' THEN RETURN FALSE; END IF;
-
-  -- Use a direct query that bypasses RLS because this is SECURITY DEFINER
-  RETURN EXISTS (
-    SELECT 1 FROM public.companies 
-    WHERE id = cid 
-    AND (
-      owner_id = current_uid OR
-      LOWER(owner_email) = current_email OR 
-      LOWER(user_email) = current_email OR 
-      current_email = ANY(COALESCE(linked_emails, '{}'))
-    )
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+CREATE TABLE IF NOT EXISTS company_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_email TEXT NOT NULL,
+  role TEXT DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(company_id, user_id)
+);
 
 CREATE TABLE IF NOT EXISTS parties (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -219,238 +164,6 @@ CREATE TABLE IF NOT EXISTS invoices (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. Ensure columns exist (for existing tables)
-DO $$ 
-BEGIN
-  -- Companies
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='owner_id') THEN
-    ALTER TABLE companies ADD COLUMN owner_id TEXT;
-  END IF;
-  -- If we have old user_id, migrate it to owner_id
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='user_id') THEN
-    UPDATE companies SET owner_id = user_id WHERE owner_id IS NULL;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='user_email') THEN
-    ALTER TABLE companies ADD COLUMN user_email TEXT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='owner_email') THEN
-    ALTER TABLE companies ADD COLUMN owner_email TEXT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='linked_emails') THEN
-    ALTER TABLE companies ADD COLUMN linked_emails TEXT[] DEFAULT '{}';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='trial_start') THEN
-    ALTER TABLE companies ADD COLUMN trial_start TIMESTAMP WITH TIME ZONE DEFAULT NOW();
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='is_paid') THEN
-    ALTER TABLE companies ADD COLUMN is_paid BOOLEAN DEFAULT FALSE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='company_type') THEN
-    ALTER TABLE companies ADD COLUMN company_type TEXT DEFAULT 'normal';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='username') THEN
-    ALTER TABLE companies ADD COLUMN username TEXT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='recovery_code') THEN
-    ALTER TABLE companies ADD COLUMN recovery_code TEXT;
-  END IF;
-
-  -- Other Tables
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='parties' AND column_name='user_email') THEN
-    ALTER TABLE parties ADD COLUMN user_email TEXT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='banks' AND column_name='user_email') THEN
-    ALTER TABLE banks ADD COLUMN user_email TEXT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='inventory' AND column_name='user_email') THEN
-    ALTER TABLE inventory ADD COLUMN user_email TEXT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='user_email') THEN
-    ALTER TABLE transactions ADD COLUMN user_email TEXT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoices' AND column_name='user_email') THEN
-    ALTER TABLE invoices ADD COLUMN user_email TEXT;
-  END IF;
-END $$;
-
--- 2. Create company_access table for sharing
-CREATE TABLE IF NOT EXISTS company_access (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
-  owner_email TEXT NOT NULL,
-  shared_email TEXT NOT NULL,
-  join_code TEXT,
-  permission TEXT DEFAULT 'view',
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(company_id, shared_email)
-);
-
--- Optimization and Sync robustness
-ALTER TABLE companies REPLICA IDENTITY FULL;
--- ... (rest of REPLICA IDENTITY FULL)
-ALTER TABLE company_access REPLICA IDENTITY FULL;
-
--- Ensure RLS is enabled on all tables
-ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE company_access ENABLE ROW LEVEL SECURITY;
-ALTER TABLE parties ENABLE ROW LEVEL SECURITY;
-ALTER TABLE banks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
-ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
-
--- 6. User Profiles (Synced with auth.users)
-CREATE TABLE IF NOT EXISTS profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT UNIQUE NOT NULL,
-  full_name TEXT,
-  is_verified BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "profiles_insert" ON public.profiles FOR INSERT WITH CHECK (true);
-CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING (auth.uid() = id);
-
--- Function to handle new user signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email, full_name, is_verified)
-  VALUES (
-    new.id, 
-    new.email, 
-    new.raw_user_meta_data->>'full_name',
-    (new.email_confirmed_at IS NOT NULL)
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    is_verified = (new.email_confirmed_at IS NOT NULL);
-  RETURN new;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Trigger for new user
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT OR UPDATE ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
--- 7. Company Invites
-CREATE TABLE IF NOT EXISTS company_invites (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
-  invited_email TEXT NOT NULL,
-  invited_by TEXT NOT NULL,
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(company_id, invited_email, status)
-);
-
-ALTER TABLE company_invites ENABLE ROW LEVEL SECURITY;
-
--- company_invites policies
-CREATE POLICY "invites_read"
-ON company_invites FOR SELECT
-USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(invited_email) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  public.is_company_member(company_id)
-);
-
-CREATE POLICY "invites_write"
-ON company_invites FOR INSERT
-WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  (LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) AND public.is_company_member(company_id))
-);
-
-CREATE POLICY "invites_update"
-ON company_invites FOR UPDATE
-USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) OR 
-  LOWER(auth.jwt() ->> 'email') = LOWER(invited_email) OR
-  public.is_company_member(company_id)
-);
-
-CREATE POLICY "invites_delete"
-ON company_invites FOR DELETE
-USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) OR
-  public.is_company_member(company_id)
-);
-
--- 8. Company Members
-CREATE TABLE IF NOT EXISTS company_members (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  user_email TEXT NOT NULL,
-  role TEXT DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(company_id, user_id)
-);
-
-ALTER TABLE company_members ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "members_read"
-ON company_members FOR SELECT
-USING (
-  auth.uid() = user_id OR
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  public.is_company_member(company_id)
-);
-
-CREATE POLICY "members_insert"
-ON company_members FOR INSERT
-WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  public.is_company_member(company_id)
-);
-
-CREATE POLICY "members_update"
-ON company_members FOR UPDATE
-USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  public.is_company_member(company_id)
-);
-
-CREATE POLICY "members_delete"
-ON company_members FOR DELETE
-USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  public.is_company_member(company_id)
-);
-
--- Optimization and Sync robustness
-ALTER TABLE profiles REPLICA IDENTITY FULL;
-ALTER TABLE company_invites REPLICA IDENTITY FULL;
-ALTER TABLE company_members REPLICA IDENTITY FULL;
-
--- Legacy table cleanup (optional, keeping for safety but we will switch logic)
--- ALTER TABLE company_access RENAME TO company_access_legacy;
-
--- 7. Companies Policies (Simplified to prevent loops)
--- Consolidated policy for companies to ensure sync works reliably
-CREATE POLICY "companies_v15_full_access" ON public.companies FOR ALL USING (
-  owner_id = auth.uid()::text OR 
-  LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
-  LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  public.is_company_member(id) OR
-  (username IS NOT NULL AND auth.uid() IS NULL)
-) WITH CHECK (true);
-
--- 8. Add Licenses and Payment Requests Tables (to ensure they exist for policies)
 CREATE TABLE IF NOT EXISTS licenses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT,
@@ -475,80 +188,198 @@ CREATE TABLE IF NOT EXISTS payment_requests (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Ensure columns exist
-DO $$ 
+-- 4. Helper functions (SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION public.is_company_member(cid UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+  current_email TEXT;
+  current_uid TEXT;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='licenses' AND column_name='user_email') THEN
-    ALTER TABLE licenses ADD COLUMN user_email TEXT;
+  current_email := LOWER(auth.jwt() ->> 'email');
+  current_uid := auth.uid()::text;
+  
+  -- Root Admin Bypass
+  IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
+  -- Basic validity
+  IF current_email IS NULL OR current_email = '' THEN 
+    IF current_uid IS NULL THEN RETURN FALSE; END IF;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payment_requests' AND column_name='user_email') THEN
-    ALTER TABLE payment_requests ADD COLUMN user_email TEXT;
-  END IF;
-END $$;
 
+  -- Use a direct query that bypasses RLS because this is SECURITY DEFINER
+  IF EXISTS (
+    SELECT 1 FROM public.companies 
+    WHERE id = cid 
+    AND (
+      owner_id = current_uid OR
+      LOWER(owner_email) = current_email OR 
+      LOWER(user_email) = current_email OR 
+      current_email = ANY(COALESCE(linked_emails, '{}'))
+    )
+  ) THEN
+    RETURN TRUE;
+  END IF;
+
+  -- Also check company_members directly to be safe
+  RETURN EXISTS (
+    SELECT 1 FROM public.company_members 
+    WHERE company_id = cid AND (user_id = auth.uid() OR LOWER(user_email) = current_email)
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.is_company_owner(cid UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN public.is_company_member(cid);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
+RETURNS trigger AS $$
+BEGIN
+  IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+    UPDATE public.companies 
+    SET linked_emails = (
+      SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
+      FROM public.company_members 
+      WHERE company_id = NEW.company_id
+    )
+    WHERE id = NEW.company_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE public.companies 
+    SET linked_emails = (
+      SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
+      FROM public.company_members 
+      WHERE company_id = OLD.company_id
+    )
+    WHERE id = OLD.company_id;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, is_verified)
+  VALUES (
+    new.id, 
+    new.email, 
+    new.raw_user_meta_data->>'full_name',
+    (new.email_confirmed_at IS NOT NULL)
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    is_verified = (new.email_confirmed_at IS NOT NULL);
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- triggers
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT OR UPDATE ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+DROP TRIGGER IF EXISTS on_company_member_change ON public.company_members;
+CREATE TRIGGER on_company_member_change
+  AFTER INSERT OR UPDATE OR DELETE ON public.company_members
+  FOR EACH ROW EXECUTE FUNCTION public.sync_company_linked_emails();
+
+-- 5. RLS Policies
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE company_invites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE company_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parties ENABLE ROW LEVEL SECURITY;
+ALTER TABLE banks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
 
--- 8. Core Table Policies (Direct access via user_email or share check)
--- This avoids querying the 'companies' table inside these policies to prevent recursion.
-
--- Parties
-CREATE POLICY "parties_access" ON public.parties FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+-- Companies
+CREATE POLICY "companies_access" ON public.companies FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  public.is_company_member(company_id)
-);
+  owner_id = auth.uid()::text OR 
+  LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
+  LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
+  LOWER(auth.jwt() ->> 'email') = ANY(COALESCE(linked_emails, '{}')) OR
+  (username IS NOT NULL AND auth.uid() IS NULL)
+) WITH CHECK (true);
 
--- Banks
-CREATE POLICY "banks_access" ON public.banks FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+-- Profiles
+CREATE POLICY "profiles_access" ON public.profiles FOR ALL USING (
+  auth.uid() = id OR LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+) WITH CHECK (true);
+
+-- Invites
+CREATE POLICY "invites_access" ON public.company_invites FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) OR 
+  LOWER(auth.jwt() ->> 'email') = LOWER(invited_email) OR
   public.is_company_member(company_id)
-);
+) WITH CHECK (true);
 
--- Inventory
-CREATE POLICY "inventory_access" ON public.inventory FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+-- Members
+CREATE POLICY "members_access" ON public.company_members FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  auth.uid() = user_id OR
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR
   public.is_company_member(company_id)
-);
+) WITH CHECK (true);
 
--- Transactions
-CREATE POLICY "transactions_access" ON public.transactions FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+-- Other tables
+CREATE POLICY "parties_policy" ON public.parties FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
-  public.is_company_member(company_id)
-);
-
--- Invoices
-CREATE POLICY "invoices_access" ON public.invoices FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  public.is_company_member(company_id)
+) WITH CHECK (true);
+
+CREATE POLICY "banks_policy" ON public.banks FOR ALL USING (
   LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   public.is_company_member(company_id)
-);
+) WITH CHECK (true);
 
--- 9. External systems Policies
--- Licenses
-CREATE POLICY "licenses_access" ON licenses FOR ALL USING (
+CREATE POLICY "inventory_policy" ON public.inventory FOR ALL USING (
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  auth.uid()::text = user_id::text OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-) WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  auth.uid()::text = user_id::text OR
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-);
+  public.is_company_member(company_id)
+) WITH CHECK (true);
 
--- Payment Requests 
-CREATE POLICY "payment_requests_access" ON payment_requests FOR ALL USING (
+CREATE POLICY "transactions_policy" ON public.transactions FOR ALL USING (
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-) WITH CHECK (
-  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
-);
+  public.is_company_member(company_id)
+) WITH CHECK (true);
 
--- Seed linked_emails for existing companies
+CREATE POLICY "invoices_policy" ON public.invoices FOR ALL USING (
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  public.is_company_member(company_id)
+) WITH CHECK (true);
+
+-- External
+CREATE POLICY "licenses_policy" ON public.licenses FOR ALL USING (
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
+  auth.uid()::text = user_id::text
+) WITH CHECK (true);
+
+CREATE POLICY "payment_requests_policy" ON public.payment_requests FOR ALL USING (
+  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
+  LOWER(auth.jwt() ->> 'email') = LOWER(user_email)
+) WITH CHECK (true);
+
+-- 6. Replication Identity
+ALTER TABLE companies REPLICA IDENTITY FULL;
+ALTER TABLE profiles REPLICA IDENTITY FULL;
+ALTER TABLE company_invites REPLICA IDENTITY FULL;
+ALTER TABLE company_members REPLICA IDENTITY FULL;
+
+-- 7. Seed linked_emails
 DO $$
 BEGIN
   UPDATE public.companies c
@@ -558,5 +389,3 @@ BEGIN
     WHERE m.company_id = c.id
   );
 END $$;
-
--- End of setup
