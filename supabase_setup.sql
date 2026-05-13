@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS companies (
   trial_start TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   is_paid BOOLEAN DEFAULT FALSE,
   company_type TEXT DEFAULT 'normal',
-  recovery_code TEXT
+  recovery_code TEXT,
+  deleted_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE TABLE IF NOT EXISTS profiles (
@@ -93,7 +94,8 @@ CREATE TABLE IF NOT EXISTS parties (
   type TEXT CHECK (type IN ('Customer', 'Supplier', 'Both')),
   user_email TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  deleted_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE TABLE IF NOT EXISTS banks (
@@ -105,7 +107,8 @@ CREATE TABLE IF NOT EXISTS banks (
   current_balance DOUBLE PRECISION DEFAULT 0,
   user_email TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  deleted_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE TABLE IF NOT EXISTS inventory (
@@ -116,11 +119,15 @@ CREATE TABLE IF NOT EXISTS inventory (
   unit TEXT,
   purchase_price DOUBLE PRECISION DEFAULT 0,
   sale_price DOUBLE PRECISION DEFAULT 0,
+  price DOUBLE PRECISION DEFAULT 0,
   opening_stock DOUBLE PRECISION DEFAULT 0,
   current_stock DOUBLE PRECISION DEFAULT 0,
+  stock DOUBLE PRECISION DEFAULT 0,
+  low_stock_alert DOUBLE PRECISION DEFAULT 0,
   user_email TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  deleted_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
@@ -136,9 +143,19 @@ CREATE TABLE IF NOT EXISTS transactions (
   item_id UUID REFERENCES inventory(id) ON DELETE SET NULL,
   description TEXT,
   reference TEXT,
+  category TEXT,
+  quantity DOUBLE PRECISION,
+  unit TEXT,
+  price DOUBLE PRECISION,
+  shipping_mark TEXT,
+  total_weight DOUBLE PRECISION,
+  shortage DOUBLE PRECISION,
+  net_weight DOUBLE PRECISION,
+  payment_type TEXT,
   user_email TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  deleted_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE TABLE IF NOT EXISTS invoices (
@@ -161,7 +178,8 @@ CREATE TABLE IF NOT EXISTS invoices (
   notes TEXT,
   user_email TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  deleted_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE TABLE IF NOT EXISTS licenses (
