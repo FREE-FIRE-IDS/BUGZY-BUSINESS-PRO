@@ -186,7 +186,7 @@ export default function Dashboard() {
       invoices: invoices.filter(i => 
         i.invoice_number.toLowerCase().includes(query) || 
         i.party_name?.toLowerCase().includes(query) ||
-        (parties.find(p => p.id === i.party_id)?.name.toLowerCase().includes(query)) ||
+        (parties.find(p => p.id === i.party_id)?.name?.toLowerCase().includes(query)) ||
         i.total.toString().includes(query)
       ).slice(0, 5),
       items: items.filter(i => i.name.toLowerCase().includes(query) || i.sku?.toLowerCase().includes(query))

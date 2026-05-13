@@ -10,7 +10,8 @@ import {
   Download,
   Package,
   Calculator,
-  Type
+  Type,
+  Calendar
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { formatCurrency, formatDate, cn } from '../lib/utils';

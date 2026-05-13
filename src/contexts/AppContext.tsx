@@ -98,11 +98,13 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
   const toUploadMap = new Map<string, T>();
 
   // Mark all cloud items as synced
-  const cloudItems = cloud.map(item => ({ ...item, _synced: true }));
-  const cloudIds = new Set(cloudItems.map(c => c.id));
+  const cloudItems = cloud.filter(Boolean).map(item => ({ ...item, _synced: true }));
+  const cloudIds = new Set(cloudItems.filter(c => c?.id).map(c => c.id));
 
   // Start with local data
-  local.forEach(item => mergedMap.set(item.id, item));
+  local.filter(Boolean).forEach(item => {
+    if (item?.id) mergedMap.set(item.id, item);
+  });
 
   // Merge cloud data
   cloudItems.forEach(cloudItem => {
@@ -398,15 +400,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (currentCompany) {
-      // Clear data immediately when switching companies to prevent leakage
-      setParties([]);
-      setBanks([]);
-      setItems([]);
-      setTransactions([]);
-      setInvoices([]);
-      
       localStorage.setItem('currentCompany', JSON.stringify(currentCompany));
-      // Trigger data pull when company changes
+      // Trigger data pull to ensure fresh data from cloud
       refreshData(undefined, true);
     } else {
       localStorage.removeItem('currentCompany');
@@ -667,7 +662,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             
             const localKey = `${table}_${comp.id}`;
             const localData = JSON.parse(localStorage.getItem(localKey) || '[]');
-            const { merged, toUpload } = mergeData<any>(localData, (data as any[]) || []);
+            const { merged, toUpload } = mergeData<any>(Array.isArray(localData) ? localData : [], Array.isArray(data) ? data : []);
             
             localStorage.setItem(localKey, JSON.stringify(merged));
             if (comp.id === currentCompanyIdRef.current) {
@@ -1220,7 +1215,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       });
 
       // 2. Process Transactions (Sort once)
-      const sortedTxs = [...allTransactions].filter(t => t && !t.deleted_at).sort((a, b) => a.date.localeCompare(b.date));
+      const sortedTxs = [...allTransactions].filter(t => t && t.date && !t.deleted_at).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
       
       sortedTxs.forEach(tx => {
         if (tx.party_id && partyBalances[tx.party_id] !== undefined) {
