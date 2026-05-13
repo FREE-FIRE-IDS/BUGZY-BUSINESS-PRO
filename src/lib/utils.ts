@@ -22,12 +22,17 @@ export function getTransactionLabel(type: string) {
   }
 }
 
-export function formatCurrency(amount: number, currency: string = 'PKR') {
-  if (currency === 'None') return amount.toLocaleString();
-  return new Intl.NumberFormat('en-PK', {
-    style: 'currency',
-    currency: currency === 'PKR' ? 'PKR' : 'USD',
-  }).format(amount);
+export function formatCurrency(amount: number | null | undefined, currency: string = 'PKR') {
+  const val = Number(amount || 0);
+  if (currency === 'None') return val.toLocaleString();
+  try {
+    return new Intl.NumberFormat('en-PK', {
+      style: 'currency',
+      currency: currency === 'PKR' ? 'PKR' : (currency === 'USD' ? 'USD' : 'PKR'),
+    }).format(val);
+  } catch (e) {
+    return val.toLocaleString();
+  }
 }
 
 export function formatBalance(amount: number, currency: string = 'PKR', showDrCr: boolean = false) {
@@ -40,12 +45,19 @@ export function formatBalance(amount: number, currency: string = 'PKR', showDrCr
   return `${formatted} Cr`;
 }
 
-export function formatDate(date: string | Date) {
-  return new Date(date).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+export function formatDate(date: string | Date | null | undefined) {
+  if (!date) return '-';
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch (e) {
+    return '-';
+  }
 }
 
 export function numberToWords(num: number): string {

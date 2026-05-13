@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { 
   Plus, 
   Search, 
@@ -90,7 +91,8 @@ export default function Expenses() {
   });
 
   const filteredExpenses = React.useMemo(() => {
-    const expenses = transactions.filter(t => t.type === 'Expense');
+    if (!Array.isArray(transactions)) return [];
+    const expenses = transactions.filter(t => t && t.type === 'Expense' && !t.deleted_at);
     return expenses.filter(e => {
       const matchesSearch = (e.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                           (e.category?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -100,14 +102,24 @@ export default function Expenses() {
 
       let matchesDate = true;
       if (dateRange === 'This Month' && e.date) {
-        const date = new Date(e.date);
-        const now = new Date();
-        matchesDate = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+        try {
+          const date = new Date(e.date);
+          const now = new Date();
+          matchesDate = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+        } catch (err) {
+          console.error('Date parsing error:', err);
+          matchesDate = false;
+        }
       } else if (dateRange === '7 Days' && e.date) {
-        const date = new Date(e.date);
-        const now = new Date();
-        const diff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
-        matchesDate = diff <= 7;
+        try {
+          const date = new Date(e.date);
+          const now = new Date();
+          const diff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
+          matchesDate = diff <= 7;
+        } catch (err) {
+          console.error('Date parsing error:', err);
+          matchesDate = false;
+        }
       }
 
       return matchesSearch && matchesDate && matchesCategory;
@@ -449,34 +461,40 @@ export default function Expenses() {
                 </button>
               </div>
               
-              <form className="p-6 space-y-6 overflow-y-auto pb-24" onSubmit={(e) => {
+               <form className="p-6 space-y-6 overflow-y-auto pb-24" onSubmit={async (e) => {
                 e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const dateStr = formData.get('date') as string;
-                const date = dateStr ? new Date(dateStr).toISOString() : new Date().toISOString();
-                
-                // Add each item as a transaction
-                const transactionsToAdd = expenseItems
-                  .filter(item => item.amount > 0)
-                  .map(item => ({
-                    company_id: currentCompany?.id || '',
-                    date,
-                    type: 'Expense' as const,
-                    amount: item.amount,
-                    description: item.description,
-                    category: item.category,
-                    quantity: item.quantity,
-                    price: item.price,
-                    unit: item.unit,
-                    payment_type: paymentType,
-                    bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
-                    party_id: paymentType === 'Credit' ? formData.get('party_id') as string : undefined,
-                  }));
+                try {
+                  const formData = new FormData(e.currentTarget);
+                  const dateStr = formData.get('date') as string;
+                  const date = dateStr ? new Date(dateStr).toISOString() : new Date().toISOString();
+                  
+                  // Add each item as a transaction
+                  const transactionsToAdd = expenseItems
+                    .filter(item => item.amount > 0)
+                    .map(item => ({
+                      company_id: currentCompany?.id || '',
+                      date,
+                      type: 'Expense' as const,
+                      amount: item.amount,
+                      description: item.description,
+                      category: item.category,
+                      quantity: item.quantity,
+                      price: item.price,
+                      unit: item.unit,
+                      payment_type: paymentType,
+                      bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
+                      party_id: paymentType === 'Credit' ? formData.get('party_id') as string : undefined,
+                    }));
 
-                if (transactionsToAdd.length > 0) {
-                  addTransactions(transactionsToAdd);
+                  if (transactionsToAdd.length > 0) {
+                    await addTransactions(transactionsToAdd);
+                    toast.success(`${transactionsToAdd.length} Expenses Recorded`);
+                  }
+                  setIsAddModalOpen(false);
+                } catch (err) {
+                  console.error('Submit Expense Error:', err);
+                  toast.error('Failed to record expenses');
                 }
-                setIsAddModalOpen(false);
               }}>
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

@@ -191,21 +191,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setItems([]);
       setTransactions([]);
       setInvoices([]);
+      hasInitialSynced.current = {};
       return;
     }
 
     const id = currentCompany.id;
     const load = (key: string) => {
       const saved = localStorage.getItem(`${key}_${id}`);
-      return saved ? JSON.parse(saved) : [];
+      try {
+        return saved ? JSON.parse(saved) : [];
+      } catch (e) {
+        console.error(`Failed to parse ${key} for ${id}:`, e);
+        return [];
+      }
     };
 
+    // Load instantly from cache
     setParties(load('parties'));
     setBanks(load('banks'));
     setItems(load('items'));
     setTransactions(load('transactions'));
     setInvoices(load('invoices'));
-  }, [currentCompany, currentUser]);
+
+    // Trigger sync if enabled
+    if (settings.sync_enabled) {
+      refreshData(undefined, true).catch(err => console.error('Switch Company Refresh Error:', err));
+    }
+  }, [currentCompany?.id, currentUser]);
 
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('app_settings');
@@ -401,15 +413,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (currentCompany) {
       localStorage.setItem('currentCompany', JSON.stringify(currentCompany));
-      // Trigger data pull to ensure fresh data from cloud
-      refreshData(undefined, true);
     } else {
       localStorage.removeItem('currentCompany');
-      setParties([]);
-      setBanks([]);
-      setItems([]);
-      setTransactions([]);
-      setInvoices([]);
     }
   }, [currentCompany?.id]);
 
@@ -1171,7 +1176,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     const timer = setTimeout(() => {
       recalculateBalances(transactions, parties, banks, items, invoices);
-    }, 1000);
+    }, 100);
 
     return () => clearTimeout(timer);
   }, [transactions, parties, banks, items, invoices, currentCompany?.id]);
@@ -1301,13 +1306,13 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       id: crypto.randomUUID(),
       created_at: now,
       updated_at: now,
+      _synced: false
     };
     
     // Instant UI Update with functional setter to prevent race conditions
     setTransactions(prev => {
       const updated = [newTx, ...prev];
       localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
-      recalculateBalances(updated, parties, banks, items, invoices);
       return updated;
     });
     
@@ -1331,12 +1336,12 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       id: crypto.randomUUID(),
       created_at: now,
       updated_at: now,
+      _synced: false
     }));
     
     setTransactions(prev => {
       const updated = [...newTxs, ...prev];
       localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
-      recalculateBalances(updated, parties, banks, items, invoices);
       return updated;
     });
 
@@ -1354,14 +1359,18 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       return;
     }
     const now = new Date().toISOString();
-    const updated = transactions.map(t => t.id === id ? { ...t, ...tx, updated_at: now } : t);
-    setTransactions(updated);
-    localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
     
-    if (settings.sync_enabled) {
-      await syncToCloud('transactions', updated.find(t => t.id === id));
+    setTransactions(prev => {
+      const updated = prev.map(t => t.id === id ? { ...t, ...tx, updated_at: now, _synced: false } : t);
+      localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
+      return updated;
+    });
+    
+    const targetTx = transactions.find(t => t.id === id);
+    if (targetTx && settings.sync_enabled) {
+      syncToCloud('transactions', [{ ...targetTx, ...tx, updated_at: now, _synced: false }], true)
+        .catch(err => console.error('Update Sync Error:', err));
     }
-    await recalculateBalances(updated, parties, banks, items, invoices);
   };
 
   const addParty = async (party: Omit<Party, 'id' | 'created_at'>) => {

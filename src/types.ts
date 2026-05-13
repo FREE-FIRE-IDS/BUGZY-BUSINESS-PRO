@@ -54,6 +54,7 @@ export interface Company {
   linked_emails?: string[]; // Emails of other accounts linked to this company
   owner_email?: string; // Email of the real owner if it's shared
   permission?: SharePermission; // My permission for this company
+  _synced?: boolean;
 }
 
 export interface Party {
@@ -69,6 +70,7 @@ export interface Party {
   created_at: string;
   updated_at?: string;
   deleted_at?: string;
+  _synced?: boolean;
 }
 
 export interface BankAccount {
@@ -81,6 +83,7 @@ export interface BankAccount {
   created_at: string;
   updated_at?: string;
   deleted_at?: string;
+  _synced?: boolean;
 }
 
 export interface InventoryItem {
@@ -96,6 +99,7 @@ export interface InventoryItem {
   created_at: string;
   updated_at?: string;
   deleted_at?: string;
+  _synced?: boolean;
 }
 
 export interface Transaction {
@@ -122,6 +126,7 @@ export interface Transaction {
   created_at: string;
   updated_at?: string;
   deleted_at?: string;
+  _synced?: boolean;
 }
 
 export interface Invoice {
@@ -153,6 +158,7 @@ export interface Invoice {
   created_at: string;
   updated_at?: string;
   deleted_at?: string;
+  _synced?: boolean;
 }
 
 export interface PaymentRequest {
