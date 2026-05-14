@@ -526,31 +526,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
       .subscribe();
 
-    const accessChannel = supabase
-      .channel('access-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_invites' }, (payload) => {
-        const email = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
-        if (!email) return;
+    // Real-time access channel (Restrict to sessions to avoid RLS errors for guest users)
+    let accessChannel: any = null;
+    if (session) {
+      accessChannel = supabase
+        .channel('access-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'company_invites' }, (payload) => {
+          const email = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
+          if (!email) return;
 
-        const data = (payload.new || payload.old) as any;
-        if (data.invited_email?.toLowerCase() === email) {
-          fetchInvitations().catch(console.error);
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_members' }, (payload) => {
-        const email = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
-        if (!email) return;
+          const data = (payload.new || payload.old) as any;
+          if (data.invited_email?.toLowerCase() === email) {
+            fetchInvitations().catch(console.error);
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'company_members' }, (payload) => {
+          const email = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
+          if (!email) return;
 
-        const data = (payload.new || payload.old) as any;
-        if (data.user_email?.toLowerCase() === email) {
-          refreshData(undefined, true).catch(console.error);
-        }
-      })
-      .subscribe();
+          const data = (payload.new || payload.old) as any;
+          if (data.user_email?.toLowerCase() === email) {
+            refreshData(undefined, true).catch(console.error);
+          }
+        })
+        .subscribe();
+    }
 
     return () => {
       supabase.removeChannel(channel);
-      supabase.removeChannel(accessChannel);
+      if (accessChannel) supabase.removeChannel(accessChannel);
     };
   }, [settings.user_email, currentCompany?.id]);
 
@@ -2885,23 +2889,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         });
       }
 
-      // Also try by user_id if we can find the profile (for session-based users)
-      if (session) {
-        const { data: memberProfile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('email', emailToRevoke)
-          .maybeSingle();
-
-        if (memberProfile) {
-          await supabase
-            .from('company_members')
-            .delete()
-            .eq('company_id', companyId)
-            .eq('user_id', memberProfile.id);
-        }
-      }
-
       toast.success(`Access revoked for ${sharedEmail}`);
       // Force refresh of the team list
       await fetchSentInvitations(companyId);
@@ -2930,24 +2917,12 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     if (error) {
       console.error('[Shared Companies RPC Error]', error);
-      // Fallback for sessions if RPC fails
-      if (session) {
-        const { data: directData } = await supabase
-          .from('company_members')
-          .select('company_id, companies(*)')
-          .eq('user_email', myEmail);
-        
-        const filtered = (directData || [])
-          .map((m: any) => m.companies)
-          .filter((c: any) => c && c.user_email?.toLowerCase() !== myEmail && c.owner_email?.toLowerCase() !== myEmail);
-        return filtered;
-      }
       return [];
     }
 
     // Filter out companies I own or that are null
     const filtered = (memberships || [])
-      .map(m => m.companies)
+      .map((m: any) => m.companies)
       .filter((c: any) => c && c.user_email?.toLowerCase() !== myEmail && c.owner_email?.toLowerCase() !== myEmail);
 
     return filtered;

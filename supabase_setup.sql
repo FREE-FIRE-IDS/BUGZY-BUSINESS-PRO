@@ -436,6 +436,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+CREATE OR REPLACE FUNCTION public.is_company_owner(req_company_id UUID, req_email TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.companies
+    WHERE id = req_company_id AND (
+      LOWER(owner_email) = LOWER(req_email) OR
+      LOWER(user_email) = LOWER(req_email)
+    )
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 CREATE OR REPLACE FUNCTION public.is_authorized_for_company(req_company_id UUID, req_email TEXT)
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -462,8 +475,8 @@ BEGIN
   END IF;
 
   -- Dynamic query based on table name (validated against allowlist)
-  IF req_table NOT IN ('parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access') THEN
-    RAISE EXCEPTION 'Table not allowed';
+  IF req_table NOT IN ('parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
+    RAISE EXCEPTION 'Table % not allowed', req_table;
   END IF;
 
   RETURN QUERY EXECUTE format('SELECT pg_catalog.to_jsonb(t.*) FROM public.%I t WHERE company_id = %L', req_table, req_company_id);
@@ -495,7 +508,7 @@ BEGIN
   END IF;
 
   -- 2. Validate table name
-  IF req_table NOT IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access') THEN
+  IF req_table NOT IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
     RAISE EXCEPTION 'Table % not allowed', req_table;
   END IF;
 
@@ -537,6 +550,11 @@ RETURNS VOID AS $$
 DECLARE
   v_company_id UUID;
 BEGIN
+  -- 0. Validate table name
+  IF req_table NOT IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
+    RAISE EXCEPTION 'Table % not allowed', req_table;
+  END IF;
+
   -- 1. Get company_id of the record to check authorization
   EXECUTE format('SELECT company_id FROM public.%I WHERE id = %L', req_table, req_id) INTO v_company_id;
 
@@ -544,9 +562,22 @@ BEGIN
     RETURN; -- Already deleted or doesn't exist
   END IF;
 
-  -- 2. Validate authorization
-  IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
-    RAISE EXCEPTION 'Not authorized to delete from company %', v_company_id;
+  -- 2. Validate authorization (Owner can delete anything, member can only delete themselves)
+  IF NOT public.is_company_owner(v_company_id, req_email) THEN
+    -- Check if record being deleted belongs to the requester
+    DECLARE
+      v_record_email TEXT;
+    BEGIN
+      EXECUTE format('SELECT LOWER(user_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
+      IF v_record_email IS NULL THEN
+        -- Try invited_email for invitations table
+        EXECUTE format('SELECT LOWER(invited_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
+      END IF;
+
+      IF v_record_email IS NULL OR v_record_email != LOWER(req_email) THEN
+        RAISE EXCEPTION 'Not authorized to delete this record';
+      END IF;
+    END;
   END IF;
 
   -- 3. Perform Delete
