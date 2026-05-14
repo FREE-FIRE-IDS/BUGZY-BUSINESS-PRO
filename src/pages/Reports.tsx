@@ -1182,7 +1182,11 @@ export default function Reports() {
       const totals = selectedRows.size > 0 
         ? selectedColumns.reduce((acc: any, col) => {
             if (['Debit', 'Credit', 'Balance', 'Amount', 'Total', 'Value', 'In (+)', 'Out (-)', 'Deposit', 'Withdrawal', 'Cash In', 'Cash Out', 'Net Flow', 'Debit (DR)', 'Credit (CR)', 'Receivable Balance', 'Payable Balance', 'Net Balance'].includes(col)) {
-              acc[col] = dataToExport.reduce((sum, d) => sum + (Number(d[col]) || 0), 0);
+              acc[col] = dataToExport.reduce((sum, d) => {
+                // Skip rows that are already totals or headers to avoid double counting
+                if (d.isHeader || d.isTotal || d.isFinal) return sum;
+                return sum + (Number(d[col]) || 0);
+              }, 0);
             }
             return acc;
           }, {})
@@ -1565,11 +1569,20 @@ export default function Reports() {
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                     {filteredData.map((row, idx) => (
-                      <tr key={idx} className={cn(
-                        "hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group",
-                        selectedRows.has(idx) && "bg-indigo-50/30 dark:bg-indigo-900/10"
-                      )}>
-                        <td className="px-4 py-3 sm:px-6 border-b border-slate-50 dark:border-slate-800">
+                      <tr 
+                        key={idx} 
+                        onClick={() => {
+                          const next = new Set(selectedRows);
+                          if (next.has(idx)) next.delete(idx);
+                          else next.add(idx);
+                          setSelectedRows(next);
+                        }}
+                        className={cn(
+                          "hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer",
+                          selectedRows.has(idx) && "bg-indigo-50/30 dark:bg-indigo-900/10"
+                        )}
+                      >
+                        <td className="px-4 py-3 sm:px-6 border-b border-slate-50 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
                           <input 
                             type="checkbox" 
                             checked={selectedRows.has(idx)}

@@ -383,13 +383,22 @@ export default function SyncCenter() {
                           </div>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => revokeCompanyAccess(currentCompany!.id, sent.invited_email)}
-                        className="p-2 text-slate-400 hover:text-rose-500 self-end sm:self-auto"
-                        title="Revoke Access"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+      <button 
+        onClick={async () => {
+          if (window.confirm(`Revoke access for ${sent.invited_email}?`)) {
+            try {
+              await revokeCompanyAccess(currentCompany!.id, sent.invited_email);
+            } catch (err: any) {
+              alert(err.message || 'Failed to revoke access');
+            }
+          }
+        }}
+        className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded-lg transition-all"
+        title="Revoke Access"
+      >
+        <Trash2 size={14} />
+        <span>Revoke</span>
+      </button>
                     </div>
                   ))}
                 </div>
