@@ -783,10 +783,12 @@ export default function App() {
     { id: 'invoices', label: 'Invoices', icon: FileText, premium: true },
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
-    { id: 'reports', label: 'Reports', icon: History, premium: true },
     { id: 'business-status', label: 'Business Status', icon: BarChart3, premium: true },
-    { id: 'customization', label: 'Themes', icon: Sun, premium: true },
-    ...(!isSharedCompany(currentCompany) ? [{ id: 'settings', label: 'App Settings', icon: SettingsIcon, premium: true }] : []),
+    ...(!isSharedCompany(currentCompany) ? [
+      { id: 'reports', label: 'Reports', icon: History, premium: true },
+      { id: 'customization', label: 'Themes', icon: Sun, premium: true },
+      { id: 'settings', label: 'App Settings', icon: SettingsIcon, premium: true }
+    ] : []),
     ...(currentCompany && !currentCompany.is_paid && !isLicensed() ? [{ id: 'upgrade', label: 'Premium Status', icon: Sparkles, premium: true }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Building2, premium: true }] : []),
   ];
@@ -801,8 +803,10 @@ export default function App() {
     { id: 'inventory', label: 'Inventory', icon: Package, premium: true },
     { id: 'expenses', label: 'Expenses', icon: Receipt, premium: true },
     { id: 'companies', label: 'Manage Entities', icon: Building2 },
-    { id: 'reports', label: 'Data Reports', icon: History, premium: true },
-    ...(!isSharedCompany(currentCompany) ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true }] : []),
+    ...(!isSharedCompany(currentCompany) ? [
+      { id: 'reports', label: 'Data Reports', icon: History, premium: true },
+      { id: 'settings', label: 'Settings', icon: SettingsIcon, premium: true }
+    ] : []),
   ];
 
   const renderPage = () => {

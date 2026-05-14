@@ -589,7 +589,7 @@ NOTIFY pgrst, 'reload schema';
       )}
 
       {/* Recovery Code Section */}
-      {currentCompany && (
+      {!isShared && currentCompany && (
         <section>
           <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
             <Shield size={24} className="text-indigo-600" />
@@ -627,11 +627,12 @@ NOTIFY pgrst, 'reload schema';
       )}
 
       {/* Branding Section */}
-      <section>
-        <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
-          <Building2 size={24} className="text-indigo-600" />
-          Company Branding
-        </h3>
+      {!isShared && (
+        <section>
+          <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-slate-900 dark:text-white">
+            <Building2 size={24} className="text-indigo-600" />
+            Company Branding
+          </h3>
         <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
@@ -696,6 +697,7 @@ NOTIFY pgrst, 'reload schema';
           </div>
         </div>
       </section>
+      )}
 
       {/* Preferences Section */}
       <section>
