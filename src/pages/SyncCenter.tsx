@@ -358,54 +358,54 @@ export default function SyncCenter() {
               )}
             </div>
 
-            {/* Team Members List */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm mb-6"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Authorized Team Members</h4>
-                <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => currentCompany && fetchSentInvitations(currentCompany.id)}
-                    className="text-[10px] font-black text-indigo-600 hover:underline uppercase tracking-widest"
-                  >
-                    Refresh
-                  </button>
-                  {isOwner && <span className="text-[10px] font-bold text-slate-400 italic font-sans animate-pulse">Owner View</span>}
+            {/* Team Members List (Only for Owner or Admin) */}
+            {isOwner && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm mb-6"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Authorized Team Members</h4>
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => currentCompany && fetchSentInvitations(currentCompany.id)}
+                      className="text-[10px] font-black text-indigo-600 hover:underline uppercase tracking-widest"
+                    >
+                      Refresh
+                    </button>
+                    <span className="text-[10px] font-bold text-slate-400 italic font-sans animate-pulse">Owner View</span>
+                  </div>
                 </div>
-              </div>
-              
-              {sentInvitations.length === 0 ? (
-                <div className="py-8 text-center bg-slate-50 dark:bg-slate-950/30 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800">
-                  <p className="text-xs font-bold text-slate-400 italic">No team members invited yet.</p>
-                </div>
-              ) : (
-                <div className="grid gap-3">
-                  {sentInvitations.map(sent => (
-                    <div key={sent.id} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center text-xs font-black text-indigo-600 dark:text-indigo-400 shrink-0 border border-indigo-100 dark:border-indigo-800">
-                          {sent.invited_email.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{sent.invited_email}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className={cn(
-                              "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
-                              sent.status === 'pending' ? "bg-amber-100 text-amber-600 dark:bg-amber-900/20" : 
-                              sent.status === 'accepted' ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/20" : 
-                              "bg-rose-100 text-rose-600 dark:bg-rose-900/20"
-                            )}>
-                              {sent.status === 'accepted' ? 'Active Member' : sent.status}
-                            </span>
-                            {sent.status === 'pending' && <span className="text-[8px] font-bold text-slate-400 italic">Waiting for response</span>}
+                
+                {sentInvitations.length === 0 ? (
+                  <div className="py-8 text-center bg-slate-50 dark:bg-slate-950/30 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800">
+                    <p className="text-xs font-bold text-slate-400 italic">No team members invited yet.</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-3">
+                    {sentInvitations.map(sent => (
+                      <div key={sent.id} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center text-xs font-black text-indigo-600 dark:text-indigo-400 shrink-0 border border-indigo-100 dark:border-indigo-800">
+                            {sent.invited_email.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{sent.invited_email}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
+                                sent.status === 'pending' ? "bg-amber-100 text-amber-600 dark:bg-amber-900/20" : 
+                                sent.status === 'accepted' ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/20" : 
+                                "bg-rose-100 text-rose-600 dark:bg-rose-900/20"
+                              )}>
+                                {sent.status === 'accepted' ? 'Active Member' : sent.status}
+                              </span>
+                              {sent.status === 'pending' && <span className="text-[8px] font-bold text-slate-400 italic">Waiting for response</span>}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      
-                      {isOwner && (
+                        
                         <button 
                           onClick={async () => {
                             if (window.confirm(`Are you sure you want to delete access for ${sent.invited_email}?`)) {
@@ -418,12 +418,12 @@ export default function SyncCenter() {
                           <Trash2 size={14} />
                           <span>Remove</span>
                         </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
           </div>
         )}
       </AnimatePresence>

@@ -2730,14 +2730,31 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (existingMember) throw new Error('User is already a member of this company ✅');
 
     // 5. Create Invite
-    const { error: inviteError } = await supabase
-      .from('company_invites')
-      .insert({
-        company_id: companyId,
-        invited_email: inviteeEmail,
-        invited_by: myEmail,
-        status: 'pending'
+    let inviteError;
+    if (!session) {
+      // Use secure RPC for email-sync mode to bypass RLS
+      const { error: rpcError } = await supabase.rpc('upsert_table_data_by_email', {
+        req_table: 'company_invites',
+        req_payload: {
+          company_id: companyId,
+          invited_email: inviteeEmail,
+          invited_by: myEmail,
+          status: 'pending'
+        },
+        req_email: myEmail
       });
+      inviteError = rpcError;
+    } else {
+      const { error: directError } = await supabase
+        .from('company_invites')
+        .insert({
+          company_id: companyId,
+          invited_email: inviteeEmail,
+          invited_by: myEmail,
+          status: 'pending'
+        });
+      inviteError = directError;
+    }
 
     if (inviteError) {
       console.error('[Invite Error]', inviteError);
@@ -2781,10 +2798,28 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     // Fetch both invites and actual members
     // NOTE: RLS policies in Supabase must allow owners and members to see these tables
-    const [invitesRes, membersRes] = await Promise.all([
-      supabase.from('company_invites').select('*').eq('company_id', companyId),
-      supabase.from('company_members').select('*').eq('company_id', companyId)
-    ]);
+    let invitesRes, membersRes;
+
+    if (!session && (settings.user_email || currentUser)) {
+      const email = (settings.user_email || currentUser || '').toLowerCase().trim();
+      [invitesRes, membersRes] = await Promise.all([
+        supabase.rpc('get_table_data_by_email', { 
+          req_table: 'company_invites', 
+          req_company_id: companyId, 
+          req_email: email 
+        }),
+        supabase.rpc('get_table_data_by_email', { 
+          req_table: 'company_members', 
+          req_company_id: companyId, 
+          req_email: email 
+        })
+      ]);
+    } else {
+      [invitesRes, membersRes] = await Promise.all([
+        supabase.from('company_invites').select('*').eq('company_id', companyId),
+        supabase.from('company_members').select('*').eq('company_id', companyId)
+      ]);
+    }
 
     if (invitesRes.error) {
       console.warn('[Fetch Invites Warning]', invitesRes.error.message);
@@ -2896,23 +2931,57 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const emailToRevoke = sharedEmail.toLowerCase().trim();
 
     try {
-      // 1. Delete Invitations
-      const { error: inviteError } = await supabase
-        .from('company_invites')
-        .delete()
-        .eq('company_id', companyId)
-        .eq('invited_email', emailToRevoke);
+      // Find the specific items to delete first to get their IDs
+      // This is necessary because delete_table_data_by_email RPC requires a specific ID
+      const authEmail = (settings.user_email || currentUser || '').toLowerCase().trim();
+      
+      // 1. Revoke Invite
+      if (!session && authEmail) {
+        // Find invite ID first
+        const { data: inv } = await supabase.rpc('get_table_data_by_email', {
+          req_table: 'company_invites',
+          req_company_id: companyId,
+          req_email: authEmail
+        });
+        const targetInv = (inv as any[])?.find(i => i.invited_email.toLowerCase() === emailToRevoke);
+        if (targetInv) {
+          await supabase.rpc('delete_table_data_by_email', {
+            req_table: 'company_invites',
+            req_id: targetInv.id,
+            req_email: authEmail
+          });
+        }
+      } else {
+        await supabase
+          .from('company_invites')
+          .delete()
+          .eq('company_id', companyId)
+          .eq('invited_email', emailToRevoke);
+      }
 
-      if (inviteError) console.error('[Revoke Invite Error]', inviteError);
+      // 2. Revoke Membership
+      if (!session && authEmail) {
+        const { data: mem } = await supabase.rpc('get_table_data_by_email', {
+          req_table: 'company_members',
+          req_company_id: companyId,
+          req_email: authEmail
+        });
+        const targetMem = (mem as any[])?.find(m => m.user_email?.toLowerCase() === emailToRevoke);
+        if (targetMem) {
+          await supabase.rpc('delete_table_data_by_email', {
+            req_table: 'company_members',
+            req_id: targetMem.id,
+            req_email: authEmail
+          });
+        }
+      } else {
+        await supabase
+          .from('company_members')
+          .delete()
+          .eq('company_id', companyId)
+          .eq('user_email', emailToRevoke);
+      }
 
-      // 2. Delete Membership using both ID (if exists) and Email
-      const { error: memberEmailError } = await supabase
-        .from('company_members')
-        .delete()
-        .eq('company_id', companyId)
-        .eq('user_email', emailToRevoke);
-
-      if (memberEmailError) console.error('[Revoke Member Email Error]', memberEmailError);
 
       // Also try by user_id if we can find the profile
       const { data: memberProfile } = await supabase
