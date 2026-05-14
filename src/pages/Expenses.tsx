@@ -178,7 +178,7 @@ export default function Expenses() {
           return acc;
         }, {} as Record<string, number>);
 
-        const summaryData = Object.entries(categoryWise)
+        const summaryData = (Object.entries(categoryWise) as [string, number][])
           .sort((a, b) => b[1] - a[1])
           .map(([cat, amt]) => [cat, formatCurrency(amt, settings.currency)]);
 

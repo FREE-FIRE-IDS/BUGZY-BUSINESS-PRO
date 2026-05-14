@@ -107,8 +107,15 @@ export default function Reports() {
       const types = new Set(companyParties.map(p => p.type));
       return ['All', ...Array.from(types).sort()];
     }
+    if (activeReport === 'Expense') {
+      const expenseTxs = transactions.filter(t => t.company_id === currentCompany?.id && t.type === 'Expense' && t.category);
+      const cats = new Set(expenseTxs.map(t => t.category as string));
+      // Standard defaults from Expenses page logic
+      const defaults = ['Utilities', 'Rent', 'Salaries', 'Travel', 'Food', 'Marketing', 'Inventory', 'Maintenance'];
+      return ['All', ...Array.from(new Set([...defaults, ...Array.from(cats)])).sort()];
+    }
     return ['All'];
-  }, [parties, currentCompany, activeReport]);
+  }, [parties, transactions, currentCompany, activeReport]);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'app' | 'accounting'>('app');
@@ -513,7 +520,10 @@ export default function Reports() {
         result = filterByDate([...saleInvoices, ...saleTransactions]).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         break;
       case 'Expense':
-        result = filterByDate(companyTransactions.filter(t => t.type === 'Expense')).map(t => ({
+        result = filterByDate(companyTransactions.filter(t => 
+          t.type === 'Expense' && 
+          (selectedCategory === 'All' || t.category === selectedCategory)
+        )).map(t => ({
           ...t,
           paid_from: t.bank_id ? companyBanks.find(b => b.id === t.bank_id)?.name : 'Cash',
           'Date': t.date,
@@ -779,6 +789,10 @@ export default function Reports() {
     return String(val);
   };
 
+  useEffect(() => {
+    setSelectedCategory('All');
+  }, [activeReport]);
+
   const exportPDF = () => {
     const doc = new jsPDF() as jsPDFWithAutoTable;
     const companyName = currentCompany?.name || settings.companyName || 'My Business';
@@ -1022,6 +1036,12 @@ export default function Reports() {
       doc.setTextColor(79, 70, 229);
       const title = `${activeReport} Report`;
       doc.text(title, pageWidth - doc.getTextWidth(title) - 20, 25);
+
+      if (activeReport === 'Expense' && selectedCategory !== 'All') {
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Category: ${selectedCategory}`, pageWidth - doc.getTextWidth(`Category: ${selectedCategory}`) - 20, 30);
+      }
       
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
@@ -1257,7 +1277,7 @@ export default function Reports() {
                     </div>
                   )}
 
-                  {activeReport === 'All Parties' && (
+                  {(activeReport === 'All Parties' || activeReport === 'Expense') && (
                     <div className="relative group w-full">
                       <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                       <select
@@ -1266,7 +1286,7 @@ export default function Reports() {
                         className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[11px] font-bold outline-none text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all appearance-none"
                       >
                         {categories.map(cat => (
-                          <option key={cat} value={cat}>{cat} {cat === 'All' ? 'Categories' : ''}</option>
+                          <option key={cat} value={cat}>{cat} {cat === 'All' ? (activeReport === 'Expense' ? 'Categories' : 'Party Types') : ''}</option>
                         ))}
                       </select>
                     </div>
