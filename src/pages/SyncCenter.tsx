@@ -260,7 +260,7 @@ export default function SyncCenter() {
               </div>
             </motion.div>
 
-            {/* Invitations Received */}
+            {/* Manage Shared Users (Owner only) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <AnimatePresence>
                 {invitations.length > 0 && (

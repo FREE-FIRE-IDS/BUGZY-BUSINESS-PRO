@@ -823,7 +823,7 @@ export default function Reports() {
   useEffect(() => {
     setSelectedCategory('All');
     setSelectedRows(new Set());
-  }, [activeReport]);
+  }, [activeReport, dateRange, selectedEntity, selectedCategory, searchQuery, amountFilter, hideZeroBalances]);
 
   const exportPDF = () => {
     const doc = new jsPDF() as jsPDFWithAutoTable;
@@ -859,6 +859,15 @@ export default function Reports() {
         ? filteredData.filter((_, idx) => selectedRows.has(idx))
         : filteredData;
 
+      const totals = selectedRows.size > 0 
+        ? dataToExport.reduce((acc: any, d) => {
+            acc[col1] = (acc[col1] || 0) + (d[col1] || 0);
+            acc[col2] = (acc[col2] || 0) + (d[col2] || 0);
+            acc[col3] = (acc[col3] || 0) + (d[col3] || 0);
+            return acc;
+          }, {})
+        : tableTotals as any;
+
       const body = dataToExport.map((d, index) => [
         index + 1,
         d.Name,
@@ -866,8 +875,6 @@ export default function Reports() {
         formatCurrency(d[col2], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
         formatCurrency(d[col3], settings.currency).replace('Rs. ', '').replace('Rs.', '')
       ]);
-
-      const totals = tableTotals as any;
 
       autoTable(doc, {
         head: [['#', 'Name', col1, col2, col3]],
@@ -1074,12 +1081,21 @@ export default function Reports() {
       const dataToExport = selectedRows.size > 0 
         ? filteredData.filter((_, idx) => selectedRows.has(idx))
         : filteredData;
-
+      
       const body = dataToExport.map((d, index) => [
         (d.isHeader || d.isTotal || d.isFinal) ? '' : index + 1,
         d.Particulars,
         d.Amount !== null ? formatCurrency(d.Amount, settings.currency).replace('Rs. ', '').replace('Rs.', '') : ''
       ]);
+
+      const totalsData = selectedRows.size > 0 
+        ? dataToExport.reduce((acc: any, d) => {
+            if (d.Amount !== null && !d.isHeader && !d.isTotal && !d.isFinal) {
+              acc.Amount = (acc.Amount || 0) + d.Amount;
+            }
+            return acc;
+          }, { Amount: 0 })
+        : null;
 
       autoTable(doc, {
         head: [['#', 'Particulars', 'Amount']],
@@ -1163,6 +1179,15 @@ export default function Reports() {
         ? filteredData.filter((_, idx) => selectedRows.has(idx))
         : filteredData;
 
+      const totals = selectedRows.size > 0 
+        ? selectedColumns.reduce((acc: any, col) => {
+            if (['Debit', 'Credit', 'Balance', 'Amount', 'Total', 'Value', 'In (+)', 'Out (-)', 'Deposit', 'Withdrawal', 'Cash In', 'Cash Out', 'Net Flow', 'Debit (DR)', 'Credit (CR)', 'Receivable Balance', 'Payable Balance', 'Net Balance'].includes(col)) {
+              acc[col] = dataToExport.reduce((sum, d) => sum + (Number(d[col]) || 0), 0);
+            }
+            return acc;
+          }, {})
+        : tableTotals as any;
+
       const body = dataToExport.map((d, index) => 
         selectedColumns.map(col => {
           if (col === '#') return index + 1;
@@ -1205,9 +1230,9 @@ export default function Reports() {
             data.cell.styles.halign = 'right';
           }
         },
-        foot: tableTotals ? [
+        foot: totals ? [
           selectedColumns.map(col => {
-            const val = (tableTotals as any)[col];
+            const val = totals[col];
             if (val !== undefined) return formatValue(col, val, true);
             if (col === selectedColumns[0]) return 'TOTAL';
             return '';
