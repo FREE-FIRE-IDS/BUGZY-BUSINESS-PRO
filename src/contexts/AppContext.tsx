@@ -2920,12 +2920,33 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       return [];
     }
 
-    // Filter out companies I own or that are null
+    // Include the membership_id so we can leave easily
     const filtered = (memberships || [])
-      .map((m: any) => m.companies)
+      .map((m: any) => ({
+        ...m.companies,
+        membership_id: m.membership_id // Track membership ID for leaving
+      }))
       .filter((c: any) => c && c.user_email?.toLowerCase() !== myEmail && c.owner_email?.toLowerCase() !== myEmail);
 
     return filtered;
+  };
+
+  const leaveCompany = async (membershipId: string) => {
+    const authEmail = (settings.user_email || currentUser || session?.user?.email || '').toLowerCase().trim();
+    if (!authEmail) throw new Error('Authentication required to leave company ❌');
+
+    try {
+      await supabase.rpc('delete_table_data_by_email', {
+        req_table: 'company_members',
+        req_id: membershipId,
+        req_email: authEmail
+      });
+      toast.success('Successfully left company');
+    } catch (err: any) {
+      console.error('[Leave Error]', err);
+      toast.error(err.message || 'Failed to leave company');
+      throw err;
+    }
   };
 
   const getPartyBalance = (partyId: string) => {
@@ -3022,14 +3043,15 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       shareCompany,
       revokeCompanyAccess,
       getSharedCompanies,
+      leaveCompany,
+      isSharedCompany,
       invitations,
       fetchInvitations,
       updateInvitationStatus,
       sentInvitations,
       fetchSentInvitations,
       getPartyBalance,
-      getBankBalance,
-      isSharedCompany
+      getBankBalance
     }}>
       {children}
     </AppContext.Provider>

@@ -25,7 +25,7 @@ export default function ManageCompanies() {
   const { 
     companies, currentCompany, setCurrentCompany, addCompany, deleteCompany,
     syncStatus, isLicensed, isDeviceLicensed, settings, shareCompany, revokeCompanyAccess,
-    getSharedCompanies, refreshData, session, isSharedCompany
+    getSharedCompanies, refreshData, session, isSharedCompany, leaveCompany
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'my' | 'shared' | 'hr'>('my');
@@ -178,6 +178,34 @@ export default function ManageCompanies() {
                >
                 <Share2 size={16} />
                </button>
+            )}
+            {isShared && (
+              <button 
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (window.confirm('Are you sure you want to leave this company?')) {
+                    try {
+                      // Use the membership_id we added to the company object in getSharedCompanies
+                      if (!company.membership_id) {
+                        // If it's a freshly joined company (from companies list), we might need to find it
+                        alert('Could not find membership ID. Please try again after refreshing.');
+                        return;
+                      }
+                      await leaveCompany(company.membership_id);
+                      loadShared(); // Refresh list
+                    } catch (err) {
+                      // Error handled in AppContext
+                    }
+                  }
+                }}
+                className={cn(
+                  "p-2 rounded-xl transition-all",
+                  isActive ? "hover:bg-white/20 text-white/70" : "hover:bg-rose-50 text-slate-400 hover:text-rose-600"
+                )}
+                title="Leave Company"
+              >
+                <LogOut size={16} />
+              </button>
             )}
             {!isShared && (
               <button 

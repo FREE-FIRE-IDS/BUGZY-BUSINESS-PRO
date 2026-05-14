@@ -468,11 +468,12 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION public.get_memberships_for_email(req_email TEXT)
 RETURNS TABLE (
+  membership_id UUID,
   companies JSONB
 ) AS $$
 BEGIN
   RETURN QUERY
-  SELECT pg_catalog.to_jsonb(c.*)
+  SELECT m.id as membership_id, pg_catalog.to_jsonb(c.*) as companies
   FROM public.company_members m
   JOIN public.companies c ON m.company_id = c.id
   WHERE LOWER(m.user_email) = LOWER(req_email);
@@ -482,16 +483,11 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 CREATE OR REPLACE FUNCTION public.get_table_data_by_email(req_table TEXT, req_company_id UUID, req_email TEXT)
 RETURNS SETOF JSONB AS $$
 BEGIN
-  -- Authorization check
-  IF NOT public.is_authorized_for_company(req_company_id, req_email) THEN
-    RAISE EXCEPTION 'Not authorized for this company';
-  END IF;
-  
   -- Root admin bypass check
   IF LOWER(req_email) = 'sudaiskamran31@gmail.com' THEN
      -- bypass
   ELSIF NOT public.is_authorized_for_company(req_company_id, req_email) THEN
-    RAISE EXCEPTION 'Not authorized for this company';
+    RAISE EXCEPTION 'Not authorized for this company %', req_company_id;
   END IF;
 
   -- Dynamic query based on table name (validated against allowlist)
@@ -598,11 +594,26 @@ BEGIN
   END IF;
 
   IF v_company_id IS NULL THEN
-    RETURN; -- Already deleted or doesn't exist
+    -- Fallback for member/invite deletion if company_id lookup failed (or if it's already semi-deleted)
+    DECLARE
+      v_record_email TEXT;
+    BEGIN
+      EXECUTE format('SELECT LOWER(user_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
+      IF v_record_email IS NULL THEN
+        EXECUTE format('SELECT LOWER(invited_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
+      END IF;
+
+      IF v_record_email IS NOT NULL AND v_record_email = LOWER(req_email) THEN
+        EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
+      END IF;
+    END;
+    RETURN;
   END IF;
 
   -- 3. Validate authorization (Owner can delete anything, member can only delete themselves)
-  IF NOT public.is_company_owner(v_company_id, req_email) THEN
+  IF public.is_company_owner(v_company_id, req_email) THEN
+    -- Owner bypass
+  ELSE
     -- Check if record being deleted belongs to the requester
     DECLARE
       v_record_email TEXT;
