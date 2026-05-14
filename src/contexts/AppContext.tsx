@@ -2777,43 +2777,42 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const fetchSentInvitations = async (companyId: string) => {
     if (!companyId) return;
     
+    console.log('[Sync] Fetching authorized users for company:', companyId);
+    
     // Fetch both invites and actual members
+    // NOTE: RLS policies in Supabase must allow owners and members to see these tables
     const [invitesRes, membersRes] = await Promise.all([
       supabase.from('company_invites').select('*').eq('company_id', companyId),
       supabase.from('company_members').select('*').eq('company_id', companyId)
     ]);
 
     if (invitesRes.error) {
-      console.error('[Fetch Invites Error]', invitesRes.error);
+      console.warn('[Fetch Invites Warning]', invitesRes.error.message);
     }
     if (membersRes.error) {
-      console.error('[Fetch Members Error]', membersRes.error);
+      console.warn('[Fetch Members Warning]', membersRes.error.message);
     }
 
-    // Combine them into a single list for management
-    // We want to show everyone who has access
     const invites = invitesRes.data || [];
     const members = membersRes.data || [];
+
+    console.log('[Sync] Found authorized users:', { invites: invites.length, members: members.length });
 
     // Map members to a format consistent with invites for the UI
     const memberInvites = members.map(m => ({
       id: `member-${m.id}`,
-      invited_email: m.user_email,
+      invited_email: m.user_email || '',
       status: 'accepted' as const,
       company_id: m.company_id,
-      invited_by: 'Owner' // We don't store who invited them in members table usually
+      invited_by: 'Authorized User'
     }));
 
-    // Filter out duplicates (if an invite exists and a member exists for same email)
-    // Preference to member status
+    // Combine them into a single list
     const combined = [...memberInvites];
     invites.forEach(invite => {
       const alreadyIn = combined.find(m => m.invited_email.toLowerCase() === invite.invited_email.toLowerCase());
       if (!alreadyIn) {
         combined.push(invite);
-      } else if (invite.status === 'pending') {
-        // If there's a pending invite but they are already a member, maybe it's a stale invite
-        // but we'll show the member status
       }
     });
 
@@ -2894,32 +2893,49 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const revokeCompanyAccess = async (companyId: string, sharedEmail: string) => {
     console.log('[Access] Revoking access for:', sharedEmail);
-    // 1. Delete Invite
-    const { error: inviteError } = await supabase
-      .from('company_invites')
-      .delete()
-      .eq('company_id', companyId)
-      .eq('invited_email', sharedEmail.toLowerCase().trim());
+    const emailToRevoke = sharedEmail.toLowerCase().trim();
 
-    if (inviteError) throw inviteError;
+    try {
+      // 1. Delete Invitations
+      const { error: inviteError } = await supabase
+        .from('company_invites')
+        .delete()
+        .eq('company_id', companyId)
+        .eq('invited_email', emailToRevoke);
 
-    // 2. Delete Member
-    const { data: member } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', sharedEmail.toLowerCase().trim())
-      .single();
+      if (inviteError) console.error('[Revoke Invite Error]', inviteError);
 
-    if (member) {
-      await supabase
+      // 2. Delete Membership using both ID (if exists) and Email
+      const { error: memberEmailError } = await supabase
         .from('company_members')
         .delete()
         .eq('company_id', companyId)
-        .eq('user_id', member.id);
-    }
+        .eq('user_email', emailToRevoke);
 
-    toast.success(`Access revoked for ${sharedEmail}`);
-    await fetchSentInvitations(companyId);
+      if (memberEmailError) console.error('[Revoke Member Email Error]', memberEmailError);
+
+      // Also try by user_id if we can find the profile
+      const { data: memberProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', emailToRevoke)
+        .maybeSingle();
+
+      if (memberProfile) {
+        await supabase
+          .from('company_members')
+          .delete()
+          .eq('company_id', companyId)
+          .eq('user_id', memberProfile.id);
+      }
+
+      toast.success(`Access revoked for ${sharedEmail}`);
+      await fetchSentInvitations(companyId);
+    } catch (err: any) {
+      console.error('[Revoke Access Error]', err);
+      toast.error(err.message || 'Failed to revoke access');
+      throw err;
+    }
   };
 
   const getSharedCompanies = async () => {

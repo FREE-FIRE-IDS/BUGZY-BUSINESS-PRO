@@ -386,19 +386,21 @@ export default function SyncCenter() {
                   {sentInvitations.map(sent => (
                     <div key={sent.id} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black leading-none shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center text-xs font-black text-indigo-600 dark:text-indigo-400 shrink-0 border border-indigo-100 dark:border-indigo-800">
                           {sent.invited_email.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">{sent.invited_email}</p>
+                          <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{sent.invited_email}</p>
                           <div className="flex items-center gap-2 mt-1">
                             <span className={cn(
                               "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
-                              sent.status === 'pending' ? "bg-amber-100 text-amber-600" : 
-                              sent.status === 'accepted' ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"
+                              sent.status === 'pending' ? "bg-amber-100 text-amber-600 dark:bg-amber-900/20" : 
+                              sent.status === 'accepted' ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/20" : 
+                              "bg-rose-100 text-rose-600 dark:bg-rose-900/20"
                             )}>
-                              {sent.status}
+                              {sent.status === 'accepted' ? 'Active Member' : sent.status}
                             </span>
+                            {sent.status === 'pending' && <span className="text-[8px] font-bold text-slate-400 italic">Waiting for response</span>}
                           </div>
                         </div>
                       </div>
@@ -406,19 +408,15 @@ export default function SyncCenter() {
                       {isOwner && (
                         <button 
                           onClick={async () => {
-                            if (window.confirm(`Revoke access for ${sent.invited_email}?`)) {
-                              try {
-                                await revokeCompanyAccess(currentCompany!.id, sent.invited_email);
-                              } catch (err: any) {
-                                alert(err.message || 'Failed to revoke access');
-                              }
+                            if (window.confirm(`Are you sure you want to delete access for ${sent.invited_email}?`)) {
+                              await revokeCompanyAccess(currentCompany!.id, sent.invited_email);
                             }
                           }}
-                          className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded-lg transition-all"
+                          className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-black text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all uppercase tracking-wider"
                           title="Revoke Access"
                         >
                           <Trash2 size={14} />
-                          <span>Revoke</span>
+                          <span>Remove</span>
                         </button>
                       )}
                     </div>
