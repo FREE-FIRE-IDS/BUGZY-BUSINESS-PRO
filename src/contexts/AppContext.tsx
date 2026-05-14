@@ -2689,8 +2689,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     console.log('[Invite] Initiating invite for:', shareWithEmail);
 
-    const authEmail = (settings.user_email || currentUser || '').toLowerCase().trim();
-    const myEmail = (session?.user?.email || authEmail).toLowerCase().trim();
+    const authEmail = (settings.user_email || currentUser || session?.user?.email || '').toLowerCase().trim();
+    const myEmail = authEmail;
     
     if (!myEmail) throw new Error('Please login or enable sync first ❌');
 
@@ -2704,86 +2704,48 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const inviteeEmail = shareWithEmail.toLowerCase().trim();
     if (inviteeEmail === myEmail) throw new Error('You cannot invite yourself ❌');
 
-    // 2. Check for existing entries securely
+    // 2. Check for existing entries securely using RPC
     let existingInvite = null;
     let existingMember = null;
 
-    if (authEmail) {
-      // Use RPC to check existing invitations
-      const { data: inv } = await supabase.rpc('get_table_data_by_email', {
-        req_table: 'company_invites',
-        req_company_id: companyId,
-        req_email: authEmail
-      });
-      existingInvite = (inv as any[])?.find(i => 
-        i.invited_email.toLowerCase() === inviteeEmail && i.status === 'pending'
-      );
+    // Use RPC to check existing invitations
+    const { data: inv } = await supabase.rpc('get_table_data_by_email', {
+      req_table: 'company_invites',
+      req_company_id: companyId,
+      req_email: myEmail
+    });
+    existingInvite = (inv as any[])?.find(i => 
+      i.invited_email.toLowerCase() === inviteeEmail && i.status === 'pending'
+    );
 
-      // Use RPC to check existing members
-      const { data: mem } = await supabase.rpc('get_table_data_by_email', {
-        req_table: 'company_members',
-        req_company_id: companyId,
-        req_email: authEmail
-      });
-      existingMember = (mem as any[])?.find(m => 
-        m.user_email?.toLowerCase() === inviteeEmail
-      );
-    } else if (session) {
-      // Fallback to direct queries for active sessions
-      const { data: inv } = await supabase
-        .from('company_invites')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('invited_email', inviteeEmail)
-        .eq('status', 'pending')
-        .maybeSingle();
-      existingInvite = inv;
-
-      const { data: mem } = await supabase
-        .from('company_members')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('user_email', inviteeEmail)
-        .maybeSingle();
-      existingMember = mem;
-    }
+    // Use RPC to check existing members
+    const { data: mem } = await supabase.rpc('get_table_data_by_email', {
+      req_table: 'company_members',
+      req_company_id: companyId,
+      req_email: myEmail
+    });
+    existingMember = (mem as any[])?.find(m => 
+      m.user_email?.toLowerCase() === inviteeEmail
+    );
 
     if (existingInvite) throw new Error('An invitation is already pending for this user ⏳');
     if (existingMember) throw new Error('User is already a member of this company ✅');
 
     // 4. Create Invite
-    let inviteError;
-    
-    // Always prioritize RPC if we have an email, as it handles owner checks securely
-    if (authEmail) {
-      const { error: rpcError } = await supabase.rpc('upsert_table_data_by_email', {
-        req_table: 'company_invites',
-        req_payload: {
-          company_id: companyId,
-          invited_email: inviteeEmail,
-          invited_by: myEmail,
-          status: 'pending'
-        },
-        req_email: authEmail
-      });
-      inviteError = rpcError;
-    } else if (session) {
-      const { error: directError } = await supabase
-        .from('company_invites')
-        .insert({
-          company_id: companyId,
-          invited_email: inviteeEmail,
-          invited_by: myEmail,
-          status: 'pending'
-        });
-      inviteError = directError;
-    } else {
-      throw new Error('Authentication required to send invites ❌');
-    }
+    const { error: rpcError } = await supabase.rpc('upsert_table_data_by_email', {
+      req_table: 'company_invites',
+      req_payload: {
+        company_id: companyId,
+        invited_email: inviteeEmail,
+        invited_by: myEmail,
+        status: 'pending'
+      },
+      req_email: myEmail
+    });
 
-    if (inviteError) {
-      console.error('[Invite Error]', inviteError);
-      throw new Error(inviteError.message || 'Failed to create invitation ❌');
+    if (rpcError) {
+      console.error('[Invite Error]', rpcError);
+      throw new Error(rpcError.message || 'Failed to create invitation ❌');
     }
 
     toast.success(`Invitation sent to ${inviteeEmail}! 🚀`);
@@ -2796,18 +2758,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     console.log('[Sync] Fetching invitations for:', email);
     
-    let result;
-    if (!session) {
-      result = await supabase.rpc('get_invites_for_email', { req_email: email });
-    } else {
-      result = await supabase
-        .from('company_invites')
-        .select('*, companies(*)')
-        .eq('invited_email', email)
-        .eq('status', 'pending');
-    }
-
-    const { data, error } = result;
+    // Always use RPC to bypass RLS for invitations
+    const { data, error } = await supabase.rpc('get_invites_for_email', { req_email: email });
 
     if (!error && data) {
       setInvitations(data);
@@ -2821,43 +2773,25 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     console.log('[Sync] Fetching authorized users for company:', companyId);
     
-    // Fetch both invites and actual members securely
-    let invitesRes, membersRes;
-    const authEmail = (settings.user_email || currentUser || '').toLowerCase().trim();
+    const authEmail = (settings.user_email || currentUser || session?.user?.email || '').toLowerCase().trim();
 
-    if (authEmail) {
-      // Use RPC to fetch authorized users securely
-      [invitesRes, membersRes] = await Promise.all([
-        supabase.rpc('get_table_data_by_email', { 
-          req_table: 'company_invites', 
-          req_company_id: companyId, 
-          req_email: authEmail 
-        }),
-        supabase.rpc('get_table_data_by_email', { 
-          req_table: 'company_members', 
-          req_company_id: companyId, 
-          req_email: authEmail 
-        })
-      ]);
-    } else if (session) {
-      [invitesRes, membersRes] = await Promise.all([
-        supabase.from('company_invites').select('*').eq('company_id', companyId),
-        supabase.from('company_members').select('*').eq('company_id', companyId)
-      ]);
-    } else {
-      console.warn('[Sync] No authentication method found to fetch team members');
-      return;
-    }
+    // Always prioritize RPC to fetch authorized users securely
+    const { data: invData, error: invError } = await supabase.rpc('get_table_data_by_email', { 
+      req_table: 'company_invites', 
+      req_company_id: companyId, 
+      req_email: authEmail 
+    });
+    const { data: memData, error: memError } = await supabase.rpc('get_table_data_by_email', { 
+      req_table: 'company_members', 
+      req_company_id: companyId, 
+      req_email: authEmail 
+    });
 
-    if (invitesRes.error) {
-      console.warn('[Fetch Invites Warning]', invitesRes.error.message);
-    }
-    if (membersRes.error) {
-      console.warn('[Fetch Members Warning]', membersRes.error.message);
-    }
+    if (invError) console.warn('[Fetch Invites Warning]', invError.message);
+    if (memError) console.warn('[Fetch Members Warning]', memError.message);
 
-    const invites = invitesRes.data || [];
-    const members = membersRes.data || [];
+    const invites = invData || [];
+    const members = memData || [];
 
     console.log('[Sync] Found authorized users:', { invites: invites.length, members: members.length });
 
@@ -2888,62 +2822,20 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (!email) throw new Error('Email required to process invitation');
 
     try {
-      if (!session) {
-        // Use RPC for email-only sync mode to bypass RLS
-        const { error: rpcError } = await supabase.rpc('respond_to_invite_by_email', {
-          req_invite_id: inviteId,
-          req_status: status,
-          req_email: email
-        });
-        if (rpcError) throw rpcError;
-        
-        if (status === 'accepted') {
-          toast.success('Successfully joined the company! 🎉');
-          refreshData(email, true);
-        } else {
-          toast.error('Invitation rejected.');
-        }
+      // Always use RPC for invitation response to bypass RLS and ensure server-side linked_emails update
+      const { error: rpcError } = await supabase.rpc('respond_to_invite_by_email', {
+        req_invite_id: inviteId,
+        req_status: status,
+        req_email: email
+      });
+      
+      if (rpcError) throw rpcError;
+      
+      if (status === 'accepted') {
+        toast.success('Successfully joined the company! 🎉');
+        await refreshData(email, true);
       } else {
-        // Logged in via Supabase, can use direct queries if RLS allows
-        const { data: invite, error: fetchError } = await supabase
-          .from('company_invites')
-          .select('*')
-          .eq('id', inviteId)
-          .single();
-
-        if (fetchError || !invite) throw new Error('Invitation not found ❌');
-
-        // 1. Update Invite Status
-        const { error: inviteError } = await supabase
-          .from('company_invites')
-          .update({ status })
-          .eq('id', inviteId);
-
-        if (inviteError) throw inviteError;
-
-        // 2. If accepted, add to company_members
-        if (status === 'accepted') {
-          const { error: memberError } = await supabase
-            .from('company_members')
-            .insert({
-              company_id: invite.company_id,
-              user_id: session?.user?.id,
-              user_email: invite.invited_email,
-              role: 'member'
-            });
-
-          if (memberError && memberError.code !== '23505') {
-            console.error('[Member Add Error]', memberError);
-            throw memberError;
-          }
-
-          // Trigger linked_emails update on backend (or if there's no trigger, it needs care)
-          // For consistency with RPC, let's assume we might need a refresh
-          toast.success('Successfully joined the company! 🎉');
-          refreshData(invite.invited_email, true);
-        } else {
-          toast.error('Invitation rejected.');
-        }
+        toast.error('Invitation rejected.');
       }
       
       setInvitations(prev => prev.filter(i => i.id !== inviteId));
@@ -2957,54 +2849,40 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const revokeCompanyAccess = async (companyId: string, sharedEmail: string) => {
     console.log('[Access] Revoking access for:', sharedEmail);
     const emailToRevoke = sharedEmail.toLowerCase().trim();
-    const authEmail = (settings.user_email || currentUser || '').toLowerCase().trim();
+    const authEmail = (settings.user_email || currentUser || session?.user?.email || '').toLowerCase().trim();
+
+    if (!authEmail) throw new Error('Authentication required to revoke access ❌');
 
     try {
       // 1. Revoke Invite (if pending)
-      if (authEmail) {
-        // Find invite ID first using RPC if available
-        const { data: inv } = await supabase.rpc('get_table_data_by_email', {
+      // Find invite ID first using RPC
+      const { data: inv } = await supabase.rpc('get_table_data_by_email', {
+        req_table: 'company_invites',
+        req_company_id: companyId,
+        req_email: authEmail
+      });
+      const targetInv = (inv as any[])?.find(i => i.invited_email.toLowerCase() === emailToRevoke);
+      if (targetInv) {
+        await supabase.rpc('delete_table_data_by_email', {
           req_table: 'company_invites',
-          req_company_id: companyId,
+          req_id: targetInv.id,
           req_email: authEmail
         });
-        const targetInv = (inv as any[])?.find(i => i.invited_email.toLowerCase() === emailToRevoke);
-        if (targetInv) {
-          await supabase.rpc('delete_table_data_by_email', {
-            req_table: 'company_invites',
-            req_id: targetInv.id,
-            req_email: authEmail
-          });
-        }
-      } else if (session) {
-        await supabase
-          .from('company_invites')
-          .delete()
-          .eq('company_id', companyId)
-          .eq('invited_email', emailToRevoke);
       }
 
       // 2. Revoke Membership (if accepted)
-      if (authEmail) {
-        const { data: mem } = await supabase.rpc('get_table_data_by_email', {
+      const { data: mem } = await supabase.rpc('get_table_data_by_email', {
+        req_table: 'company_members',
+        req_company_id: companyId,
+        req_email: authEmail
+      });
+      const targetMem = (mem as any[])?.find(m => m.user_email?.toLowerCase() === emailToRevoke);
+      if (targetMem) {
+        await supabase.rpc('delete_table_data_by_email', {
           req_table: 'company_members',
-          req_company_id: companyId,
+          req_id: targetMem.id,
           req_email: authEmail
         });
-        const targetMem = (mem as any[])?.find(m => m.user_email?.toLowerCase() === emailToRevoke);
-        if (targetMem) {
-          await supabase.rpc('delete_table_data_by_email', {
-            req_table: 'company_members',
-            req_id: targetMem.id,
-            req_email: authEmail
-          });
-        }
-      } else if (session) {
-        await supabase
-          .from('company_members')
-          .delete()
-          .eq('company_id', companyId)
-          .eq('user_email', emailToRevoke);
       }
 
       // Also try by user_id if we can find the profile (for session-based users)
@@ -3030,7 +2908,6 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     } catch (err: any) {
       console.error('[Revoke Access Error]', err);
       const msg = err.message || 'Failed to revoke access';
-      // If it's a specific RLS error, the user should know
       if (msg.includes('policy')) {
         toast.error('Permission denied: Only the business owner can revoke access.');
       } else {
@@ -3046,29 +2923,26 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     console.log('[Sync] Fetching shared companies for:', myEmail);
     
-    let memberships: any[] = [];
-    
-    // For shared companies, the user is looking for companies WHERE THEY ARE MEMBERS
-    if (settings.user_email || !session) {
-      // Use RPC to find companies where this email is a member
-      const { data, error } = await supabase.rpc('get_memberships_for_email', { 
-        req_email: myEmail 
-      });
-      if (error) {
-        console.error('[Shared Companies RPC Error]', error);
+    // Always use RPC to find companies where this email is a member to bypass RLS efficiently
+    const { data: memberships, error } = await supabase.rpc('get_memberships_for_email', { 
+      req_email: myEmail 
+    });
+
+    if (error) {
+      console.error('[Shared Companies RPC Error]', error);
+      // Fallback for sessions if RPC fails
+      if (session) {
+        const { data: directData } = await supabase
+          .from('company_members')
+          .select('company_id, companies(*)')
+          .eq('user_email', myEmail);
+        
+        const filtered = (directData || [])
+          .map((m: any) => m.companies)
+          .filter((c: any) => c && c.user_email?.toLowerCase() !== myEmail && c.owner_email?.toLowerCase() !== myEmail);
+        return filtered;
       }
-      memberships = data || [];
-    } else {
-      // Direct query for session users
-      const { data, error } = await supabase
-        .from('company_members')
-        .select('company_id, companies(*)')
-        .eq('user_email', myEmail);
-      
-      if (error) {
-        console.error('[Shared Companies Error]', error);
-      }
-      memberships = data || [];
+      return [];
     }
 
     // Filter out companies I own or that are null
