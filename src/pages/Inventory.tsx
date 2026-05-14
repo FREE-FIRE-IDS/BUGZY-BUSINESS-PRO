@@ -57,10 +57,9 @@ export default function Inventory() {
     
     doc.setFontSize(10);
     doc.setTextColor(100, 116, 139);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 38);
-    doc.text(`Total Items: ${items.length}`, 14, 44);
+    doc.text(`Total Items: ${items.length}`, 14, 38);
     const totalValue = items.reduce((sum, item) => sum + (item.price * item.stock), 0);
-    doc.text(`Total Inventory Value: ${formatCurrency(totalValue, settings.currency)}`, 14, 50);
+    doc.text(`Total Inventory Value: ${formatCurrency(totalValue, settings.currency)}`, 14, 44);
 
     const tableData = filteredItems.map(i => [
       i.name,

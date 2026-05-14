@@ -260,7 +260,21 @@ export default function SyncCenter() {
               </div>
             </motion.div>
 
-            {/* Manage Shared Users (Owner only) */}
+            {/* Manage Shared Users Section */}
+            {isOwner && (
+              <div className="pt-8 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-600">
+                    <Database size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Manage Team Access</h2>
+                    <p className="text-xs text-slate-500 font-medium">Control who can access this business data</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <AnimatePresence>
                 {invitations.length > 0 && (
@@ -346,8 +360,8 @@ export default function SyncCenter() {
                 className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm"
               >
                 <div className="flex items-center justify-between mb-6">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sent Invitations</h4>
-                  <span className="text-[10px] font-bold text-slate-400">Click a code to copy</span>
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Authorized Team Members</h4>
+                  <span className="text-[10px] font-bold text-slate-400">Revoke access to remove users</span>
                 </div>
                 <div className="grid gap-3">
                   {sentInvitations.map(sent => (

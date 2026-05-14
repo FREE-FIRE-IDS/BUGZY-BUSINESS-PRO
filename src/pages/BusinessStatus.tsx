@@ -106,7 +106,7 @@ export default function BusinessStatus() {
       
       doc.setFontSize(10);
       doc.setTextColor(148, 163, 184);
-      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 38);
+      doc.text(`Current Company Status Summary`, 14, 38);
 
       autoTable(doc, {
         startY: 45,
