@@ -412,7 +412,9 @@ export default function Reports() {
         }
         break;
       case 'Stock':
-        result = companyItems.map(i => ({ 
+        result = companyItems
+          .filter(i => !hideZeroBalances || i.stock !== 0)
+          .map(i => ({ 
           name: i.name, 
           sku: i.sku, 
           unit: (i as any).unit || 'Unit', 
@@ -683,7 +685,7 @@ export default function Reports() {
     }
 
     return result;
-  }, [activeReport, selectedEntity, selectedCategory, dateRange, searchQuery, transactions, parties, banks, items, invoices, currentCompany]);
+  }, [activeReport, selectedEntity, selectedCategory, dateRange, amountFilter, searchQuery, hideZeroBalances, transactions, parties, banks, items, invoices, currentCompany, getPartyBalance]);
 
   const activeColumns = useMemo(() => {
     const currentAll = allColumns[activeReport];
@@ -1235,7 +1237,7 @@ export default function Reports() {
                   enabled={settings.show_dr_cr || false} 
                   onToggle={(val) => updateSettings({ show_dr_cr: val })} 
                 />
-                {(activeReport === 'All Parties' || activeReport === 'All Banks' || activeReport === 'Balance Sheet') && (
+                {(activeReport === 'All Parties' || activeReport === 'All Banks' || activeReport === 'Balance Sheet' || activeReport === 'Stock') && (
                   <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0 transition-all">
                     <span className="hidden sm:inline text-[8px] font-black uppercase text-slate-500 ml-1">Hide 0</span>
                     <button 
