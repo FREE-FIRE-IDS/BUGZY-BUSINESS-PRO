@@ -151,9 +151,8 @@ export default function Expenses() {
       
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139);
-      const statsY = 46;
-      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, statsY);
-      doc.text(`Total Amount: ${formatCurrency(totalFilteredExpenses, settings.currency)}`, 14, statsY + 6);
+      const statsY = 40;
+      doc.text(`Total Amount: ${formatCurrency(totalFilteredExpenses, settings.currency)}`, 14, statsY);
 
       const tableData = filteredExpenses.map(e => [
         formatDate(e.date),

@@ -68,6 +68,7 @@ type ReportType =
   | 'Invoice'
   | 'Day Book'
   | 'Balance Sheet'
+  | 'Profit & Loss'
   | 'Cash Flow';
 
 export default function Reports() {
@@ -121,6 +122,7 @@ export default function Reports() {
   const [viewMode, setViewMode] = useState<'app' | 'accounting'>('app');
   const [searchQuery, setSearchQuery] = useState('');
   const [hideZeroBalances, setHideZeroBalances] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
 
   const companyBanks = banks.filter(b => b.company_id === currentCompany?.id);
   const companyItems = items.filter(i => i.company_id === currentCompany?.id);
@@ -144,6 +146,7 @@ export default function Reports() {
     'Invoice': ['Invoice #', 'Date', 'Shipping Mark', 'Item', 'Qty', 'Total Wt', 'Shortage', 'Net Wt', 'Price', 'Total'],
     'Day Book': ['Time', 'Description', 'Type', 'Account/Party', 'In (+)', 'Out (-)'],
     'Balance Sheet': ['#', 'Account Name', 'Amount'],
+    'Profit & Loss': ['#', 'Particulars', 'Amount'],
     'Cash Flow': ['Date', 'Category', 'Description', 'Cash In', 'Cash Out', 'Net Flow']
   }), [viewMode]);
 
@@ -177,6 +180,7 @@ export default function Reports() {
     { id: 'Invoice', label: 'Invoice Report', icon: FileText },
     { id: 'Day Book', label: 'Day Book', icon: Clock },
     { id: 'Balance Sheet', label: 'Balance Sheet', icon: FileSpreadsheet },
+    { id: 'Profit & Loss', label: 'Profit & Loss', icon: BarChart3 },
     { id: 'Cash Flow', label: 'Cash Flow', icon: ArrowLeftRight },
   ];
 
@@ -654,6 +658,31 @@ export default function Reports() {
           ...item
         }));
         break;
+      case 'Profit & Loss':
+        const sales = filterByDate([...companyInvoices.filter(i => i.type === 'Sale'), ...companyTransactions.filter(t => t.type === 'Sale')]).reduce((s, x) => s + (x.total || x.amount || 0), 0);
+        const purchases = filterByDate([...companyInvoices.filter(i => i.type === 'Purchase'), ...companyTransactions.filter(t => t.type === 'Purchase')]).reduce((s, x) => s + (x.total || x.amount || 0), 0);
+        const expenses = filterByDate(companyTransactions.filter(t => t.type === 'Expense')).reduce((s, x) => s + (x.amount || 0), 0);
+        const otherIncome = filterByDate(companyTransactions.filter(t => t.type === 'Income')).reduce((s, x) => s + (x.amount || 0), 0);
+        
+        result = [
+          { label: 'Trading/Operating Income', amount: null, isHeader: true },
+          { label: 'Sales Revenue', amount: sales },
+          { label: 'Other Operating Income', amount: otherIncome },
+          { label: 'Total Income', amount: sales + otherIncome, isTotal: true },
+          
+          { label: 'Operating Expenses', amount: null, isHeader: true },
+          { label: 'Cost of Goods Sold (Purchases)', amount: purchases },
+          { label: 'General & Administrative Expenses', amount: expenses },
+          { label: 'Total Expenses', amount: purchases + expenses, isTotal: true },
+          
+          { label: 'Net Profit / Loss', amount: (sales + otherIncome) - (purchases + expenses), isFinal: true }
+        ].map((item, idx) => ({
+          '#': (item.isHeader || item.isTotal || item.isFinal) ? '' : idx + 1,
+          'Particulars': item.label,
+          'Amount': item.amount,
+          ...item
+        }));
+        break;
       case 'Cash Flow':
         const cfTxs = companyTransactions.filter(t => !t.bank_id && !t.to_bank_id || t.type === 'Withdraw' || t.type === 'Deposit');
         result = filterByDate(cfTxs).map(t => {
@@ -793,6 +822,7 @@ export default function Reports() {
 
   useEffect(() => {
     setSelectedCategory('All');
+    setSelectedRows(new Set());
   }, [activeReport]);
 
   const exportPDF = () => {
@@ -820,18 +850,16 @@ export default function Reports() {
                     activeReport === 'All Banks' ? 'All Bank Statement' :
                     activeReport;
       doc.text(title, pageWidth - doc.getTextWidth(title) - 20, 25);
-      
-      const genText = `Generated: ${format(new Date(), 'dd MMM yyyy')}`;
-      doc.setFontSize(8);
-      doc.setTextColor(148, 163, 184);
-      doc.setFont('helvetica', 'normal');
-      doc.text(genText, pageWidth - doc.getTextWidth(genText) - 20, 33);
 
       const col1 = viewMode === 'app' ? 'Receivable Balance' : 'Debit';
       const col2 = viewMode === 'app' ? 'Payable Balance' : 'Credit';
       const col3 = viewMode === 'app' ? 'Net Balance' : 'Balance';
 
-      const body = filteredData.map((d, index) => [
+      const dataToExport = selectedRows.size > 0 
+        ? filteredData.filter((_, idx) => selectedRows.has(idx))
+        : filteredData;
+
+      const body = dataToExport.map((d, index) => [
         index + 1,
         d.Name,
         formatCurrency(d[col1], settings.currency).replace('Rs. ', '').replace('Rs.', ''),
@@ -1021,6 +1049,76 @@ export default function Reports() {
           3: { halign: 'right', cellWidth: 30, fillColor: [230, 240, 255] }
         }
       });
+    } else if (activeReport === 'Profit & Loss') {
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      doc.setFillColor(248, 250, 252);
+      doc.rect(14, 10, pageWidth - 28, 30, 'F');
+
+      doc.setFontSize(18);
+      doc.setTextColor(30, 41, 59);
+      doc.setFont('helvetica', 'bold');
+      doc.text(companyName, 20, 25);
+      
+      doc.setFontSize(14);
+      doc.setTextColor(79, 70, 229);
+      const titleLabel = `Profit & Loss Statement`;
+      doc.text(titleLabel, pageWidth - doc.getTextWidth(titleLabel) - 20, 25);
+      
+      const dateStr = pdfSettings.hideDate ? '' : `Period: ${dateRange}`;
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.setFont('helvetica', 'normal');
+      doc.text(dateStr, pageWidth - doc.getTextWidth(dateStr) - 20, 33);
+
+      const dataToExport = selectedRows.size > 0 
+        ? filteredData.filter((_, idx) => selectedRows.has(idx))
+        : filteredData;
+
+      const body = dataToExport.map((d, index) => [
+        (d.isHeader || d.isTotal || d.isFinal) ? '' : index + 1,
+        d.Particulars,
+        d.Amount !== null ? formatCurrency(d.Amount, settings.currency).replace('Rs. ', '').replace('Rs.', '') : ''
+      ]);
+
+      autoTable(doc, {
+        head: [['#', 'Particulars', 'Amount']],
+        body: body,
+        startY: 45,
+        theme: 'grid',
+        headStyles: { 
+          fillColor: [30, 41, 59],
+          textColor: [255, 255, 255],
+          fontSize: 10,
+          fontStyle: 'bold'
+        },
+        columnStyles: {
+          0: { cellWidth: 15 },
+          1: { halign: 'left' },
+          2: { halign: 'right', cellWidth: 50 }
+        },
+        styles: {
+          fontSize: 9,
+          cellPadding: 3
+        },
+        didParseCell: (data) => {
+          const rowData = dataToExport[data.row.index];
+          if (rowData) {
+            if (rowData.isHeader) {
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.fillColor = [240, 245, 250];
+              data.cell.styles.textColor = [79, 70, 229];
+            } else if (rowData.isTotal) {
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.fillColor = [248, 250, 252];
+            } else if (rowData.isFinal) {
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.fillColor = [230, 240, 255];
+              data.cell.styles.fontSize = 11;
+            }
+          }
+        }
+      });
     } else {
       // Professional 2-Column Header for General Reports
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -1051,9 +1149,6 @@ export default function Reports() {
       if (!pdfSettings.hideDate) {
         doc.text(`Period: ${dateRange}`, 20, 33);
       }
-      
-      const genText = `Generated: ${format(new Date(), 'dd MMM yyyy')}`;
-      doc.text(genText, pageWidth - doc.getTextWidth(genText) - 20, 33);
 
       if (selectedEntity && !pdfSettings.hideContact) {
         const entityName = (activeReport === 'Single Party' ? parties : banks).find(e => e.id === selectedEntity)?.name;
@@ -1064,7 +1159,11 @@ export default function Reports() {
       }
 
       let head = [selectedColumns];
-      const body = filteredData.map((d, index) => 
+      const dataToExport = selectedRows.size > 0 
+        ? filteredData.filter((_, idx) => selectedRows.has(idx))
+        : filteredData;
+
+      const body = dataToExport.map((d, index) => 
         selectedColumns.map(col => {
           if (col === '#') return index + 1;
           const val = d[col];
@@ -1418,6 +1517,17 @@ export default function Reports() {
                     activeReport === 'All Parties' ? "bg-indigo-50/50 dark:bg-indigo-900/20" : "bg-slate-50/50 dark:bg-slate-800/50"
                   )}>
                     <tr>
+                      <th className="px-4 py-3 sm:px-6 w-10 bg-inherit border-b border-slate-100 dark:border-slate-800">
+                        <input 
+                          type="checkbox"
+                          checked={filteredData.length > 0 && selectedRows.size === filteredData.length}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedRows(new Set(filteredData.map((_, i) => i)));
+                            else setSelectedRows(new Set());
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </th>
                       {activeColumns.map(colId => (
                         <th key={colId} className={cn(
                           "px-4 sm:px-6 py-3 sm:py-4 text-[9px] sm:text-[10px] uppercase tracking-wider font-black text-slate-400 whitespace-nowrap bg-inherit",
@@ -1430,12 +1540,32 @@ export default function Reports() {
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                     {filteredData.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+                      <tr key={idx} className={cn(
+                        "hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group",
+                        selectedRows.has(idx) && "bg-indigo-50/30 dark:bg-indigo-900/10"
+                      )}>
+                        <td className="px-4 py-3 sm:px-6 border-b border-slate-50 dark:border-slate-800">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedRows.has(idx)}
+                            onChange={(e) => {
+                              const next = new Set(selectedRows);
+                              if (e.target.checked) next.add(idx);
+                              else next.delete(idx);
+                              setSelectedRows(next);
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          />
+                        </td>
                         {activeColumns.map(colId => (
                           <td key={colId} className={cn(
                             "px-4 sm:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap",
                             (colId === 'Party Name' || colId === 'Description' || colId === 'Item Name') && "max-w-[150px] sm:max-w-[200px] truncate",
-                            ['Debit', 'Credit', 'Balance', 'Amount', 'Total', 'Value', 'In (+)', 'Out (-)', 'Deposit', 'Withdrawal', 'Cash In', 'Cash Out', 'Net Flow', 'Debit (DR)', 'Credit (CR)', 'Receivable Balance', 'Payable Balance', 'Net Balance'].includes(colId) && "text-right"
+                            ['Debit', 'Credit', 'Balance', 'Amount', 'Total', 'Value', 'In (+)', 'Out (-)', 'Deposit', 'Withdrawal', 'Cash In', 'Cash Out', 'Net Flow', 'Debit (DR)', 'Credit (CR)', 'Receivable Balance', 'Payable Balance', 'Net Balance'].includes(colId) && "text-right",
+                            (row.isHeader || row.isFinal || row.isTotal) && "font-black text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-800/50",
+                            row.isHeader && "text-indigo-600 dark:text-indigo-400 uppercase tracking-widest text-[9px]",
+                            row.isFinal && "text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-100 dark:border-indigo-900",
+                            row.isSubItem && "pl-8 opacity-80 font-medium"
                           )}>
                             {formatValue(colId, row[colId])}
                           </td>
@@ -1444,7 +1574,7 @@ export default function Reports() {
                     ))}
                     {filteredData.length === 0 && (
                       <tr>
-                        <td colSpan={activeColumns.length} className="px-6 py-16 text-center">
+                        <td colSpan={activeColumns.length + 1} className="px-6 py-16 text-center">
                           <div className="flex flex-col items-center justify-center opacity-40">
                              <Search size={48} className="mb-4 text-slate-200 shrink-0" />
                              <p className="text-sm font-bold text-slate-400 italic">No records matching filters.</p>
@@ -1456,6 +1586,7 @@ export default function Reports() {
                   {tableTotals && filteredData.length > 0 && (
                     <tfoot className="bg-slate-100/80 dark:bg-slate-800/80 border-t-2 border-slate-200 dark:border-slate-700 backdrop-blur-sm sticky bottom-0 z-10">
                       <tr>
+                        <td className="px-4 py-4 sm:px-6"></td>
                         {activeColumns.map(colId => {
                           const totalVal = (tableTotals as any)[colId];
                           return (
