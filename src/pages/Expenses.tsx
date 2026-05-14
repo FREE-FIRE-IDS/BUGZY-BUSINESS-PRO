@@ -463,37 +463,52 @@ export default function Expenses() {
               
                <form className="p-6 space-y-6 overflow-y-auto pb-24" onSubmit={async (e) => {
                 e.preventDefault();
+                if (!currentCompany) {
+                  toast.error('No business selected');
+                  return;
+                }
+
                 try {
                   const formData = new FormData(e.currentTarget);
                   const dateStr = formData.get('date') as string;
-                  const date = dateStr ? new Date(dateStr).toISOString() : new Date().toISOString();
+                  let date;
+                  try {
+                    date = dateStr ? new Date(dateStr).toISOString() : new Date().toISOString();
+                  } catch (e) {
+                    console.error('Invalid date picked:', dateStr);
+                    date = new Date().toISOString();
+                  }
                   
                   // Add each item as a transaction
                   const transactionsToAdd = expenseItems
-                    .filter(item => item.amount > 0)
+                    .filter(item => (Number(item.amount) || 0) > 0)
                     .map(item => ({
-                      company_id: currentCompany?.id || '',
+                      company_id: currentCompany.id,
                       date,
                       type: 'Expense' as const,
-                      amount: item.amount,
-                      description: item.description,
-                      category: item.category,
-                      quantity: item.quantity,
-                      price: item.price,
-                      unit: item.unit,
+                      amount: Number(item.amount) || 0,
+                      description: item.description || 'General Expense',
+                      category: item.category || 'General',
+                      quantity: Number(item.quantity) || undefined,
+                      price: Number(item.price) || undefined,
+                      unit: item.unit || undefined,
                       payment_type: paymentType,
-                      bank_id: paymentType === 'Bank' ? formData.get('bank_id') as string : undefined,
-                      party_id: paymentType === 'Credit' ? formData.get('party_id') as string : undefined,
+                      bank_id: paymentType === 'Bank' ? (formData.get('bank_id') as string) : undefined,
+                      party_id: paymentType === 'Credit' ? (formData.get('party_id') as string) : undefined,
                     }));
 
                   if (transactionsToAdd.length > 0) {
                     await addTransactions(transactionsToAdd);
                     toast.success(`${transactionsToAdd.length} Expenses Recorded`);
+                    setIsAddModalOpen(false);
+                    // Reset items
+                    setExpenseItems([{ description: '', category: '', amount: 0 }]);
+                  } else {
+                    toast.error('Please add at least one item with an amount > 0');
                   }
-                  setIsAddModalOpen(false);
-                } catch (err) {
+                } catch (err: any) {
                   console.error('Submit Expense Error:', err);
-                  toast.error('Failed to record expenses');
+                  toast.error(`Failed to record expenses: ${err.message || 'Unknown error'}`);
                 }
               }}>
                 <div className="space-y-6">

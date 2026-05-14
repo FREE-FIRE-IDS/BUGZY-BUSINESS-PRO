@@ -1309,7 +1309,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       _synced: false
     };
     
-    // Instant UI Update with functional setter to prevent race conditions
+    // Instant UI Update with functional setter to ensure stability
     setTransactions(prev => {
       const updated = [newTx, ...prev];
       localStorage.setItem(`transactions_${currentCompany.id}`, JSON.stringify(updated));
@@ -2982,7 +2982,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       setCurrentCompany: (company) => setCurrentCompany(company),
       parties, banks, items, transactions, invoices, settings, syncStatus,
       updateSettings, refreshData, pullCompanies, linkDevice,
-      addTransaction, updateTransaction,
+      addTransaction, addTransactions, updateTransaction,
       addParty, updateParty, deleteParty, addBank, updateBank, deleteBank,
       addItem, updateItem, deleteItem, deleteTransaction,
       addCompany, updateCompany, deleteCompany,
