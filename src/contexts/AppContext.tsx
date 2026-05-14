@@ -2704,25 +2704,51 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const inviteeEmail = shareWithEmail.toLowerCase().trim();
     if (inviteeEmail === myEmail) throw new Error('You cannot invite yourself ❌');
 
-    // 2. Check for existing pending invite
-    const { data: existingInvite } = await supabase
-      .from('company_invites')
-      .select('id')
-      .eq('company_id', companyId)
-      .eq('invited_email', inviteeEmail)
-      .eq('status', 'pending')
-      .maybeSingle();
+    // 2. Check for existing entries securely
+    let existingInvite = null;
+    let existingMember = null;
+
+    if (authEmail) {
+      // Use RPC to check existing invitations
+      const { data: inv } = await supabase.rpc('get_table_data_by_email', {
+        req_table: 'company_invites',
+        req_company_id: companyId,
+        req_email: authEmail
+      });
+      existingInvite = (inv as any[])?.find(i => 
+        i.invited_email.toLowerCase() === inviteeEmail && i.status === 'pending'
+      );
+
+      // Use RPC to check existing members
+      const { data: mem } = await supabase.rpc('get_table_data_by_email', {
+        req_table: 'company_members',
+        req_company_id: companyId,
+        req_email: authEmail
+      });
+      existingMember = (mem as any[])?.find(m => 
+        m.user_email?.toLowerCase() === inviteeEmail
+      );
+    } else if (session) {
+      // Fallback to direct queries for active sessions
+      const { data: inv } = await supabase
+        .from('company_invites')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('invited_email', inviteeEmail)
+        .eq('status', 'pending')
+        .maybeSingle();
+      existingInvite = inv;
+
+      const { data: mem } = await supabase
+        .from('company_members')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('user_email', inviteeEmail)
+        .maybeSingle();
+      existingMember = mem;
+    }
 
     if (existingInvite) throw new Error('An invitation is already pending for this user ⏳');
-
-    // 3. Check if already a member
-    const { data: existingMember } = await supabase
-      .from('company_members')
-      .select('id')
-      .eq('company_id', companyId)
-      .eq('user_email', inviteeEmail)
-      .maybeSingle();
-
     if (existingMember) throw new Error('User is already a member of this company ✅');
 
     // 4. Create Invite
@@ -2795,29 +2821,32 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     console.log('[Sync] Fetching authorized users for company:', companyId);
     
-    // Fetch both invites and actual members
-    // NOTE: RLS policies in Supabase must allow owners and members to see these tables
+    // Fetch both invites and actual members securely
     let invitesRes, membersRes;
+    const authEmail = (settings.user_email || currentUser || '').toLowerCase().trim();
 
-    if (!session && (settings.user_email || currentUser)) {
-      const email = (settings.user_email || currentUser || '').toLowerCase().trim();
+    if (authEmail) {
+      // Use RPC to fetch authorized users securely
       [invitesRes, membersRes] = await Promise.all([
         supabase.rpc('get_table_data_by_email', { 
           req_table: 'company_invites', 
           req_company_id: companyId, 
-          req_email: email 
+          req_email: authEmail 
         }),
         supabase.rpc('get_table_data_by_email', { 
           req_table: 'company_members', 
           req_company_id: companyId, 
-          req_email: email 
+          req_email: authEmail 
         })
       ]);
-    } else {
+    } else if (session) {
       [invitesRes, membersRes] = await Promise.all([
         supabase.from('company_invites').select('*').eq('company_id', companyId),
         supabase.from('company_members').select('*').eq('company_id', companyId)
       ]);
+    } else {
+      console.warn('[Sync] No authentication method found to fetch team members');
+      return;
     }
 
     if (invitesRes.error) {
@@ -2996,10 +3025,17 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       }
 
       toast.success(`Access revoked for ${sharedEmail}`);
+      // Force refresh of the team list
       await fetchSentInvitations(companyId);
     } catch (err: any) {
       console.error('[Revoke Access Error]', err);
-      toast.error(err.message || 'Failed to revoke access');
+      const msg = err.message || 'Failed to revoke access';
+      // If it's a specific RLS error, the user should know
+      if (msg.includes('policy')) {
+        toast.error('Permission denied: Only the business owner can revoke access.');
+      } else {
+        toast.error(msg);
+      }
       throw err;
     }
   };
@@ -3010,15 +3046,29 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     console.log('[Sync] Fetching shared companies for:', myEmail);
     
-    // 1. Get memberships
-    const { data: memberships, error } = await supabase
-      .from('company_members')
-      .select('company_id, companies(*)')
-      .eq('user_email', myEmail);
-
-    if (error) {
-      console.error('[Shared Companies Error]', error);
-      return [];
+    let memberships: any[] = [];
+    
+    // For shared companies, the user is looking for companies WHERE THEY ARE MEMBERS
+    if (settings.user_email || !session) {
+      // Use RPC to find companies where this email is a member
+      const { data, error } = await supabase.rpc('get_memberships_for_email', { 
+        req_email: myEmail 
+      });
+      if (error) {
+        console.error('[Shared Companies RPC Error]', error);
+      }
+      memberships = data || [];
+    } else {
+      // Direct query for session users
+      const { data, error } = await supabase
+        .from('company_members')
+        .select('company_id, companies(*)')
+        .eq('user_email', myEmail);
+      
+      if (error) {
+        console.error('[Shared Companies Error]', error);
+      }
+      memberships = data || [];
     }
 
     // Filter out companies I own or that are null

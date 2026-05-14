@@ -75,9 +75,8 @@ export default function SyncCenter() {
 
   const isOwner = !!(currentCompany && (
     isAdmin || 
-    !currentCompany.owner_email ||
-    currentCompany.owner_email.toLowerCase() === (session?.user?.email || settings.user_email || '').toLowerCase().trim() ||
-    currentCompany.user_email?.toLowerCase() === (session?.user?.email || settings.user_email || '').toLowerCase().trim()
+    (currentCompany.owner_email && (currentCompany.owner_email.toLowerCase() === (session?.user?.email || settings.user_email || '').toLowerCase().trim())) ||
+    (!currentCompany.owner_email && currentCompany.user_email?.toLowerCase() === (session?.user?.email || settings.user_email || '').toLowerCase().trim())
   ));
 
   const handleEnableSync = async (e: React.FormEvent) => {
