@@ -412,9 +412,11 @@ BEGIN
   WHERE 
     LOWER(owner_email) = LOWER(req_email) OR
     LOWER(user_email) = LOWER(req_email) OR
-    LOWER(req_email) = ANY(COALESCE(linked_emails, '{}')) OR
-    id IN (SELECT company_id FROM public.company_members WHERE LOWER(user_email) = LOWER(req_email)) OR
-    id IN (SELECT company_id FROM public.company_invites WHERE status = 'pending' AND LOWER(invited_email) = LOWER(req_email));
+    LOWER(req_email) = ANY(COALESCE(linked_emails, '{}'))
+  UNION
+  SELECT c.* FROM public.companies c
+  JOIN public.company_members m ON c.id = m.company_id
+  WHERE LOWER(m.user_email) = LOWER(req_email);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
@@ -424,20 +426,15 @@ RETURNS TABLE (
   id UUID,
   company_id UUID,
   invited_email TEXT,
-  invited_by TEXT,
   status TEXT,
-  created_at TIMESTAMP WITH TIME ZONE,
-  updated_at TIMESTAMP WITH TIME ZONE,
-  companies JSONB
+  company_name TEXT
 ) AS $$
 BEGIN
   RETURN QUERY
-  SELECT 
-    i.id, i.company_id, i.invited_email, i.invited_by, i.status, i.created_at, i.updated_at,
-    pg_catalog.to_jsonb(c.*) as companies
+  SELECT i.id, i.company_id, i.invited_email, i.status, c.name as company_name
   FROM public.company_invites i
   JOIN public.companies c ON i.company_id = c.id
-  WHERE LOWER(i.invited_email) = LOWER(req_email) AND i.status = 'pending';
+  WHERE LOWER(i.invited_email) = LOWER(req_email);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
@@ -500,7 +497,6 @@ BEGIN
   END IF;
 
   -- Dynamic query based on table name (validated against allowlist)
-  -- Aggressively allowing company_members and company_invites for this specific RPC
   IF req_table NOT IN ('parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
     RAISE EXCEPTION 'Table % not allowed', req_table;
   END IF;
@@ -516,8 +512,18 @@ DECLARE
   v_company_id UUID;
   v_item JSONB;
   v_result JSONB;
-  v_id UUID;
+  v_cols TEXT;
 BEGIN
+  -- Validate table name
+  IF req_table NOT IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
+    RAISE EXCEPTION 'Table % not allowed', req_table;
+  END IF;
+
+  -- Pre-calculate columns for the table (excluding id)
+  SELECT string_agg(quote_ident(column_name), ',') INTO v_cols
+  FROM information_schema.columns 
+  WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id';
+
   -- 1. Extract company_id and validate access
   IF jsonb_typeof(req_payload) = 'array' THEN
     FOR v_item IN SELECT jsonb_array_elements(req_payload) LOOP
@@ -525,22 +531,7 @@ BEGIN
       IF LOWER(req_email) != 'sudaiskamran31@gmail.com' AND NOT public.is_authorized_for_company(v_company_id, req_email) THEN
         RAISE EXCEPTION 'Not authorized for company %', v_company_id;
       END IF;
-    END LOOP;
-  ELSE
-    v_company_id := (req_payload->>'company_id')::UUID;
-    IF LOWER(req_email) != 'sudaiskamran31@gmail.com' AND NOT public.is_authorized_for_company(v_company_id, req_email) THEN
-      RAISE EXCEPTION 'Not authorized for company %', v_company_id;
-    END IF;
-  END IF;
 
-  -- 2. Validate table name
-  IF req_table NOT IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
-    RAISE EXCEPTION 'Table % not allowed', req_table;
-  END IF;
-
-  -- 3. Perform Upsert
-  IF jsonb_typeof(req_payload) = 'array' THEN
-    FOR v_item IN SELECT jsonb_array_elements(req_payload) LOOP
       -- Ensure ID exists to avoid NULL constraint violation on PRIMARY KEY during jsonb_populate_record
       IF NOT (v_item ? 'id') OR (v_item->>'id') IS NULL THEN
         v_item := v_item || jsonb_build_object('id', gen_random_uuid());
@@ -548,17 +539,18 @@ BEGIN
 
       EXECUTE format(
         'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
-        'ON CONFLICT (id) DO UPDATE SET ' ||
-        '( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
+        'ON CONFLICT (id) DO UPDATE SET ( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
         'RETURNING pg_catalog.to_jsonb(t.*)',
-        req_table, req_table, v_item,
-        (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),
-        (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),
-        req_table, v_item
+        req_table, req_table, v_item, v_cols, v_cols, req_table, v_item
       ) INTO v_result;
     END LOOP;
     v_result := '{"status": "success", "message": "Bulk upsert complete"}'::jsonb;
   ELSE
+    v_company_id := (req_payload->>'company_id')::UUID;
+    IF LOWER(req_email) != 'sudaiskamran31@gmail.com' AND NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+      RAISE EXCEPTION 'Not authorized for company %', v_company_id;
+    END IF;
+
     -- Ensure ID exists
     IF NOT (req_payload ? 'id') OR (req_payload->>'id') IS NULL THEN
       req_payload := req_payload || jsonb_build_object('id', gen_random_uuid());
@@ -566,13 +558,9 @@ BEGIN
 
     EXECUTE format(
       'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
-      'ON CONFLICT (id) DO UPDATE SET ' ||
-      '( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
+      'ON CONFLICT (id) DO UPDATE SET ( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
       'RETURNING pg_catalog.to_jsonb(t.*)',
-      req_table, req_table, req_payload,
-      (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),
-      (SELECT string_agg(quote_ident(column_name), ',') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id'),
-      req_table, req_payload
+      req_table, req_table, req_payload, v_cols, v_cols, req_table, req_payload
     ) INTO v_result;
   END IF;
 
@@ -585,8 +573,9 @@ CREATE OR REPLACE FUNCTION public.delete_table_data_by_email(req_table TEXT, req
 RETURNS VOID AS $$
 DECLARE
   v_company_id UUID;
+  v_record_email TEXT;
 BEGIN
-  -- 0. Validate table name
+  -- Validate table name
   IF req_table NOT IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
     RAISE EXCEPTION 'Table % not allowed', req_table;
   END IF;
@@ -597,62 +586,41 @@ BEGIN
     RETURN;
   END IF;
 
-  -- 2. Get company_id of the record to check authorization
+  -- 2. Get company_id of the record
   IF req_table = 'companies' THEN
     v_company_id := req_id;
   ELSE
-    EXECUTE format('SELECT company_id FROM public.%I WHERE id = %L', req_table, req_id) INTO v_company_id;
-  END IF;
-
-  IF v_company_id IS NULL THEN
-    -- Fallback for member/invite deletion if company_id lookup failed (already deleted or special case)
-    DECLARE
-      v_record_email TEXT;
     BEGIN
-      -- Safely check for columns - first user_email then invited_email
-      BEGIN
-        EXECUTE format('SELECT LOWER(user_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
-      EXCEPTION WHEN OTHERS THEN
-        BEGIN
-          EXECUTE format('SELECT LOWER(invited_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
-        EXCEPTION WHEN OTHERS THEN
-          v_record_email := NULL;
-        END;
-      END;
-
-      IF v_record_email IS NOT NULL AND v_record_email = LOWER(req_email) THEN
-        EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
-      END IF;
+      EXECUTE format('SELECT company_id FROM public.%I WHERE id = %L', req_table, req_id) INTO v_company_id;
+    EXCEPTION WHEN OTHERS THEN
+      v_company_id := NULL;
     END;
-    RETURN;
   END IF;
 
-  -- 3. Validate authorization (Owner can delete anything, member can only delete themselves)
-  IF public.is_company_owner(v_company_id, req_email) THEN
-    -- Owner bypass
+  IF v_company_id IS NOT NULL THEN
+    -- If owner, can delete anything in the company
+    IF public.is_company_owner(v_company_id, req_email) THEN
+      EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
+      RETURN;
+    END IF;
+  END IF;
+
+  -- 3. Self-delete bypass (members can remove themselves, invitees can reject/delete their own invite)
+  BEGIN
+    EXECUTE format('SELECT LOWER(user_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
+  EXCEPTION WHEN OTHERS THEN
+    BEGIN
+      EXECUTE format('SELECT LOWER(invited_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
+    EXCEPTION WHEN OTHERS THEN
+      v_record_email := NULL;
+    END;
+  END IF;
+
+  IF v_record_email IS NOT NULL AND v_record_email = LOWER(req_email) THEN
+    EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
   ELSE
-    -- Check if record being deleted belongs to the requester
-    DECLARE
-      v_record_email TEXT;
-    BEGIN
-      BEGIN
-        EXECUTE format('SELECT LOWER(user_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
-      EXCEPTION WHEN OTHERS THEN
-        BEGIN
-          EXECUTE format('SELECT LOWER(invited_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
-        EXCEPTION WHEN OTHERS THEN
-          v_record_email := NULL;
-        END;
-      END;
-
-      IF v_record_email IS NULL OR v_record_email != LOWER(req_email) THEN
-        RAISE EXCEPTION 'Not authorized to delete this record in company %', v_company_id;
-      END IF;
-    END;
+    RAISE EXCEPTION 'Not authorized to delete this record';
   END IF;
-
-  -- 4. Perform Delete
-  EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
@@ -660,41 +628,17 @@ DROP FUNCTION IF EXISTS public.respond_to_invite_by_email(UUID, TEXT, TEXT) CASC
 CREATE OR REPLACE FUNCTION public.respond_to_invite_by_email(req_invite_id UUID, req_status TEXT, req_email TEXT)
 RETURNS VOID AS $$
 DECLARE
-  v_company_id UUID;
-  v_invited_email TEXT;
+    v_company_id UUID;
 BEGIN
-  -- 1. Check if invite exists and matches email
-  SELECT company_id, invited_email INTO v_company_id, v_invited_email
-  FROM public.company_invites
-  WHERE id = req_invite_id AND LOWER(invited_email) = LOWER(req_email);
+    SELECT company_id INTO v_company_id FROM public.company_invites WHERE id = req_invite_id AND LOWER(invited_email) = LOWER(req_email);
+    IF v_company_id IS NULL THEN RAISE EXCEPTION 'Invitation not found or unauthorized'; END IF;
 
-  IF v_company_id IS NULL THEN
-    RAISE EXCEPTION 'Invitation not found for ID % and email %', req_invite_id, req_email;
-  END IF;
-
-  -- 2. Check if already processed
-  IF EXISTS (SELECT 1 FROM public.company_invites WHERE id = req_invite_id AND status != 'pending') THEN
-    RAISE EXCEPTION 'Invitation already processed';
-  END IF;
-
-  -- 3. Update status
-  UPDATE public.company_invites SET status = req_status, updated_at = NOW() WHERE id = req_invite_id;
-
-  -- 3. If accepted, add to members (ignore if already member)
-  IF req_status = 'accepted' THEN
-    IF NOT EXISTS (SELECT 1 FROM public.company_members WHERE company_id = v_company_id AND LOWER(user_email) = LOWER(v_invited_email)) THEN
-      INSERT INTO public.company_members (company_id, user_email, role)
-      VALUES (v_company_id, LOWER(v_invited_email), 'member');
+    IF req_status = 'accepted' THEN
+        INSERT INTO public.company_members (company_id, user_email, role) VALUES (v_company_id, LOWER(req_email), 'member') ON CONFLICT DO NOTHING;
     END IF;
-
-    -- 4. Update linked_emails in companies
-    UPDATE public.companies
-    SET linked_emails = (
-      SELECT array_agg(DISTINCT LOWER(user_email))
-      FROM public.company_members
-      WHERE company_id = v_company_id
-    )
-    WHERE id = v_company_id;
-  END IF;
+    DELETE FROM public.company_invites WHERE id = req_invite_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Notify PostgREST to reload schema cache
+NOTIFY pgrst, 'reload schema';
