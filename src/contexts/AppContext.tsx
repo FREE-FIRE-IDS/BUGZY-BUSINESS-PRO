@@ -2689,26 +2689,22 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     console.log('[Invite] Initiating invite for:', shareWithEmail);
 
-    const myEmail = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
-    if (!myEmail) throw new Error('Please login first ❌');
+    const authEmail = (settings.user_email || currentUser || '').toLowerCase().trim();
+    const myEmail = (session?.user?.email || authEmail).toLowerCase().trim();
+    
+    if (!myEmail) throw new Error('Please login or enable sync first ❌');
 
     // 1. Verify Sender (must be verified)
     const isEmailVerified = session?.user?.email_confirmed_at || settings.is_verified;
-    if (!isEmailVerified) {
+    // For admin, we skip verification check or assume true
+    if (!isEmailVerified && !isAdmin) {
       throw new Error('Please verify your email before inviting others 🛡️');
     }
 
     const inviteeEmail = shareWithEmail.toLowerCase().trim();
     if (inviteeEmail === myEmail) throw new Error('You cannot invite yourself ❌');
 
-    // 2. Check if Invitee already has a profile (optional)
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, is_verified')
-      .eq('email', inviteeEmail)
-      .maybeSingle();
-
-    // 3. Check for existing pending invite
+    // 2. Check for existing pending invite
     const { data: existingInvite } = await supabase
       .from('company_invites')
       .select('id')
@@ -2719,20 +2715,21 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     if (existingInvite) throw new Error('An invitation is already pending for this user ⏳');
 
-    // 4. Check if already a member
+    // 3. Check if already a member
     const { data: existingMember } = await supabase
       .from('company_members')
       .select('id')
       .eq('company_id', companyId)
-      .filter('user_email', 'eq', inviteeEmail)
+      .eq('user_email', inviteeEmail)
       .maybeSingle();
 
     if (existingMember) throw new Error('User is already a member of this company ✅');
 
-    // 5. Create Invite
+    // 4. Create Invite
     let inviteError;
-    if (!session) {
-      // Use secure RPC for email-sync mode to bypass RLS
+    
+    // Always prioritize RPC if we have an email, as it handles owner checks securely
+    if (authEmail) {
       const { error: rpcError } = await supabase.rpc('upsert_table_data_by_email', {
         req_table: 'company_invites',
         req_payload: {
@@ -2741,10 +2738,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
           invited_by: myEmail,
           status: 'pending'
         },
-        req_email: myEmail
+        req_email: authEmail
       });
       inviteError = rpcError;
-    } else {
+    } else if (session) {
       const { error: directError } = await supabase
         .from('company_invites')
         .insert({
@@ -2754,6 +2751,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
           status: 'pending'
         });
       inviteError = directError;
+    } else {
+      throw new Error('Authentication required to send invites ❌');
     }
 
     if (inviteError) {
@@ -2929,15 +2928,12 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const revokeCompanyAccess = async (companyId: string, sharedEmail: string) => {
     console.log('[Access] Revoking access for:', sharedEmail);
     const emailToRevoke = sharedEmail.toLowerCase().trim();
+    const authEmail = (settings.user_email || currentUser || '').toLowerCase().trim();
 
     try {
-      // Find the specific items to delete first to get their IDs
-      // This is necessary because delete_table_data_by_email RPC requires a specific ID
-      const authEmail = (settings.user_email || currentUser || '').toLowerCase().trim();
-      
-      // 1. Revoke Invite
-      if (!session && authEmail) {
-        // Find invite ID first
+      // 1. Revoke Invite (if pending)
+      if (authEmail) {
+        // Find invite ID first using RPC if available
         const { data: inv } = await supabase.rpc('get_table_data_by_email', {
           req_table: 'company_invites',
           req_company_id: companyId,
@@ -2951,7 +2947,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
             req_email: authEmail
           });
         }
-      } else {
+      } else if (session) {
         await supabase
           .from('company_invites')
           .delete()
@@ -2959,8 +2955,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
           .eq('invited_email', emailToRevoke);
       }
 
-      // 2. Revoke Membership
-      if (!session && authEmail) {
+      // 2. Revoke Membership (if accepted)
+      if (authEmail) {
         const { data: mem } = await supabase.rpc('get_table_data_by_email', {
           req_table: 'company_members',
           req_company_id: companyId,
@@ -2974,7 +2970,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
             req_email: authEmail
           });
         }
-      } else {
+      } else if (session) {
         await supabase
           .from('company_members')
           .delete()
@@ -2982,20 +2978,21 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
           .eq('user_email', emailToRevoke);
       }
 
+      // Also try by user_id if we can find the profile (for session-based users)
+      if (session) {
+        const { data: memberProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', emailToRevoke)
+          .maybeSingle();
 
-      // Also try by user_id if we can find the profile
-      const { data: memberProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', emailToRevoke)
-        .maybeSingle();
-
-      if (memberProfile) {
-        await supabase
-          .from('company_members')
-          .delete()
-          .eq('company_id', companyId)
-          .eq('user_id', memberProfile.id);
+        if (memberProfile) {
+          await supabase
+            .from('company_members')
+            .delete()
+            .eq('company_id', companyId)
+            .eq('user_id', memberProfile.id);
+        }
       }
 
       toast.success(`Access revoked for ${sharedEmail}`);
