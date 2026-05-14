@@ -466,6 +466,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+CREATE OR REPLACE FUNCTION public.get_memberships_for_email(req_email TEXT)
+RETURNS TABLE (
+  companies JSONB
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT pg_catalog.to_jsonb(c.*)
+  FROM public.company_members m
+  JOIN public.companies c ON m.company_id = c.id
+  WHERE LOWER(m.user_email) = LOWER(req_email);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 CREATE OR REPLACE FUNCTION public.get_table_data_by_email(req_table TEXT, req_company_id UUID, req_email TEXT)
 RETURNS SETOF JSONB AS $$
 BEGIN
@@ -475,6 +488,7 @@ BEGIN
   END IF;
 
   -- Dynamic query based on table name (validated against allowlist)
+  -- Aggressively allowing company_members and company_invites for this specific RPC
   IF req_table NOT IN ('parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
     RAISE EXCEPTION 'Table % not allowed', req_table;
   END IF;
