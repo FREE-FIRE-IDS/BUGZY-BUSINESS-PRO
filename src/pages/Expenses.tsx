@@ -53,7 +53,9 @@ export default function Expenses() {
   }[]>([{ description: '', category: '', amount: 0 }]);
 
   const categories = React.useMemo(() => {
-    return Array.from(new Set(transactions.filter(t => t.type === 'Expense' && t.category).map(t => t.category as string)));
+    const usedCategories = Array.from(new Set(transactions.filter(t => t.type === 'Expense' && t.category).map(t => t.category as string)));
+    const defaults = ['Utilities', 'Rent', 'Salaries', 'Travel', 'Food', 'Marketing', 'Inventory', 'Maintenance'];
+    return Array.from(new Set([...defaults, ...usedCategories])).sort();
   }, [transactions]);
 
   const handleAddExpenseItem = () => {
@@ -143,15 +145,13 @@ export default function Expenses() {
       doc.setTextColor(225, 29, 72); // Rose-600
       doc.text('Expense Report', 14, 30);
       
-      if (selectedCategory !== 'All') {
-        doc.setFontSize(12);
-        doc.setTextColor(100, 116, 139);
-        doc.text(`Category: ${selectedCategory}`, 14, 38);
-      }
+      doc.setFontSize(14);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Category: ${selectedCategory === 'All' ? 'All Categories' : selectedCategory}`, 14, 38);
       
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139);
-      const statsY = selectedCategory !== 'All' ? 46 : 38;
+      const statsY = 46;
       doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, statsY);
       doc.text(`Total Amount: ${formatCurrency(totalFilteredExpenses, settings.currency)}`, 14, statsY + 6);
 
@@ -169,10 +169,36 @@ export default function Expenses() {
         formatCurrency(e.amount, settings.currency)
       ]);
 
+      // Add Category Summary if All Categories selected
+      let finalY = statsY + 12;
+      if (selectedCategory === 'All') {
+        const categoryWise = filteredExpenses.reduce((acc, curr) => {
+          const cat = curr.category || 'General';
+          acc[cat] = (acc[cat] || 0) + (curr.amount || 0);
+          return acc;
+        }, {} as Record<string, number>);
+
+        const summaryData = Object.entries(categoryWise)
+          .sort((a, b) => b[1] - a[1])
+          .map(([cat, amt]) => [cat, formatCurrency(amt, settings.currency)]);
+
+        autoTable(doc, {
+          head: [['Category Breakdown', 'Amount']],
+          body: summaryData,
+          startY: finalY,
+          theme: 'striped',
+          headStyles: { fillColor: [71, 85, 105] },
+          styles: { fontSize: 9 },
+          margin: { right: 100 } // Keep it to the left side
+        });
+        
+        finalY = (doc as any).lastAutoTable.finalY + 15;
+      }
+
       autoTable(doc, {
         head: [['Date', 'Category', 'Description', 'Qty', 'Price', 'Paid Via', 'Amount']],
         body: tableData,
-        startY: statsY + 12,
+        startY: finalY,
         theme: 'grid',
         headStyles: { fillColor: [225, 29, 72] },
         styles: { fontSize: 8, cellPadding: 2 },
@@ -255,16 +281,19 @@ export default function Expenses() {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 min-w-[120px]">
-            <Filter size={14} className="text-slate-400" />
+          <div className="flex items-center gap-2 min-w-[150px] relative group">
+            <Filter size={14} className="absolute left-3 text-slate-400 pointer-events-none" />
             <select 
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
+              className="w-full pl-9 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-[11px] font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               <option value="All">All Categories</option>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
+            <div className="absolute right-3 pointer-events-none text-slate-400 group-hover:text-indigo-500 transition-colors">
+              <Plus size={14} className="rotate-45" />
+            </div>
           </div>
 
           <div className="flex items-center gap-2 min-w-[120px]">
