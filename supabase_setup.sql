@@ -27,6 +27,9 @@ DROP FUNCTION IF EXISTS public.is_company_owner(UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.is_company_member(UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.sync_company_linked_emails() CASCADE;
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+DROP FUNCTION IF EXISTS public.get_memberships_for_email(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS public.is_company_owner(UUID, TEXT) CASCADE;
+DROP FUNCTION IF EXISTS public.is_authorized_for_company(UUID, TEXT) CASCADE;
 
 -- 3. Core Tables with proper schema
 CREATE TABLE IF NOT EXISTS companies (
@@ -400,6 +403,7 @@ ALTER TABLE company_invites REPLICA IDENTITY FULL;
 ALTER TABLE company_members REPLICA IDENTITY FULL;
 
 -- 8. RPC Functions for bypassing RLS securely via email
+DROP FUNCTION IF EXISTS public.get_companies_for_email(TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_companies_for_email(req_email TEXT)
 RETURNS SETOF public.companies AS $$
 BEGIN
@@ -414,6 +418,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+DROP FUNCTION IF EXISTS public.get_invites_for_email(TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_invites_for_email(req_email TEXT)
 RETURNS TABLE (
   id UUID,
@@ -436,6 +441,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+DROP FUNCTION IF EXISTS public.is_company_owner(UUID, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.is_company_owner(req_company_id UUID, req_email TEXT)
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -449,6 +455,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+DROP FUNCTION IF EXISTS public.is_authorized_for_company(UUID, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.is_authorized_for_company(req_company_id UUID, req_email TEXT)
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -466,6 +473,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+DROP FUNCTION IF EXISTS public.get_memberships_for_email(TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_memberships_for_email(req_email TEXT)
 RETURNS TABLE (
   membership_id UUID,
@@ -480,6 +488,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+DROP FUNCTION IF EXISTS public.get_table_data_by_email(TEXT, UUID, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_table_data_by_email(req_table TEXT, req_company_id UUID, req_email TEXT)
 RETURNS SETOF JSONB AS $$
 BEGIN
@@ -500,6 +509,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+DROP FUNCTION IF EXISTS public.upsert_table_data_by_email(TEXT, JSONB, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.upsert_table_data_by_email(req_table TEXT, req_payload JSONB, req_email TEXT)
 RETURNS JSONB AS $$
 DECLARE
@@ -570,6 +580,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+DROP FUNCTION IF EXISTS public.delete_table_data_by_email(TEXT, UUID, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.delete_table_data_by_email(req_table TEXT, req_id UUID, req_email TEXT)
 RETURNS VOID AS $$
 DECLARE
@@ -594,14 +605,20 @@ BEGIN
   END IF;
 
   IF v_company_id IS NULL THEN
-    -- Fallback for member/invite deletion if company_id lookup failed (or if it's already semi-deleted)
+    -- Fallback for member/invite deletion if company_id lookup failed (already deleted or special case)
     DECLARE
       v_record_email TEXT;
     BEGIN
-      EXECUTE format('SELECT LOWER(user_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
-      IF v_record_email IS NULL THEN
-        EXECUTE format('SELECT LOWER(invited_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
-      END IF;
+      -- Safely check for columns - first user_email then invited_email
+      BEGIN
+        EXECUTE format('SELECT LOWER(user_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
+      EXCEPTION WHEN OTHERS THEN
+        BEGIN
+          EXECUTE format('SELECT LOWER(invited_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
+        EXCEPTION WHEN OTHERS THEN
+          v_record_email := NULL;
+        END;
+      END;
 
       IF v_record_email IS NOT NULL AND v_record_email = LOWER(req_email) THEN
         EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
@@ -618,14 +635,18 @@ BEGIN
     DECLARE
       v_record_email TEXT;
     BEGIN
-      EXECUTE format('SELECT LOWER(user_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
-      IF v_record_email IS NULL THEN
-        -- Try invited_email for invitations table
-        EXECUTE format('SELECT LOWER(invited_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
-      END IF;
+      BEGIN
+        EXECUTE format('SELECT LOWER(user_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
+      EXCEPTION WHEN OTHERS THEN
+        BEGIN
+          EXECUTE format('SELECT LOWER(invited_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
+        EXCEPTION WHEN OTHERS THEN
+          v_record_email := NULL;
+        END;
+      END;
 
       IF v_record_email IS NULL OR v_record_email != LOWER(req_email) THEN
-        RAISE EXCEPTION 'Not authorized to delete this record';
+        RAISE EXCEPTION 'Not authorized to delete this record in company %', v_company_id;
       END IF;
     END;
   END IF;
@@ -635,6 +656,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+DROP FUNCTION IF EXISTS public.respond_to_invite_by_email(UUID, TEXT, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.respond_to_invite_by_email(req_invite_id UUID, req_status TEXT, req_email TEXT)
 RETURNS VOID AS $$
 DECLARE
