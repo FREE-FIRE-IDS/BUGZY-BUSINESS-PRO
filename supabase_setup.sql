@@ -519,8 +519,8 @@ BEGIN
     RAISE EXCEPTION 'Table % not allowed', req_table;
   END IF;
 
-  -- Pre-calculate columns for the table (excluding id)
-  SELECT string_agg(quote_ident(column_name), ',') INTO v_cols
+  -- Pre-calculate set clause for the table (excluding id)
+  SELECT string_agg(quote_ident(column_name) || ' = EXCLUDED.' || quote_ident(column_name), ', ') INTO v_cols
   FROM information_schema.columns 
   WHERE table_schema = 'public' AND table_name = req_table AND column_name != 'id';
 
@@ -539,9 +539,9 @@ BEGIN
 
       EXECUTE format(
         'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
-        'ON CONFLICT (id) DO UPDATE SET ( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
+        'ON CONFLICT (id) DO UPDATE SET %s ' ||
         'RETURNING pg_catalog.to_jsonb(t.*)',
-        req_table, req_table, v_item, v_cols, v_cols, req_table, v_item
+        req_table, req_table, v_item, v_cols
       ) INTO v_result;
     END LOOP;
     v_result := '{"status": "success", "message": "Bulk upsert complete"}'::jsonb;
@@ -558,9 +558,9 @@ BEGIN
 
     EXECUTE format(
       'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
-      'ON CONFLICT (id) DO UPDATE SET ( %s ) = ( SELECT %s FROM (SELECT (jsonb_populate_record(NULL::public.%I, %L)).*) as excluded_row ) ' ||
+      'ON CONFLICT (id) DO UPDATE SET %s ' ||
       'RETURNING pg_catalog.to_jsonb(t.*)',
-      req_table, req_table, req_payload, v_cols, v_cols, req_table, req_payload
+      req_table, req_table, req_payload, v_cols
     ) INTO v_result;
   END IF;
 
@@ -614,7 +614,7 @@ BEGIN
     EXCEPTION WHEN OTHERS THEN
       v_record_email := NULL;
     END;
-  END IF;
+  END;
 
   IF v_record_email IS NOT NULL AND v_record_email = LOWER(req_email) THEN
     EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
