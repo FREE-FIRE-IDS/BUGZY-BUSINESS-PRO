@@ -73,13 +73,12 @@ export default function SyncCenter() {
     }
   };
 
-  const isOwner = currentCompany && (
-    isAdmin ||
+  const isOwner = !!(currentCompany && (
+    isAdmin || 
     !currentCompany.owner_email ||
     currentCompany.owner_email.toLowerCase() === (session?.user?.email || settings.user_email || '').toLowerCase().trim() ||
-    currentCompany.user_email?.toLowerCase() === (session?.user?.email || settings.user_email || '').toLowerCase().trim() ||
-    !currentCompany.user_email // Fallback if no email is set yet
-  );
+    currentCompany.user_email?.toLowerCase() === (session?.user?.email || settings.user_email || '').toLowerCase().trim()
+  ));
 
   const handleEnableSync = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +120,14 @@ export default function SyncCenter() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Sync Center</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Manage your multi-device synchronization</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-slate-500 dark:text-slate-400 text-xs font-medium">Manage your multi-device synchronization</p>
+              {settings.sync_enabled && settings.user_email && (
+                <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full font-bold text-slate-500">
+                  {settings.user_email}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -261,19 +267,19 @@ export default function SyncCenter() {
             </motion.div>
 
             {/* Manage Shared Users Section */}
-            {isOwner && (
-              <div className="pt-8 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-600">
-                    <Database size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Manage Team Access</h2>
-                    <p className="text-xs text-slate-500 font-medium">Control who can access this business data</p>
-                  </div>
+            <div className="pt-8 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-600">
+                  <Database size={20} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-slate-50 tracking-tight">Team & Shared Access</h2>
+                  <p className="text-xs text-slate-500 font-medium">
+                    {isOwner ? 'Control who can access this business data' : 'View members with access to this business'}
+                  </p>
                 </div>
               </div>
-            )}
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <AnimatePresence>
@@ -352,17 +358,30 @@ export default function SyncCenter() {
               )}
             </div>
 
-            {/* Sent Invitations List */}
-            {isOwner && sentInvitations.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Authorized Team Members</h4>
-                  <span className="text-[10px] font-bold text-slate-400">Revoke access to remove users</span>
+            {/* Team Members List */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm mb-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Authorized Team Members</h4>
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => currentCompany && fetchSentInvitations(currentCompany.id)}
+                    className="text-[10px] font-black text-indigo-600 hover:underline uppercase tracking-widest"
+                  >
+                    Refresh
+                  </button>
+                  {isOwner && <span className="text-[10px] font-bold text-slate-400 italic font-sans animate-pulse">Owner View</span>}
                 </div>
+              </div>
+              
+              {sentInvitations.length === 0 ? (
+                <div className="py-8 text-center bg-slate-50 dark:bg-slate-950/30 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800">
+                  <p className="text-xs font-bold text-slate-400 italic">No team members invited yet.</p>
+                </div>
+              ) : (
                 <div className="grid gap-3">
                   {sentInvitations.map(sent => (
                     <div key={sent.id} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -383,27 +402,30 @@ export default function SyncCenter() {
                           </div>
                         </div>
                       </div>
-      <button 
-        onClick={async () => {
-          if (window.confirm(`Revoke access for ${sent.invited_email}?`)) {
-            try {
-              await revokeCompanyAccess(currentCompany!.id, sent.invited_email);
-            } catch (err: any) {
-              alert(err.message || 'Failed to revoke access');
-            }
-          }
-        }}
-        className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded-lg transition-all"
-        title="Revoke Access"
-      >
-        <Trash2 size={14} />
-        <span>Revoke</span>
-      </button>
+                      
+                      {isOwner && (
+                        <button 
+                          onClick={async () => {
+                            if (window.confirm(`Revoke access for ${sent.invited_email}?`)) {
+                              try {
+                                await revokeCompanyAccess(currentCompany!.id, sent.invited_email);
+                              } catch (err: any) {
+                                alert(err.message || 'Failed to revoke access');
+                              }
+                            }
+                          }}
+                          className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded-lg transition-all"
+                          title="Revoke Access"
+                        >
+                          <Trash2 size={14} />
+                          <span>Revoke</span>
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
-              </motion.div>
-            )}
+              )}
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

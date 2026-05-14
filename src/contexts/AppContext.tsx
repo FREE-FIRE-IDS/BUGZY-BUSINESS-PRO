@@ -2776,14 +2776,48 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const fetchSentInvitations = async (companyId: string) => {
     if (!companyId) return;
-    const { data, error } = await supabase
-      .from('company_invites')
-      .select('*')
-      .eq('company_id', companyId);
+    
+    // Fetch both invites and actual members
+    const [invitesRes, membersRes] = await Promise.all([
+      supabase.from('company_invites').select('*').eq('company_id', companyId),
+      supabase.from('company_members').select('*').eq('company_id', companyId)
+    ]);
 
-    if (!error && data) {
-      setSentInvitations(data);
+    if (invitesRes.error) {
+      console.error('[Fetch Invites Error]', invitesRes.error);
     }
+    if (membersRes.error) {
+      console.error('[Fetch Members Error]', membersRes.error);
+    }
+
+    // Combine them into a single list for management
+    // We want to show everyone who has access
+    const invites = invitesRes.data || [];
+    const members = membersRes.data || [];
+
+    // Map members to a format consistent with invites for the UI
+    const memberInvites = members.map(m => ({
+      id: `member-${m.id}`,
+      invited_email: m.user_email,
+      status: 'accepted' as const,
+      company_id: m.company_id,
+      invited_by: 'Owner' // We don't store who invited them in members table usually
+    }));
+
+    // Filter out duplicates (if an invite exists and a member exists for same email)
+    // Preference to member status
+    const combined = [...memberInvites];
+    invites.forEach(invite => {
+      const alreadyIn = combined.find(m => m.invited_email.toLowerCase() === invite.invited_email.toLowerCase());
+      if (!alreadyIn) {
+        combined.push(invite);
+      } else if (invite.status === 'pending') {
+        // If there's a pending invite but they are already a member, maybe it's a stale invite
+        // but we'll show the member status
+      }
+    });
+
+    setSentInvitations(combined);
   };
 
   const updateInvitationStatus = async (inviteId: string, status: 'accepted' | 'rejected') => {
