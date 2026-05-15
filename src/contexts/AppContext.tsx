@@ -433,7 +433,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         
         if (data && (data.user_email?.toLowerCase() === email || (data.linked_emails && data.linked_emails.includes(email)) || data.owner_email?.toLowerCase() === email)) {
           const updatedCompany = payload.new as Company;
-          if (updatedCompany) {
+          if (updatedCompany && (
+            updatedCompany.user_email?.toLowerCase() === email || 
+            (updatedCompany.linked_emails && updatedCompany.linked_emails.includes(email)) || 
+            updatedCompany.owner_email?.toLowerCase() === email
+          )) {
             setCompanies(prev => {
               const exists = prev.find(c => c.id === updatedCompany.id);
               if (exists) {
@@ -447,10 +451,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setCurrentCompany(updatedCompany);
               }
             }
-          } else if (payload.eventType === 'DELETE') {
-            const deletedId = (payload.old as any).id;
-            setCompanies(prev => prev.filter(c => c.id !== deletedId));
-            if (currentCompany?.id === deletedId) setCurrentCompany(null);
+          } else {
+            // User was removed from access or company deleted
+            const targetId = updatedCompany?.id || (payload.old as any)?.id || data.id;
+            if (targetId) {
+              setCompanies(prev => prev.filter(c => c.id !== targetId));
+              if (currentCompany?.id === targetId) {
+                setCurrentCompany(null);
+                toast.error('Your access to this business has been updated 🔐');
+              }
+            }
           }
         }
       })
@@ -671,9 +681,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             let query;
             if (!session && email) {
               query = supabase.rpc('get_table_data_by_email', { 
-                req_table: dbTable, 
                 req_company_id: comp.id, 
-                req_email: email 
+                req_email: email,
+                req_table: dbTable 
               });
             } else {
               query = supabase.from(dbTable).select('*').eq('company_id', comp.id);
@@ -888,9 +898,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             if (!session && settings.user_email) {
               // Use secure RPC for email-sync mode
               const { data: rpcRes, error: rpcErr } = await supabase.rpc('upsert_table_data_by_email', {
-                req_table: dbTable,
+                req_email: settings.user_email.toLowerCase().trim(),
                 req_payload: payload,
-                req_email: settings.user_email.toLowerCase().trim()
+                req_table: dbTable
               });
               res = rpcRes;
               err = rpcErr;
@@ -980,9 +990,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         let err;
         if (!session && email) {
           const { error: rpcErr } = await supabase.rpc('delete_table_data_by_email', {
-            req_table: dbTable,
+            req_email: email.toLowerCase().trim(),
             req_id: id,
-            req_email: email.toLowerCase().trim()
+            req_table: dbTable
           });
           err = rpcErr;
         } else {
@@ -2710,9 +2720,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     // Use RPC to check existing invitations
     const { data: inv } = await supabase.rpc('get_table_data_by_email', {
-      req_table: 'company_invites',
       req_company_id: companyId,
-      req_email: myEmail
+      req_email: myEmail,
+      req_table: 'company_invites'
     });
     existingInvite = (inv as any[])?.find(i => 
       i.invited_email.toLowerCase() === inviteeEmail && i.status === 'pending'
@@ -2720,9 +2730,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     // Use RPC to check existing members
     const { data: mem } = await supabase.rpc('get_table_data_by_email', {
-      req_table: 'company_members',
       req_company_id: companyId,
-      req_email: myEmail
+      req_email: myEmail,
+      req_table: 'company_members'
     });
     existingMember = (mem as any[])?.find(m => 
       m.user_email?.toLowerCase() === inviteeEmail
@@ -2733,14 +2743,14 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     // 4. Create Invite
     const { error: rpcError } = await supabase.rpc('upsert_table_data_by_email', {
-      req_table: 'company_invites',
+      req_email: myEmail,
       req_payload: {
         company_id: companyId,
         invited_email: inviteeEmail,
         invited_by: myEmail,
         status: 'pending'
       },
-      req_email: myEmail
+      req_table: 'company_invites'
     });
 
     if (rpcError) {
@@ -2844,9 +2854,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     try {
       // 1. Revoke Invite (if pending)
       const { data: inv, error: invError } = await supabase.rpc('get_table_data_by_email', {
-        req_table: 'company_invites',
         req_company_id: companyId,
-        req_email: authEmail
+        req_email: authEmail,
+        req_table: 'company_invites'
       });
 
       if (invError) console.error('[Revoke] Error fetching invites:', invError);
@@ -2856,9 +2866,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
       if (targetInv) {
         const { error: delInvError } = await supabase.rpc('delete_table_data_by_email', {
-          req_table: 'company_invites',
+          req_email: authEmail,
           req_id: targetInv.id,
-          req_email: authEmail
+          req_table: 'company_invites'
         });
         if (delInvError) throw delInvError;
         console.log('[Revoke] Pending invite deleted successfully');
@@ -2866,9 +2876,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
       // 2. Revoke Membership (if accepted)
       const { data: mem, error: memError } = await supabase.rpc('get_table_data_by_email', {
-        req_table: 'company_members',
         req_company_id: companyId,
-        req_email: authEmail
+        req_email: authEmail,
+        req_table: 'company_members'
       });
 
       if (memError) console.error('[Revoke] Error fetching members:', memError);
@@ -2878,9 +2888,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
       if (targetMem) {
         const { error: delMemError } = await supabase.rpc('delete_table_data_by_email', {
-          req_table: 'company_members',
+          req_email: authEmail,
           req_id: targetMem.id,
-          req_email: authEmail
+          req_table: 'company_members'
         });
         if (delMemError) throw delMemError;
         console.log('[Revoke] Active membership deleted successfully');

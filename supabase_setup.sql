@@ -43,7 +43,8 @@ BEGIN
             'is_company_owner',
             'is_company_member',
             'rpc_leave_company',
-            'sync_company_linked_emails'
+            'sync_company_linked_emails',
+            'handle_new_user'
         )
         AND pronamespace = 'public'::regnamespace
     LOOP
@@ -273,30 +274,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
-RETURNS trigger AS $$
-BEGIN
-  IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
-    UPDATE public.companies 
-    SET linked_emails = (
-      SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
-      FROM public.company_members 
-      WHERE company_id = NEW.company_id
-    )
-    WHERE id = NEW.company_id;
-  ELSIF TG_OP = 'DELETE' THEN
-    UPDATE public.companies 
-    SET linked_emails = (
-      SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
-      FROM public.company_members 
-      WHERE company_id = OLD.company_id
-    )
-    WHERE id = OLD.company_id;
-  END IF;
-  RETURN NULL;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
@@ -493,7 +470,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- Trigger to keep linked_emails in sync with company_members
+-- 8. RPC Functions for bypassing RLS securely via email
 CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -506,7 +483,7 @@ BEGIN
     WHERE id = COALESCE(NEW.company_id, OLD.company_id);
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS trg_sync_company_members ON public.company_members;
 CREATE TRIGGER trg_sync_company_members
@@ -515,7 +492,7 @@ FOR EACH ROW EXECUTE FUNCTION public.sync_company_linked_emails();
 
 DROP FUNCTION IF EXISTS public.get_table_data_by_email(TEXT, UUID, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS public.get_table_data_by_email(TEXT, TEXT, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.get_table_data_by_email(req_table TEXT, req_company_id TEXT, req_email TEXT)
+CREATE OR REPLACE FUNCTION public.get_table_data_by_email(req_company_id TEXT, req_email TEXT, req_table TEXT)
 RETURNS SETOF JSONB AS $$
 DECLARE
   v_uuid_company_id UUID;
@@ -535,7 +512,8 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP FUNCTION IF EXISTS public.upsert_table_data_by_email(TEXT, JSONB, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.upsert_table_data_by_email(req_table TEXT, req_payload JSONB, req_email TEXT)
+DROP FUNCTION IF EXISTS public.upsert_table_data_by_email(TEXT, TEXT, TEXT) CASCADE;
+CREATE OR REPLACE FUNCTION public.upsert_table_data_by_email(req_email TEXT, req_payload JSONB, req_table TEXT)
 RETURNS JSONB AS $$
 DECLARE
   v_company_id UUID;
@@ -599,7 +577,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP FUNCTION IF EXISTS public.delete_table_data_by_email(TEXT, UUID, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS public.delete_table_data_by_email(TEXT, TEXT, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.delete_table_data_by_email(req_table TEXT, req_id TEXT, req_email TEXT)
+CREATE OR REPLACE FUNCTION public.delete_table_data_by_email(req_email TEXT, req_id TEXT, req_table TEXT)
 RETURNS VOID AS $$
 DECLARE
   v_company_id UUID;
