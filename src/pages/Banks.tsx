@@ -138,7 +138,9 @@ export default function Banks() {
   const [ledgerFilter, setLedgerFilter] = useState<'All' | 'Debit' | 'Credit'>('All');
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [isLedgerSearchOpen, setIsLedgerSearchOpen] = useState(false);
-  const [ledgerDateRange, setLedgerDateRange] = useState<'All' | 'This Month' | '7 Days'>('All');
+  const [ledgerDateRange, setLedgerDateRange] = useState<'All' | 'This Month' | 'Custom'>('All');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   const filteredBanks = useMemo(() => {
     return banks.filter(bank => {
@@ -179,11 +181,12 @@ export default function Banks() {
           const date = new Date(entry.date);
           const now = new Date();
           if (date.getMonth() !== now.getMonth() || date.getFullYear() !== now.getFullYear()) return false;
-        } else if (ledgerDateRange === '7 Days') {
+        } else if (ledgerDateRange === 'Custom' && customStartDate && customEndDate) {
           const date = new Date(entry.date);
-          const now = new Date();
-          const diff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
-          if (diff > 7) return false;
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59, 999);
+          if (date < start || date > end) return false;
         }
 
         if (ledgerFilter === 'Debit') {
@@ -504,8 +507,26 @@ export default function Banks() {
                 >
                   <option value="All">All Time</option>
                   <option value="This Month">This Month</option>
-                  <option value="7 Days">Last 7 Days</option>
+                  <option value="Custom">Custom Range</option>
                 </select>
+
+                {ledgerDateRange === 'Custom' && (
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="date" 
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg text-[10px] font-bold outline-none"
+                    />
+                    <span className="text-slate-400 text-[10px]">to</span>
+                    <input 
+                      type="date" 
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg text-[10px] font-bold outline-none"
+                    />
+                  </div>
+                )}
 
                 <select 
                   value={ledgerFilter}
