@@ -40,7 +40,9 @@ BEGIN
             'get_companies_for_email', 
             'get_memberships_for_email',
             'is_authorized_for_company',
+            'is_authorized_for_company_rpc',
             'is_company_owner',
+            'is_company_owner_rpc',
             'is_company_member',
             'rpc_leave_company',
             'sync_company_linked_emails',
@@ -231,6 +233,7 @@ CREATE TABLE IF NOT EXISTS payment_requests (
 );
 
 -- 4. Helper functions (SECURITY DEFINER)
+-- We use standardized internal functions and then RPC wrappers
 CREATE OR REPLACE FUNCTION public.is_company_member(cid UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -240,13 +243,11 @@ BEGIN
   current_email := LOWER(auth.jwt() ->> 'email');
   current_uid := auth.uid()::text;
   
-  -- Basic validity
   IF current_email IS NULL OR current_email = '' THEN 
     IF current_uid IS NULL THEN RETURN FALSE; END IF;
   END IF;
 
-  -- Use a direct query that bypasses RLS because this is SECURITY DEFINER
-  IF EXISTS (
+  RETURN EXISTS (
     SELECT 1 FROM public.companies 
     WHERE id = cid 
     AND (
@@ -255,12 +256,7 @@ BEGIN
       LOWER(user_email) = current_email OR 
       current_email = ANY(COALESCE(linked_emails, '{}'))
     )
-  ) THEN
-    RETURN TRUE;
-  END IF;
-
-  -- Also check company_members directly to be safe
-  RETURN EXISTS (
+  ) OR EXISTS (
     SELECT 1 FROM public.company_members 
     WHERE company_id = cid AND (user_id = auth.uid() OR LOWER(user_email) = current_email)
   );
@@ -269,8 +265,49 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION public.is_company_owner(cid UUID)
 RETURNS BOOLEAN AS $$
+DECLARE
+  current_email TEXT;
 BEGIN
-  RETURN public.is_company_member(cid);
+  current_email := LOWER(auth.jwt() ->> 'email');
+  RETURN EXISTS (
+    SELECT 1 FROM public.companies
+    WHERE id = cid AND (
+      owner_id = auth.uid()::text OR
+      LOWER(owner_email) = current_email OR
+      LOWER(user_email) = current_email
+    )
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- RPC Version of checks
+CREATE OR REPLACE FUNCTION public.is_authorized_for_company_rpc(req_company_id UUID, req_email TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.companies
+    WHERE id = req_company_id AND (
+      LOWER(owner_email) = LOWER(req_email) OR
+      LOWER(user_email) = LOWER(req_email) OR
+      LOWER(req_email) = ANY(COALESCE(linked_emails, '{}'))
+    )
+  ) OR EXISTS (
+    SELECT 1 FROM public.company_members
+    WHERE company_id = req_company_id AND LOWER(user_email) = LOWER(req_email)
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.is_company_owner_rpc(req_company_id UUID, req_email TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.companies
+    WHERE id = req_company_id AND (
+      LOWER(owner_email) = LOWER(req_email) OR
+      LOWER(user_email) = LOWER(req_email)
+    )
+  );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
@@ -423,38 +460,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-DROP FUNCTION IF EXISTS public.is_company_owner(UUID, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.is_company_owner(req_company_id UUID, req_email TEXT)
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM public.companies
-    WHERE id = req_company_id AND (
-      LOWER(owner_email) = LOWER(req_email) OR
-      LOWER(user_email) = LOWER(req_email)
-    )
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
-DROP FUNCTION IF EXISTS public.is_authorized_for_company(UUID, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.is_authorized_for_company(req_company_id UUID, req_email TEXT)
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM public.companies
-    WHERE id = req_company_id AND (
-      LOWER(owner_email) = LOWER(req_email) OR
-      LOWER(user_email) = LOWER(req_email) OR
-      LOWER(req_email) = ANY(COALESCE(linked_emails, '{}'))
-    )
-  ) OR EXISTS (
-    SELECT 1 FROM public.company_members
-    WHERE company_id = req_company_id AND LOWER(user_email) = LOWER(req_email)
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
 DROP FUNCTION IF EXISTS public.get_memberships_for_email(TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_memberships_for_email(req_email TEXT)
 RETURNS TABLE (
@@ -498,7 +503,7 @@ DECLARE
   v_uuid_company_id UUID;
 BEGIN
   v_uuid_company_id := req_company_id::UUID;
-  IF NOT public.is_authorized_for_company(v_uuid_company_id, req_email) THEN
+  IF NOT public.is_authorized_for_company_rpc(v_uuid_company_id, req_email) THEN
     RAISE EXCEPTION 'Not authorized for this company %', req_company_id;
   END IF;
 
@@ -535,7 +540,7 @@ BEGIN
   IF jsonb_typeof(req_payload) = 'array' THEN
     FOR v_item IN SELECT jsonb_array_elements(req_payload) LOOP
       v_company_id := (v_item->>'company_id')::UUID;
-      IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+      IF NOT public.is_authorized_for_company_rpc(v_company_id, req_email) THEN
         RAISE EXCEPTION 'Not authorized for company %', v_company_id;
       END IF;
 
@@ -554,7 +559,7 @@ BEGIN
     v_result := '{"status": "success", "message": "Bulk upsert complete"}'::jsonb;
   ELSE
     v_company_id := (req_payload->>'company_id')::UUID;
-    IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+    IF NOT public.is_authorized_for_company_rpc(v_company_id, req_email) THEN
       RAISE EXCEPTION 'Not authorized for company %', v_company_id;
     END IF;
 
@@ -603,7 +608,7 @@ BEGIN
   -- 2. Authorization Checks
   
   -- Check if user is the business owner (Full access to delete anything in company)
-  IF v_company_id IS NOT NULL AND public.is_company_owner(v_company_id, req_email) THEN
+  IF v_company_id IS NOT NULL AND public.is_company_owner_rpc(v_company_id, req_email) THEN
     EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, v_record_id);
     RETURN;
   END IF;
@@ -637,7 +642,7 @@ BEGIN
   END IF;
 
   -- 4. Fallback: General authorization check
-  IF v_company_id IS NOT NULL AND NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+  IF v_company_id IS NOT NULL AND NOT public.is_authorized_for_company_rpc(v_company_id, req_email) THEN
     RAISE EXCEPTION 'Unauthorized to delete from %', req_table;
   END IF;
 
@@ -660,6 +665,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP FUNCTION IF EXISTS public.rpc_leave_company(TEXT, TEXT) CASCADE;
+DROP FUNCTION IF EXISTS public.rpc_leave_company(UUID, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.rpc_leave_company(req_company_id TEXT, req_email TEXT)
 RETURNS VOID AS $$
 DECLARE
@@ -681,6 +687,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+DROP FUNCTION IF EXISTS public.respond_to_invite_by_email(TEXT, TEXT, TEXT) CASCADE;
+DROP FUNCTION IF EXISTS public.respond_to_invite_by_email(UUID, TEXT, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.respond_to_invite_by_email(req_invite_id TEXT, req_status TEXT, req_email TEXT)
 RETURNS VOID AS $$
 DECLARE
@@ -696,6 +704,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+DROP FUNCTION IF EXISTS public.get_company_team(TEXT, TEXT) CASCADE;
+DROP FUNCTION IF EXISTS public.get_company_team(UUID, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_company_team(req_company_id TEXT, req_email TEXT)
 RETURNS TABLE (
   id TEXT,
@@ -709,7 +719,7 @@ DECLARE
 BEGIN
   v_uuid_id := req_company_id::UUID;
   -- Security check: only owner/member can see the team
-  IF NOT public.is_authorized_for_company(v_uuid_id, req_email) THEN
+  IF NOT public.is_authorized_for_company_rpc(v_uuid_id, req_email) THEN
     RAISE EXCEPTION 'Not authorized to view team';
   END IF;
 
