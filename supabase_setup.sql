@@ -585,14 +585,14 @@ BEGIN
 
   -- 3. Self-delete bypass (members can remove themselves, invitees can reject/delete their own invite)
   IF req_table = 'company_members' THEN
-    IF EXISTS (SELECT 1 FROM public.company_members WHERE id = req_id AND LOWER(user_email) = LOWER(req_email)) THEN
+    IF EXISTS (SELECT 1 FROM public.company_members WHERE id = req_id AND (LOWER(user_email) = LOWER(req_email) OR public.is_company_owner(company_id, req_email))) THEN
        EXECUTE format('DELETE FROM public.company_members WHERE id = %L', req_id);
        RETURN;
     END IF;
   END IF;
 
   IF req_table = 'company_invites' THEN
-    IF EXISTS (SELECT 1 FROM public.company_invites WHERE id = req_id AND (LOWER(invited_email) = LOWER(req_email) OR LOWER(invited_by) = LOWER(req_email))) THEN
+    IF EXISTS (SELECT 1 FROM public.company_invites WHERE id = req_id AND (LOWER(invited_email) = LOWER(req_email) OR LOWER(invited_by) = LOWER(req_email) OR public.is_company_owner(company_id, req_email))) THEN
        EXECUTE format('DELETE FROM public.company_invites WHERE id = %L', req_id);
        RETURN;
     END IF;
@@ -610,10 +610,22 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 DROP FUNCTION IF EXISTS public.rpc_leave_company(TEXT, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.rpc_leave_company(req_company_id TEXT, req_email TEXT)
 RETURNS VOID AS $$
+DECLARE
+  v_uuid_id UUID;
 BEGIN
+    v_uuid_id := req_company_id::UUID;
     DELETE FROM public.company_members 
-    WHERE company_id = req_company_id::UUID 
+    WHERE company_id = v_uuid_id
     AND LOWER(user_email) = LOWER(req_email);
+    
+    -- Force sync linked_emails as backup
+    UPDATE public.companies 
+    SET linked_emails = (
+      SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
+      FROM public.company_members 
+      WHERE company_id = v_uuid_id
+    )
+    WHERE id = v_uuid_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 

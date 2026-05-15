@@ -57,6 +57,12 @@ export default function ManageCompanies() {
     }
   }, [isAddModalOpen, companies.length]);
 
+  useEffect(() => {
+    if (isShareModalOpen) {
+      fetchSentInvitations(isShareModalOpen);
+    }
+  }, [isShareModalOpen]);
+
   const handleAddCompany = async () => {
     if (!newCompanyName.trim()) return;
     setAdding(true);
