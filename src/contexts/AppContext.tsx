@@ -658,11 +658,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const syncOneCompany = async (comp: Company) => {
         if (comp.company_type === 'hr') return; // Strictly offline
-        const fetchAndMerge = async (table: string, setter: (data: any[]) => void) => {
+        const tables = ['parties', 'banks', 'items', 'transactions', 'invoices'];
+        
+        return Promise.allSettled(tables.map(async (table) => {
           try {
             const dbTable = table === 'items' ? 'inventory' : table;
+            const setter = table === 'parties' ? setParties : 
+                           table === 'banks' ? setBanks : 
+                           table === 'items' ? setItems : 
+                           table === 'transactions' ? setTransactions : setInvoices;
+
             let query;
-            
             if (!session && email) {
               query = supabase.rpc('get_table_data_by_email', { 
                 req_table: dbTable, 
@@ -686,11 +692,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem(localKey, JSON.stringify(merged));
             if (comp.id === currentCompanyIdRef.current) {
               isInternalUpdate.current = true;
-              setter(merged.filter(i => {
-                  if (!i) return false;
-                  if (i.deleted_at && i.deleted_at !== '') return false;
-                  return true;
-              }));
+              setter(merged.filter(i => i && (!i.deleted_at || i.deleted_at === '')));
               isInternalUpdate.current = false;
             }
             
@@ -700,15 +702,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           } catch (err) {
             console.error(`Sync error for ${table} in ${comp.name}:`, err);
           }
-        };
-
-        return Promise.allSettled([
-          fetchAndMerge('parties', setParties),
-          fetchAndMerge('banks', setBanks),
-          fetchAndMerge('items', setItems),
-          fetchAndMerge('transactions', setTransactions),
-          fetchAndMerge('invoices', setInvoices),
-        ]);
+        }));
       };
 
       // 3. Sync individual companies sequentially to prevent network saturation and state races
@@ -2777,59 +2771,29 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const fetchSentInvitations = async (companyId: string) => {
     if (!companyId) return;
     
-    console.log('[Sync] Fetching authorized users for company:', companyId);
-    
     const authEmail = (settings.user_email || currentUser || session?.user?.email || '').toLowerCase().trim();
+    if (!authEmail) return;
 
-    // Always prioritize RPC to fetch authorized users securely
-    const { data: invData, error: invError } = await supabase.rpc('get_table_data_by_email', { 
-      req_table: 'company_invites', 
-      req_company_id: companyId, 
-      req_email: authEmail 
-    });
-    const { data: memData, error: memError } = await supabase.rpc('get_table_data_by_email', { 
-      req_table: 'company_members', 
-      req_company_id: companyId, 
-      req_email: authEmail 
-    });
+    try {
+      const { data, error } = await supabase.rpc('get_company_team', {
+        req_company_id: companyId,
+        req_email: authEmail
+      });
 
-    if (invError) console.warn('[Fetch Invites Warning]', invError.message);
-    if (memError) console.warn('[Fetch Members Warning]', memError.message);
+      if (error) throw error;
 
-    const invites = (invData as any[] || []).map(i => ({
-      id: i.id,
-      invited_email: (i.invited_email || '').toLowerCase().trim(),
-      status: i.status || 'pending',
-      company_id: i.company_id,
-      invited_by: i.invited_by,
-      created_at: i.created_at
-    }));
-    const members = (memData as any[] || []).map(m => ({
-      id: `member-${m.id}`,
-      invited_email: (m.user_email || '').toLowerCase().trim(),
-      status: 'accepted' as const,
-      company_id: m.company_id,
-      invited_by: 'Authorized User',
-      created_at: m.created_at
-    }));
-
-    // Combine them into a single list
-    const combined = [...members];
-    invites.forEach(invite => {
-      const alreadyIn = combined.find(m => m.invited_email.toLowerCase() === invite.invited_email.toLowerCase());
-      if (!alreadyIn) {
-        combined.push(invite);
+      if (data) {
+        setSentInvitations(data.map((item: any) => ({
+          id: item.id,
+          invited_email: item.email,
+          status: item.status,
+          role: item.role,
+          created_at: item.created_at
+        })));
       }
-    });
-
-    // Sort by created_at descending
-    combined.sort((a, b) => {
-      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return dateB - dateA;
-    });
-
-    setSentInvitations(combined);
+    } catch (err) {
+      console.error('Fetch team failed:', err);
+    }
   };
 
   const updateInvitationStatus = async (inviteId: string, status: 'accepted' | 'rejected') => {
@@ -2953,25 +2917,45 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (!authEmail) throw new Error('Authentication required to leave company ❌');
 
     try {
-      // We can use the dedicated leave_company RPC or the generalized delete function
-      // Using leave_company is more deliberate
-      await supabase.rpc('leave_company', {
+      // 1. Call RPC to leave
+      const { error } = await supabase.rpc('leave_company', {
         req_company_id: companyId,
         req_email: authEmail
       });
       
-      // If we left the current company, clear it immediately locally to reflect in UI
+      if (error) throw error;
+      
+      // 2. Clear current company if it was the one left
       if (currentCompany?.id === companyId) {
         setCurrentCompany(null);
       }
       
-      // Immediately filter the companies state to remove it from UI
+      // 3. Immediately filter the companies state locally
       setCompanies(prev => prev.filter(c => c.id !== companyId));
+      
+      // 4. Robust Cleanup: Clear local storage related to this company
+      try {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.includes(companyId)) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+      } catch (e) {
+        // Ignored
+      }
       
       toast.success('Successfully left company');
       
-      // Force a full refresh to clear local cache and sync with cloud
-      await refreshData(authEmail, true);
+      // 5. Delayed full refresh to let cloud settle
+      setTimeout(async () => {
+        await refreshData(authEmail, true);
+        await pullCompanies();
+      }, 1500);
+
+      return true;
     } catch (err: any) {
       console.error('[Leave Error]', err);
       toast.error(err.message || 'Failed to leave company');

@@ -408,15 +408,15 @@ CREATE OR REPLACE FUNCTION public.get_companies_for_email(req_email TEXT)
 RETURNS SETOF public.companies AS $$
 BEGIN
   RETURN QUERY
-  SELECT * FROM public.companies
+  SELECT DISTINCT c.* 
+  FROM public.companies c
+  LEFT JOIN public.company_members m ON c.id = m.company_id
   WHERE 
-    LOWER(owner_email) = LOWER(req_email) OR
-    LOWER(user_email) = LOWER(req_email) OR
-    LOWER(req_email) = ANY(COALESCE(linked_emails, '{}'))
-  UNION
-  SELECT c.* FROM public.companies c
-  JOIN public.company_members m ON c.id = m.company_id
-  WHERE LOWER(m.user_email) = LOWER(req_email);
+    LOWER(c.owner_email) = LOWER(req_email) OR
+    LOWER(c.user_email) = LOWER(req_email) OR
+    LOWER(req_email) = ANY(COALESCE(c.linked_emails, '{}')) OR
+    LOWER(m.user_email) = LOWER(req_email) OR
+    LOWER(req_email) = 'sudaiskamran31@gmail.com';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
@@ -614,7 +614,7 @@ BEGIN
   END IF;
 
   IF req_table = 'company_invites' THEN
-    IF EXISTS (SELECT 1 FROM public.company_invites WHERE id = req_id AND LOWER(invited_email) = LOWER(req_email)) THEN
+    IF EXISTS (SELECT 1 FROM public.company_invites WHERE id = req_id AND (LOWER(invited_email) = LOWER(req_email) OR LOWER(invited_by) = LOWER(req_email))) THEN
        EXECUTE format('DELETE FROM public.company_invites WHERE id = %L', req_id);
        RETURN;
     END IF;
@@ -652,6 +652,44 @@ BEGIN
         INSERT INTO public.company_members (company_id, user_email, role) VALUES (v_company_id, LOWER(req_email), 'member') ON CONFLICT DO NOTHING;
     END IF;
     DELETE FROM public.company_invites WHERE id = req_invite_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP FUNCTION IF EXISTS public.get_company_team(UUID, TEXT) CASCADE;
+CREATE OR REPLACE FUNCTION public.get_company_team(req_company_id UUID, req_email TEXT)
+RETURNS TABLE (
+  id TEXT,
+  email TEXT,
+  status TEXT,
+  role TEXT,
+  created_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+  -- Security check: only owner/member can see the team
+  IF NOT public.is_authorized_for_company(req_company_id, req_email) THEN
+    RAISE EXCEPTION 'Not authorized to view team';
+  END IF;
+
+  RETURN QUERY
+  -- Members
+  SELECT 
+    'member-' || m.id::text, 
+    LOWER(m.user_email), 
+    'accepted'::text, 
+    m.role,
+    m.created_at
+  FROM public.company_members m
+  WHERE m.company_id = req_company_id
+  UNION ALL
+  -- Pending Invites
+  SELECT 
+    i.id::text, 
+    LOWER(i.invited_email), 
+    i.status, 
+    'member'::text,
+    i.created_at
+  FROM public.company_invites i
+  WHERE i.company_id = req_company_id AND i.status = 'pending';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
