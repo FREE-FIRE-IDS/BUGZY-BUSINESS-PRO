@@ -473,6 +473,26 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+-- Trigger to keep linked_emails in sync with company_members
+CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE public.companies
+    SET linked_emails = (
+        SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
+        FROM public.company_members
+        WHERE company_id = COALESCE(NEW.company_id, OLD.company_id)
+    )
+    WHERE id = COALESCE(NEW.company_id, OLD.company_id);
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_sync_company_members ON public.company_members;
+CREATE TRIGGER trg_sync_company_members
+AFTER INSERT OR DELETE OR UPDATE ON public.company_members
+FOR EACH ROW EXECUTE FUNCTION public.sync_company_linked_emails();
+
 DROP FUNCTION IF EXISTS public.get_table_data_by_email(TEXT, UUID, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS public.get_table_data_by_email(TEXT, TEXT, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_table_data_by_email(req_table TEXT, req_company_id TEXT, req_email TEXT)
