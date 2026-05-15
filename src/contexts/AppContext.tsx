@@ -2918,7 +2918,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     try {
       // 1. Call RPC to leave
-      const { error } = await supabase.rpc('leave_company', {
+      const { error } = await supabase.rpc('rpc_leave_company', {
         req_company_id: companyId,
         req_email: authEmail
       });

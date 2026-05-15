@@ -219,8 +219,6 @@ BEGIN
   current_email := LOWER(auth.jwt() ->> 'email');
   current_uid := auth.uid()::text;
   
-  -- Root Admin Bypass
-  IF current_email = 'sudaiskamran31@gmail.com' THEN RETURN TRUE; END IF;
   -- Basic validity
   IF current_email IS NULL OR current_email = '' THEN 
     IF current_uid IS NULL THEN RETURN FALSE; END IF;
@@ -322,7 +320,6 @@ ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
 
 -- Companies
 CREATE POLICY "companies_access" ON public.companies FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
@@ -334,12 +331,11 @@ CREATE POLICY "companies_access" ON public.companies FOR ALL USING (
 
 -- Profiles
 CREATE POLICY "profiles_access" ON public.profiles FOR ALL USING (
-  auth.uid() = id OR LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com'
+  auth.uid() = id
 ) WITH CHECK (true);
 
 -- Invites
 CREATE POLICY "invites_access" ON public.company_invites FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = LOWER(invited_by) OR 
   LOWER(auth.jwt() ->> 'email') = LOWER(invited_email) OR
   public.is_company_member(company_id)
@@ -347,7 +343,6 @@ CREATE POLICY "invites_access" ON public.company_invites FOR ALL USING (
 
 -- Members
 CREATE POLICY "members_access" ON public.company_members FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   auth.uid() = user_id OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR
   public.is_company_member(company_id)
@@ -355,44 +350,37 @@ CREATE POLICY "members_access" ON public.company_members FOR ALL USING (
 
 -- Other tables
 CREATE POLICY "parties_policy" ON public.parties FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   public.is_company_member(company_id)
 ) WITH CHECK (true);
 
 CREATE POLICY "banks_policy" ON public.banks FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   public.is_company_member(company_id)
 ) WITH CHECK (true);
 
 CREATE POLICY "inventory_policy" ON public.inventory FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   public.is_company_member(company_id)
 ) WITH CHECK (true);
 
 CREATE POLICY "transactions_policy" ON public.transactions FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   public.is_company_member(company_id)
 ) WITH CHECK (true);
 
 CREATE POLICY "invoices_policy" ON public.invoices FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   public.is_company_member(company_id)
 ) WITH CHECK (true);
 
 -- External
 CREATE POLICY "licenses_policy" ON public.licenses FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email) OR 
   auth.uid()::text = user_id::text
 ) WITH CHECK (true);
 
 CREATE POLICY "payment_requests_policy" ON public.payment_requests FOR ALL USING (
-  LOWER(auth.jwt() ->> 'email') = 'sudaiskamran31@gmail.com' OR
   LOWER(auth.jwt() ->> 'email') = LOWER(user_email)
 ) WITH CHECK (true);
 
@@ -415,8 +403,7 @@ BEGIN
     LOWER(c.owner_email) = LOWER(req_email) OR
     LOWER(c.user_email) = LOWER(req_email) OR
     LOWER(req_email) = ANY(COALESCE(c.linked_emails, '{}')) OR
-    LOWER(m.user_email) = LOWER(req_email) OR
-    LOWER(req_email) = 'sudaiskamran31@gmail.com';
+    LOWER(m.user_email) = LOWER(req_email);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
@@ -442,7 +429,7 @@ DROP FUNCTION IF EXISTS public.is_company_owner(UUID, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.is_company_owner(req_company_id UUID, req_email TEXT)
 RETURNS BOOLEAN AS $$
 BEGIN
-  RETURN (LOWER(req_email) = 'sudaiskamran31@gmail.com') OR EXISTS (
+  RETURN EXISTS (
     SELECT 1 FROM public.companies
     WHERE id = req_company_id AND (
       LOWER(owner_email) = LOWER(req_email) OR
@@ -456,7 +443,7 @@ DROP FUNCTION IF EXISTS public.is_authorized_for_company(UUID, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.is_authorized_for_company(req_company_id UUID, req_email TEXT)
 RETURNS BOOLEAN AS $$
 BEGIN
-  RETURN (LOWER(req_email) = 'sudaiskamran31@gmail.com') OR EXISTS (
+  RETURN EXISTS (
     SELECT 1 FROM public.companies
     WHERE id = req_company_id AND (
       LOWER(owner_email) = LOWER(req_email) OR
@@ -489,10 +476,7 @@ DROP FUNCTION IF EXISTS public.get_table_data_by_email(TEXT, UUID, TEXT) CASCADE
 CREATE OR REPLACE FUNCTION public.get_table_data_by_email(req_table TEXT, req_company_id UUID, req_email TEXT)
 RETURNS SETOF JSONB AS $$
 BEGIN
-  -- Root admin bypass check
-  IF LOWER(req_email) = 'sudaiskamran31@gmail.com' THEN
-     -- bypass
-  ELSIF NOT public.is_authorized_for_company(req_company_id, req_email) THEN
+  IF NOT public.is_authorized_for_company(req_company_id, req_email) THEN
     RAISE EXCEPTION 'Not authorized for this company %', req_company_id;
   END IF;
 
@@ -528,7 +512,7 @@ BEGIN
   IF jsonb_typeof(req_payload) = 'array' THEN
     FOR v_item IN SELECT jsonb_array_elements(req_payload) LOOP
       v_company_id := (v_item->>'company_id')::UUID;
-      IF LOWER(req_email) != 'sudaiskamran31@gmail.com' AND NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+      IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
         RAISE EXCEPTION 'Not authorized for company %', v_company_id;
       END IF;
 
@@ -547,7 +531,7 @@ BEGIN
     v_result := '{"status": "success", "message": "Bulk upsert complete"}'::jsonb;
   ELSE
     v_company_id := (req_payload->>'company_id')::UUID;
-    IF LOWER(req_email) != 'sudaiskamran31@gmail.com' AND NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+    IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
       RAISE EXCEPTION 'Not authorized for company %', v_company_id;
     END IF;
 
@@ -578,12 +562,6 @@ BEGIN
   -- Validate table name
   IF req_table NOT IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
     RAISE EXCEPTION 'Table % not allowed', req_table;
-  END IF;
-
-  -- 1. Root admin bypass
-  IF LOWER(req_email) = 'sudaiskamran31@gmail.com' THEN
-    EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
-    RETURN;
   END IF;
 
   -- 2. Get company_id of the record
@@ -629,34 +607,36 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-DROP FUNCTION IF EXISTS public.leave_company(UUID, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.leave_company(req_company_id UUID, req_email TEXT)
+DROP FUNCTION IF EXISTS public.rpc_leave_company(TEXT, TEXT) CASCADE;
+CREATE OR REPLACE FUNCTION public.rpc_leave_company(req_company_id TEXT, req_email TEXT)
 RETURNS VOID AS $$
 BEGIN
     DELETE FROM public.company_members 
-    WHERE company_id = req_company_id 
+    WHERE company_id = req_company_id::UUID 
     AND LOWER(user_email) = LOWER(req_email);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP FUNCTION IF EXISTS public.respond_to_invite_by_email(UUID, TEXT, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.respond_to_invite_by_email(req_invite_id UUID, req_status TEXT, req_email TEXT)
+DROP FUNCTION IF EXISTS public.respond_to_invite_by_email(TEXT, TEXT, TEXT) CASCADE;
+CREATE OR REPLACE FUNCTION public.respond_to_invite_by_email(req_invite_id TEXT, req_status TEXT, req_email TEXT)
 RETURNS VOID AS $$
 DECLARE
     v_company_id UUID;
 BEGIN
-    SELECT company_id INTO v_company_id FROM public.company_invites WHERE id = req_invite_id AND LOWER(invited_email) = LOWER(req_email);
+    SELECT company_id INTO v_company_id FROM public.company_invites WHERE id = req_invite_id::UUID AND LOWER(invited_email) = LOWER(req_email);
     IF v_company_id IS NULL THEN RAISE EXCEPTION 'Invitation not found or unauthorized'; END IF;
 
     IF req_status = 'accepted' THEN
         INSERT INTO public.company_members (company_id, user_email, role) VALUES (v_company_id, LOWER(req_email), 'member') ON CONFLICT DO NOTHING;
     END IF;
-    DELETE FROM public.company_invites WHERE id = req_invite_id;
+    DELETE FROM public.company_invites WHERE id = req_invite_id::UUID;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP FUNCTION IF EXISTS public.get_company_team(UUID, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.get_company_team(req_company_id UUID, req_email TEXT)
+DROP FUNCTION IF EXISTS public.get_company_team(TEXT, TEXT) CASCADE;
+CREATE OR REPLACE FUNCTION public.get_company_team(req_company_id TEXT, req_email TEXT)
 RETURNS TABLE (
   id TEXT,
   email TEXT,
@@ -664,9 +644,12 @@ RETURNS TABLE (
   role TEXT,
   created_at TIMESTAMP WITH TIME ZONE
 ) AS $$
+DECLARE
+  v_uuid_id UUID;
 BEGIN
+  v_uuid_id := req_company_id::UUID;
   -- Security check: only owner/member can see the team
-  IF NOT public.is_authorized_for_company(req_company_id, req_email) THEN
+  IF NOT public.is_authorized_for_company(v_uuid_id, req_email) THEN
     RAISE EXCEPTION 'Not authorized to view team';
   END IF;
 
@@ -679,7 +662,7 @@ BEGIN
     m.role,
     m.created_at
   FROM public.company_members m
-  WHERE m.company_id = req_company_id
+  WHERE m.company_id = v_uuid_id
   UNION ALL
   -- Pending Invites
   SELECT 
@@ -689,7 +672,7 @@ BEGIN
     'member'::text,
     i.created_at
   FROM public.company_invites i
-  WHERE i.company_id = req_company_id AND i.status = 'pending';
+  WHERE i.company_id = v_uuid_id AND i.status = 'pending';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
