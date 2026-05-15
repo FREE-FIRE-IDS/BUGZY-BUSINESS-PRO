@@ -23,13 +23,33 @@ BEGIN
 END $$;
 
 -- 2. Now safe to drop functions that policies depended on
-DROP FUNCTION IF EXISTS public.is_company_owner(UUID) CASCADE;
-DROP FUNCTION IF EXISTS public.is_company_member(UUID) CASCADE;
-DROP FUNCTION IF EXISTS public.sync_company_linked_emails() CASCADE;
-DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
-DROP FUNCTION IF EXISTS public.get_memberships_for_email(TEXT) CASCADE;
-DROP FUNCTION IF EXISTS public.is_company_owner(UUID, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS public.is_authorized_for_company(UUID, TEXT) CASCADE;
+DO $$
+DECLARE
+    func_record RECORD;
+BEGIN
+    FOR func_record IN 
+        SELECT oid::regprocedure as format_name
+        FROM pg_proc 
+        WHERE proname IN (
+            'respond_to_invite_by_email', 
+            'get_company_team', 
+            'get_table_data_by_email', 
+            'delete_table_data_by_email', 
+            'upsert_table_data_by_email', 
+            'get_invites_for_email', 
+            'get_companies_for_email', 
+            'get_memberships_for_email',
+            'is_authorized_for_company',
+            'is_company_owner',
+            'is_company_member',
+            'rpc_leave_company',
+            'sync_company_linked_emails'
+        )
+        AND pronamespace = 'public'::regnamespace
+    LOOP
+        EXECUTE 'DROP FUNCTION IF EXISTS ' || func_record.format_name || ' CASCADE';
+    END LOOP;
+END $$;
 
 -- 3. Core Tables with proper schema
 CREATE TABLE IF NOT EXISTS companies (
@@ -616,6 +636,16 @@ BEGIN
   IF req_table = 'company_members' THEN
     IF EXISTS (SELECT 1 FROM public.company_members WHERE id = v_record_id AND LOWER(user_email) = LOWER(req_email)) THEN
        EXECUTE format('DELETE FROM public.company_members WHERE id = %L', v_record_id);
+       -- Force sync linked_emails for the company this member belonged to
+       IF v_company_id IS NOT NULL THEN
+         UPDATE public.companies 
+         SET linked_emails = (
+           SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
+           FROM public.company_members 
+           WHERE company_id = v_company_id
+         )
+         WHERE id = v_company_id;
+       END IF;
        RETURN;
     END IF;
   END IF;
@@ -636,6 +666,17 @@ BEGIN
   -- If we reached here, either it's an authorized worker or owner. 
   IF v_company_id IS NOT NULL THEN
     EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, v_record_id);
+    
+    -- Final cleanup sync for company_members deletions
+    IF req_table = 'company_members' THEN
+       UPDATE public.companies 
+       SET linked_emails = (
+         SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
+         FROM public.company_members 
+         WHERE company_id = v_company_id
+       )
+       WHERE id = v_company_id;
+    END IF;
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -662,8 +703,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-DROP FUNCTION IF EXISTS public.respond_to_invite_by_email(UUID, TEXT, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS public.respond_to_invite_by_email(TEXT, TEXT, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.respond_to_invite_by_email(req_invite_id TEXT, req_status TEXT, req_email TEXT)
 RETURNS VOID AS $$
 DECLARE
@@ -679,8 +718,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-DROP FUNCTION IF EXISTS public.get_company_team(UUID, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS public.get_company_team(TEXT, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_company_team(req_company_id TEXT, req_email TEXT)
 RETURNS TABLE (
   id TEXT,
