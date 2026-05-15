@@ -2762,7 +2762,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const { data, error } = await supabase.rpc('get_invites_for_email', { req_email: email });
 
     if (!error && data) {
-      setInvitations(data);
+      setInvitations(data.map((item: any) => ({
+        ...item,
+        companies: { name: item.company_name }
+      })));
     } else if (error) {
       console.error('[Fetch Invites Error]', error);
     }
@@ -2785,7 +2788,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       if (data) {
         setSentInvitations(data.map((item: any) => ({
           id: item.id,
-          invited_email: item.email,
+          invited_email: item.invited_email,
           status: item.status,
           role: item.role,
           created_at: item.created_at
@@ -2840,34 +2843,47 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     try {
       // 1. Revoke Invite (if pending)
-      // Find invite ID first using RPC
-      const { data: inv } = await supabase.rpc('get_table_data_by_email', {
+      const { data: inv, error: invError } = await supabase.rpc('get_table_data_by_email', {
         req_table: 'company_invites',
         req_company_id: companyId,
         req_email: authEmail
       });
-      const targetInv = (inv as any[])?.find(i => i.invited_email.toLowerCase() === emailToRevoke);
+
+      if (invError) console.error('[Revoke] Error fetching invites:', invError);
+      
+      const targetInv = (inv as any[])?.find(i => i.invited_email?.toLowerCase() === emailToRevoke);
+      console.log('[Revoke] Target Invite found:', targetInv ? targetInv.id : 'None');
+
       if (targetInv) {
-        await supabase.rpc('delete_table_data_by_email', {
+        const { error: delInvError } = await supabase.rpc('delete_table_data_by_email', {
           req_table: 'company_invites',
           req_id: targetInv.id,
           req_email: authEmail
         });
+        if (delInvError) throw delInvError;
+        console.log('[Revoke] Pending invite deleted successfully');
       }
 
       // 2. Revoke Membership (if accepted)
-      const { data: mem } = await supabase.rpc('get_table_data_by_email', {
+      const { data: mem, error: memError } = await supabase.rpc('get_table_data_by_email', {
         req_table: 'company_members',
         req_company_id: companyId,
         req_email: authEmail
       });
+
+      if (memError) console.error('[Revoke] Error fetching members:', memError);
+
       const targetMem = (mem as any[])?.find(m => m.user_email?.toLowerCase() === emailToRevoke);
+      console.log('[Revoke] Target Member found:', targetMem ? targetMem.id : 'None');
+
       if (targetMem) {
-        await supabase.rpc('delete_table_data_by_email', {
+        const { error: delMemError } = await supabase.rpc('delete_table_data_by_email', {
           req_table: 'company_members',
           req_id: targetMem.id,
           req_email: authEmail
         });
+        if (delMemError) throw delMemError;
+        console.log('[Revoke] Active membership deleted successfully');
       }
 
       toast.success(`Access revoked for ${sharedEmail}`);
