@@ -135,7 +135,7 @@ export default function ManageCompanies() {
   const renderCompanyCard = (company: any, isSharedTab = false) => {
     const isActive = currentCompany?.id === company.id;
     const isHR = company.company_type === 'hr';
-    const isShared = isSharedTab || (company.owner_email && company.owner_email !== settings.user_email);
+    const isShared = isSharedTab || isSharedCompany(company);
 
     return (
       <motion.div
@@ -185,14 +185,8 @@ export default function ManageCompanies() {
                   e.stopPropagation();
                   if (window.confirm('Are you sure you want to leave this company?')) {
                     try {
-                      // Use the membership_id we added to the company object in getSharedCompanies
-                      if (!company.membership_id) {
-                        // If it's a freshly joined company (from companies list), we might need to find it
-                        alert('Could not find membership ID. Please try again after refreshing.');
-                        return;
-                      }
-                      await leaveCompany(company.membership_id);
-                      loadShared(); // Refresh list
+                      await leaveCompany(company.id);
+                      if (isSharedTab) loadShared(); // Refresh list if on shared tab
                     } catch (err) {
                       // Error handled in AppContext
                     }

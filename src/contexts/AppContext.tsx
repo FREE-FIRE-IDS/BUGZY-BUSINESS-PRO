@@ -2794,27 +2794,37 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (invError) console.warn('[Fetch Invites Warning]', invError.message);
     if (memError) console.warn('[Fetch Members Warning]', memError.message);
 
-    const invites = invData || [];
-    const members = memData || [];
-
-    console.log('[Sync] Found authorized users:', { invites: invites.length, members: members.length });
-
-    // Map members to a format consistent with invites for the UI
-    const memberInvites = members.map(m => ({
+    const invites = (invData as any[] || []).map(i => ({
+      id: i.id,
+      invited_email: (i.invited_email || '').toLowerCase().trim(),
+      status: i.status || 'pending',
+      company_id: i.company_id,
+      invited_by: i.invited_by,
+      created_at: i.created_at
+    }));
+    const members = (memData as any[] || []).map(m => ({
       id: `member-${m.id}`,
-      invited_email: m.user_email || '',
+      invited_email: (m.user_email || '').toLowerCase().trim(),
       status: 'accepted' as const,
       company_id: m.company_id,
-      invited_by: 'Authorized User'
+      invited_by: 'Authorized User',
+      created_at: m.created_at
     }));
 
     // Combine them into a single list
-    const combined = [...memberInvites];
+    const combined = [...members];
     invites.forEach(invite => {
       const alreadyIn = combined.find(m => m.invited_email.toLowerCase() === invite.invited_email.toLowerCase());
       if (!alreadyIn) {
         combined.push(invite);
       }
+    });
+
+    // Sort by created_at descending
+    combined.sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return dateB - dateA;
     });
 
     setSentInvitations(combined);
@@ -2837,9 +2847,14 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       
       if (status === 'accepted') {
         toast.success('Successfully joined the company! 🎉');
-        await refreshData(email, true);
+        // Give the DB a moment to process everything before refreshing
+        setTimeout(async () => {
+          await refreshData(email, true);
+          await fetchInvitations();
+        }, 1000);
       } else {
-        toast.error('Invitation rejected.');
+        toast.success('Invitation declined');
+        await fetchInvitations();
       }
       
       setInvitations(prev => prev.filter(i => i.id !== inviteId));
@@ -2931,17 +2946,22 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     return filtered;
   };
 
-  const leaveCompany = async (membershipId: string) => {
+  const leaveCompany = async (companyId: string) => {
     const authEmail = (settings.user_email || currentUser || session?.user?.email || '').toLowerCase().trim();
     if (!authEmail) throw new Error('Authentication required to leave company ❌');
 
     try {
-      await supabase.rpc('delete_table_data_by_email', {
-        req_table: 'company_members',
-        req_id: membershipId,
+      // We can use the dedicated leave_company RPC or the generalized delete function
+      // Using leave_company is more deliberate
+      await supabase.rpc('leave_company', {
+        req_company_id: companyId,
         req_email: authEmail
       });
+      
       toast.success('Successfully left company');
+      
+      // Force a full refresh to clear local cache of this company's data
+      await refreshData(authEmail, true);
     } catch (err: any) {
       console.error('[Leave Error]', err);
       toast.error(err.message || 'Failed to leave company');
