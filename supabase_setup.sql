@@ -606,32 +606,26 @@ BEGIN
   END IF;
 
   -- 3. Self-delete bypass (members can remove themselves, invitees can reject/delete their own invite)
-  BEGIN
-    IF req_table = 'company_members' THEN
-      -- Allow deleting by either ID (membership ID) or Company ID (if it matches the email)
-      IF EXISTS (SELECT 1 FROM public.company_members WHERE id = req_id AND LOWER(user_email) = LOWER(req_email)) THEN
-         EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
-         RETURN;
-      ELSIF EXISTS (SELECT 1 FROM public.company_members WHERE company_id = req_id AND LOWER(user_email) = LOWER(req_email)) THEN
-         EXECUTE format('DELETE FROM public.company_members WHERE company_id = %L AND LOWER(user_email) = %L', req_id, LOWER(req_email));
-         RETURN;
-      END IF;
+  IF req_table = 'company_members' THEN
+    IF EXISTS (SELECT 1 FROM public.company_members WHERE id = req_id AND LOWER(user_email) = LOWER(req_email)) THEN
+       EXECUTE format('DELETE FROM public.company_members WHERE id = %L', req_id);
+       RETURN;
     END IF;
-
-    EXECUTE format('SELECT LOWER(user_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
-  EXCEPTION WHEN OTHERS THEN
-    BEGIN
-      EXECUTE format('SELECT LOWER(invited_email) FROM public.%I WHERE id = %L', req_table, req_id) INTO v_record_email;
-    EXCEPTION WHEN OTHERS THEN
-      v_record_email := NULL;
-    END;
-  END;
-
-  IF v_record_email IS NOT NULL AND v_record_email = LOWER(req_email) THEN
-    EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
-  ELSE
-    RAISE EXCEPTION 'Not authorized to delete this record';
   END IF;
+
+  IF req_table = 'company_invites' THEN
+    IF EXISTS (SELECT 1 FROM public.company_invites WHERE id = req_id AND LOWER(invited_email) = LOWER(req_email)) THEN
+       EXECUTE format('DELETE FROM public.company_invites WHERE id = %L', req_id);
+       RETURN;
+    END IF;
+  END IF;
+
+  -- 4. General permission check for other deletes
+  IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+    RAISE EXCEPTION 'Not authorized to delete record from %. Required valid authorization for company %', req_table, v_company_id;
+  END IF;
+
+  EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 

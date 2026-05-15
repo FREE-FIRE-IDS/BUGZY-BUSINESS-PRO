@@ -2428,7 +2428,9 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const isSharedCompany = (company?: Company | null) => {
     if (!company) return false;
-    if (isAdmin) return false; // Admin is never shared (has full control)
+    
+    // Admin bypass: if they are the admin, they might have special access,
+    // but we still want to know if they are the ORIGINAL owner for UI buttons.
     
     const myEmail = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
     if (!myEmail) return false;
@@ -2441,20 +2443,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (ownerId && myId && ownerId === myId) return false;
     if (ownerEmail && myEmail && ownerEmail === myEmail) return false;
     
-    // Check if it's explicitly shared with me
-    if (ownerId && myId && ownerId !== myId) {
-      return true;
-    }
-    if (ownerEmail && myEmail && ownerEmail !== myEmail) {
-      return true;
-    }
-    
-    // Check shared memberships
-    if (company.linked_emails?.includes(myEmail)) {
-        return true;
-    }
+    // If it was created offline and hasn't been synced (no owner_email), it's mine
+    if (company.company_type === 'hr' || (!company.owner_email && !company.owner_id)) return false;
 
-    return false;
+    return true;
   };
 
   const manualSyncLogin = async (email: string) => {
@@ -2968,14 +2960,17 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         req_email: authEmail
       });
       
-      toast.success('Successfully left company');
-      
       // If we left the current company, clear it immediately locally to reflect in UI
       if (currentCompany?.id === companyId) {
         setCurrentCompany(null);
       }
       
-      // Force a full refresh to clear local cache of this company's data
+      // Immediately filter the companies state to remove it from UI
+      setCompanies(prev => prev.filter(c => c.id !== companyId));
+      
+      toast.success('Successfully left company');
+      
+      // Force a full refresh to clear local cache and sync with cloud
       await refreshData(authEmail, true);
     } catch (err: any) {
       console.error('[Leave Error]', err);

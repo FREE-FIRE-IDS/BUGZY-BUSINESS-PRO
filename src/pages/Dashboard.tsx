@@ -39,9 +39,15 @@ import { getBusinessInsights } from '../services/geminiService';
 import { differenceInDays, addDays } from 'date-fns';
 
 export default function Dashboard() {
-  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData, isDeviceLicensed, isLicensed, isTrialExpired, getBankBalance, getPartyBalance, isSharedCompany } = useApp();
+  const { transactions, parties, banks, settings, items, invoices, currentCompany, backupData, restoreData, isDeviceLicensed, isLicensed, isTrialExpired, getBankBalance, getPartyBalance, isSharedCompany, invitations, fetchInvitations } = useApp();
   const [aiInsights, setAiInsights] = useState<string[]>([]);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (settings.sync_enabled) {
+      fetchInvitations();
+    }
+  }, []);
 
   const isShared = isSharedCompany(currentCompany);
 
@@ -199,6 +205,36 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 pb-24 md:pb-8">
+      {/* Invitation Alert */}
+      <AnimatePresence>
+        {invitations.length > 0 && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0, scale: 0.95 }}
+            animate={{ height: 'auto', opacity: 1, scale: 1 }}
+            exit={{ height: 0, opacity: 0, scale: 0.95 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-indigo-600 rounded-[2rem] p-6 text-white flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl shadow-indigo-500/20">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+                  <UserPlus size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black tracking-tight">Pending Invitation</h3>
+                  <p className="text-white/70 text-sm font-medium">You've been invited to join {invitations.length} business{invitations.length > 1 ? 'es' : ''}.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => navigateTo('sync')}
+                className="bg-white text-indigo-600 px-6 py-3 rounded-2xl font-black text-sm hover:bg-indigo-50 transition-all shrink-0 flex items-center gap-2"
+              >
+                View in Sync Center
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Header with Search */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
