@@ -413,15 +413,16 @@ RETURNS TABLE (
   id UUID,
   company_id UUID,
   invited_email TEXT,
+  invited_by TEXT,
   status TEXT,
   company_name TEXT
 ) AS $$
 BEGIN
   RETURN QUERY
-  SELECT i.id, i.company_id, i.invited_email, i.status, c.name as company_name
+  SELECT i.id, i.company_id, i.invited_email, i.invited_by, i.status, c.name as company_name
   FROM public.company_invites i
   JOIN public.companies c ON i.company_id = c.id
-  WHERE LOWER(i.invited_email) = LOWER(req_email);
+  WHERE LOWER(i.invited_email) = LOWER(req_email) AND i.status = 'pending';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
@@ -473,10 +474,14 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP FUNCTION IF EXISTS public.get_table_data_by_email(TEXT, UUID, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.get_table_data_by_email(req_table TEXT, req_company_id UUID, req_email TEXT)
+DROP FUNCTION IF EXISTS public.get_table_data_by_email(TEXT, TEXT, TEXT) CASCADE;
+CREATE OR REPLACE FUNCTION public.get_table_data_by_email(req_table TEXT, req_company_id TEXT, req_email TEXT)
 RETURNS SETOF JSONB AS $$
+DECLARE
+  v_uuid_company_id UUID;
 BEGIN
-  IF NOT public.is_authorized_for_company(req_company_id, req_email) THEN
+  v_uuid_company_id := req_company_id::UUID;
+  IF NOT public.is_authorized_for_company(v_uuid_company_id, req_email) THEN
     RAISE EXCEPTION 'Not authorized for this company %', req_company_id;
   END IF;
 
@@ -485,7 +490,7 @@ BEGIN
     RAISE EXCEPTION 'Table % not allowed', req_table;
   END IF;
 
-  RETURN QUERY EXECUTE format('SELECT pg_catalog.to_jsonb(t.*) FROM public.%I t WHERE company_id = %L', req_table, req_company_id);
+  RETURN QUERY EXECUTE format('SELECT pg_catalog.to_jsonb(t.*) FROM public.%I t WHERE company_id = %L', req_table, v_uuid_company_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
@@ -553,11 +558,14 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP FUNCTION IF EXISTS public.delete_table_data_by_email(TEXT, UUID, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.delete_table_data_by_email(req_table TEXT, req_id UUID, req_email TEXT)
+DROP FUNCTION IF EXISTS public.delete_table_data_by_email(TEXT, TEXT, TEXT) CASCADE;
+CREATE OR REPLACE FUNCTION public.delete_table_data_by_email(req_table TEXT, req_id TEXT, req_email TEXT)
 RETURNS VOID AS $$
 DECLARE
   v_company_id UUID;
+  v_record_id UUID;
 BEGIN
+  v_record_id := req_id::UUID;
   -- Validate table name
   IF req_table NOT IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
     RAISE EXCEPTION 'Table % not allowed', req_table;
@@ -565,10 +573,10 @@ BEGIN
 
   -- 1. Get company_id of the record to check authorization
   IF req_table = 'companies' THEN
-    v_company_id := req_id;
+    v_company_id := v_record_id;
   ELSE
     BEGIN
-      EXECUTE format('SELECT company_id FROM public.%I WHERE id = %L', req_table, req_id) INTO v_company_id;
+      EXECUTE format('SELECT company_id FROM public.%I WHERE id = %L', req_table, v_record_id) INTO v_company_id;
     EXCEPTION WHEN OTHERS THEN
       v_company_id := NULL;
     END;
@@ -578,7 +586,7 @@ BEGIN
   
   -- Check if user is the business owner (Full access to delete anything in company)
   IF v_company_id IS NOT NULL AND public.is_company_owner(v_company_id, req_email) THEN
-    EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
+    EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, v_record_id);
     RETURN;
   END IF;
 
@@ -586,16 +594,16 @@ BEGIN
   
   -- Members can remove themselves
   IF req_table = 'company_members' THEN
-    IF EXISTS (SELECT 1 FROM public.company_members WHERE id = req_id AND LOWER(user_email) = LOWER(req_email)) THEN
-       EXECUTE format('DELETE FROM public.company_members WHERE id = %L', req_id);
+    IF EXISTS (SELECT 1 FROM public.company_members WHERE id = v_record_id AND LOWER(user_email) = LOWER(req_email)) THEN
+       EXECUTE format('DELETE FROM public.company_members WHERE id = %L', v_record_id);
        RETURN;
     END IF;
   END IF;
 
   -- Invitees can reject/delete their own invite, OR the inviter can delete it
   IF req_table = 'company_invites' THEN
-    IF EXISTS (SELECT 1 FROM public.company_invites WHERE id = req_id AND (LOWER(invited_email) = LOWER(req_email) OR LOWER(invited_by) = LOWER(req_email))) THEN
-       EXECUTE format('DELETE FROM public.company_invites WHERE id = %L', req_id);
+    IF EXISTS (SELECT 1 FROM public.company_invites WHERE id = v_record_id AND (LOWER(invited_email) = LOWER(req_email) OR LOWER(invited_by) = LOWER(req_email))) THEN
+       EXECUTE format('DELETE FROM public.company_invites WHERE id = %L', v_record_id);
        RETURN;
     END IF;
   END IF;
@@ -606,10 +614,8 @@ BEGIN
   END IF;
 
   -- If we reached here, either it's an authorized worker or owner. 
-  -- But we already handled owner in step 2. 
-  -- So we do a final check if it's authorized and then delete.
   IF v_company_id IS NOT NULL THEN
-    EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
+    EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, v_record_id);
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -658,7 +664,7 @@ DROP FUNCTION IF EXISTS public.get_company_team(TEXT, TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_company_team(req_company_id TEXT, req_email TEXT)
 RETURNS TABLE (
   id TEXT,
-  email TEXT,
+  invited_email TEXT,
   status TEXT,
   role TEXT,
   created_at TIMESTAMP WITH TIME ZONE
