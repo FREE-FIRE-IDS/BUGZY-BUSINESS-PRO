@@ -823,7 +823,7 @@ export default function Reports() {
   useEffect(() => {
     setSelectedCategory('All');
     setSelectedRows(new Set());
-  }, [activeReport, dateRange, selectedEntity, selectedCategory, searchQuery, amountFilter, hideZeroBalances]);
+  }, [activeReport, selectedEntity]);
 
   const exportPDF = () => {
     const doc = new jsPDF() as jsPDFWithAutoTable;
@@ -850,6 +850,13 @@ export default function Reports() {
                     activeReport === 'All Banks' ? 'All Bank Statement' :
                     activeReport;
       doc.text(title, pageWidth - doc.getTextWidth(title) - 20, 25);
+
+      if (selectedCategory !== 'All') {
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139);
+        const catLabel = activeReport === 'All Parties' ? `Type: ${selectedCategory}` : `Category: ${selectedCategory}`;
+        doc.text(catLabel, pageWidth - doc.getTextWidth(catLabel) - 20, 32);
+      }
 
       const col1 = viewMode === 'app' ? 'Receivable Balance' : 'Debit';
       const col2 = viewMode === 'app' ? 'Payable Balance' : 'Credit';
@@ -1153,10 +1160,11 @@ export default function Reports() {
       const title = `${activeReport} Report`;
       doc.text(title, pageWidth - doc.getTextWidth(title) - 20, 25);
 
-      if (activeReport === 'Expense' && selectedCategory !== 'All') {
+      if (selectedCategory !== 'All') {
         doc.setFontSize(10);
         doc.setTextColor(100, 116, 139);
-        doc.text(`Category: ${selectedCategory}`, pageWidth - doc.getTextWidth(`Category: ${selectedCategory}`) - 20, 30);
+        const catLabel = (activeReport === 'All Parties') ? `Type: ${selectedCategory}` : `Category: ${selectedCategory}`;
+        doc.text(catLabel, pageWidth - doc.getTextWidth(catLabel) - 20, 32);
       }
       
       doc.setFontSize(8);
