@@ -573,42 +573,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSyncStatus(prev => ({ ...prev, loading: true, error: null }));
     try {
       // 1. Pull Companies
-      let query;
-      
-      if (email) {
-        if (!session) {
-          query = supabase.rpc('get_companies_for_email', { req_email: email });
-        } else {
-          query = supabase.from('companies').select('*')
+      const fetchCompanies = async () => {
+        if (email) {
+          // Default to RPC as it's more robust for shared companies
+          const { data, error } = await supabase.rpc('get_companies_for_email', { req_email: email });
+          if (!error) return { data, error };
+          
+          // Fallback to direct query if RPC fails
+          console.warn('[Sync] RPC fetch error, falling back to direct query:', error);
+          return supabase.from('companies').select('*')
             .or(`user_email.eq."${email}",linked_emails.cs.{"${email}"},owner_email.eq."${email}"`);
+        } else if (username) {
+          return supabase.from('companies').select('*').eq('username', username);
+        } else {
+          return supabase.from('companies').select('*');
         }
-      } else if (username) {
-        query = supabase.from('companies').select('*').eq('username', username);
-      } else {
-        query = supabase.from('companies').select('*');
-      }
+      };
 
       const localCompanies = companies;
-      const { data: cloudCompanies, error: compError } = await query;
+      let { data: cloudCompanies, error: compError } = await fetchCompanies();
       
       if (compError) {
         console.error('Error fetching companies:', compError);
-        // If it's a "column does not exist" error, try a simpler fallback
-        if (compError.message.includes('user_email') || compError.message.includes('linked_emails')) {
-           const { data: fallback, error: fallError } = await supabase.from('companies').select('*');
-           if (!fallError) {
-              // Manually filter if we can
-              const filtered = fallback.filter(c => 
-                c.user_email === email || 
-                c.owner_email === email || 
-                (c.linked_emails && c.linked_emails.includes(email))
-              );
-              // continue with filtered if it works, or just fallback to all if it matches userId
-              // But we don't have userId easily here.
-           }
+        // Final broad fallback
+        const { data: fallback, error: fallError } = await supabase.from('companies').select('*');
+        if (!fallError) {
+          cloudCompanies = fallback.filter(c => 
+            c.user_email === email || 
+            c.owner_email === email || 
+            (c.linked_emails && c.linked_emails.includes(email))
+          );
         }
         
-        if (localCompanies.length === 0) {
+        if (!cloudCompanies && localCompanies.length === 0) {
             setSyncStatus({ loading: false, error: 'Failed to connect to cloud: ' + compError.message, success: null });
             return;
         }
@@ -627,15 +624,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       
       let activeCompany = currentCompany;
-      if (!activeCompany && nonDeletedCompanies.length > 0) {
+      // If we have an active company, check if it's still available after sync/leave
+      if (activeCompany) {
+        const found = nonDeletedCompanies.find(c => c.id === activeCompany?.id);
+        if (found) {
+          // If found and different, update it
+          if (JSON.stringify(activeCompany) !== JSON.stringify(found)) {
+            setCurrentCompany(found);
+            activeCompany = found;
+          }
+        } else {
+          // If NOT found (user left or deleted), set to null or first available
+          if (nonDeletedCompanies.length > 0) {
+            activeCompany = nonDeletedCompanies[0];
+            setCurrentCompany(activeCompany);
+          } else {
+            activeCompany = null;
+            setCurrentCompany(null);
+          }
+        }
+      } else if (nonDeletedCompanies.length > 0) {
         activeCompany = nonDeletedCompanies[0];
         setCurrentCompany(activeCompany);
-      } else if (activeCompany) {
-        // Just in case currentCompany was updated during merge
-        const updatedActive = mergedCompanies.find(c => c.id === activeCompany?.id);
-        if (updatedActive && JSON.stringify(activeCompany) !== JSON.stringify(updatedActive)) {
-          setCurrentCompany(updatedActive);
-        }
       }
 
       if (!activeCompany) {
@@ -2959,6 +2969,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       });
       
       toast.success('Successfully left company');
+      
+      // If we left the current company, clear it immediately locally to reflect in UI
+      if (currentCompany?.id === companyId) {
+        setCurrentCompany(null);
+      }
       
       // Force a full refresh to clear local cache of this company's data
       await refreshData(authEmail, true);

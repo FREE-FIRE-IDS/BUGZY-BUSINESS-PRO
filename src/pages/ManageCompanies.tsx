@@ -25,7 +25,8 @@ export default function ManageCompanies() {
   const { 
     companies, currentCompany, setCurrentCompany, addCompany, deleteCompany,
     syncStatus, isLicensed, isDeviceLicensed, settings, shareCompany, revokeCompanyAccess,
-    getSharedCompanies, refreshData, session, isSharedCompany, leaveCompany
+    getSharedCompanies, refreshData, session, isSharedCompany, leaveCompany,
+    sentInvitations, fetchSentInvitations
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'my' | 'shared' | 'hr'>('my');
@@ -108,9 +109,8 @@ export default function ManageCompanies() {
     setSharing(true);
     try {
       await shareCompany(isShareModalOpen, shareEmail);
-      setIsShareModalOpen(null);
       setShareEmail('');
-      alert('Invitation sent! 🚀');
+      // No alert needed, toast handled in AppContext
     } catch (e: any) {
       console.error('[Share Error]', e);
       alert(e.message || 'Failed to share ❌');
@@ -118,6 +118,12 @@ export default function ManageCompanies() {
       setSharing(false);
     }
   };
+  
+  useEffect(() => {
+    if (isShareModalOpen) {
+      fetchSentInvitations(isShareModalOpen);
+    }
+  }, [isShareModalOpen]);
 
   const myCompanies = companies.filter(c => 
     c.company_type !== 'hr' && 
@@ -498,6 +504,48 @@ export default function ManageCompanies() {
                    {sharing ? <RefreshCw className="animate-spin" size={18} /> : <Share2 size={18} />}
                    {sharing ? 'Sending...' : 'Send Invitation'}
                  </button>
+
+                 <div className="pt-6 border-t border-slate-100 space-y-4">
+                   <div className="flex items-center justify-between">
+                     <h3 className="text-xs font-black uppercase text-slate-400 tracking-widest">Authorized Team</h3>
+                     <button 
+                       onClick={() => isShareModalOpen && fetchSentInvitations(isShareModalOpen)}
+                       className="p-1 hover:bg-slate-100 rounded-lg text-indigo-600 transition-all"
+                       title="Refresh List"
+                     >
+                       <RefreshCw size={14} />
+                     </button>
+                   </div>
+                   
+                   <div className="space-y-3 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                     {sentInvitations.length === 0 ? (
+                       <p className="text-xs text-slate-400 italic text-center py-4">No invitations sent yet</p>
+                     ) : (
+                       sentInvitations.map(sent => (
+                         <div key={sent.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 group">
+                           <div className="min-w-0">
+                             <p className="text-sm font-bold text-slate-900 truncate">{sent.invited_email}</p>
+                             <div className="flex items-center gap-2 mt-0.5">
+                               <span className={cn(
+                                 "text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded",
+                                 sent.status === 'accepted' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+                               )}>
+                                 {sent.status}
+                               </span>
+                             </div>
+                           </div>
+                           <button 
+                             onClick={() => revokeCompanyAccess(isShareModalOpen, sent.invited_email)}
+                             className="p-2 text-rose-500 hover:bg-rose-100 rounded-xl opacity-0 group-hover:opacity-100 transition-all"
+                             title="Revoke Access"
+                           >
+                             <Trash2 size={14} />
+                           </button>
+                         </div>
+                       ))
+                     )}
+                   </div>
+                 </div>
                </div>
              </motion.div>
            </div>
