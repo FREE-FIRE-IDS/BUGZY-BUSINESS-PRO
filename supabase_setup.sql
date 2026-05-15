@@ -557,14 +557,13 @@ CREATE OR REPLACE FUNCTION public.delete_table_data_by_email(req_table TEXT, req
 RETURNS VOID AS $$
 DECLARE
   v_company_id UUID;
-  v_record_email TEXT;
 BEGIN
   -- Validate table name
   IF req_table NOT IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
     RAISE EXCEPTION 'Table % not allowed', req_table;
   END IF;
 
-  -- 2. Get company_id of the record
+  -- 1. Get company_id of the record to check authorization
   IF req_table = 'companies' THEN
     v_company_id := req_id;
   ELSE
@@ -575,35 +574,43 @@ BEGIN
     END;
   END IF;
 
-  IF v_company_id IS NOT NULL THEN
-    -- If owner, can delete anything in the company
-    IF public.is_company_owner(v_company_id, req_email) THEN
-      EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
-      RETURN;
-    END IF;
+  -- 2. Authorization Checks
+  
+  -- Check if user is the business owner (Full access to delete anything in company)
+  IF v_company_id IS NOT NULL AND public.is_company_owner(v_company_id, req_email) THEN
+    EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
+    RETURN;
   END IF;
 
-  -- 3. Self-delete bypass (members can remove themselves, invitees can reject/delete their own invite)
+  -- 3. Self-access bypass (Record-specific authorization)
+  
+  -- Members can remove themselves
   IF req_table = 'company_members' THEN
-    IF EXISTS (SELECT 1 FROM public.company_members WHERE id = req_id AND (LOWER(user_email) = LOWER(req_email) OR public.is_company_owner(company_id, req_email))) THEN
+    IF EXISTS (SELECT 1 FROM public.company_members WHERE id = req_id AND LOWER(user_email) = LOWER(req_email)) THEN
        EXECUTE format('DELETE FROM public.company_members WHERE id = %L', req_id);
        RETURN;
     END IF;
   END IF;
 
+  -- Invitees can reject/delete their own invite, OR the inviter can delete it
   IF req_table = 'company_invites' THEN
-    IF EXISTS (SELECT 1 FROM public.company_invites WHERE id = req_id AND (LOWER(invited_email) = LOWER(req_email) OR LOWER(invited_by) = LOWER(req_email) OR public.is_company_owner(company_id, req_email))) THEN
+    IF EXISTS (SELECT 1 FROM public.company_invites WHERE id = req_id AND (LOWER(invited_email) = LOWER(req_email) OR LOWER(invited_by) = LOWER(req_email))) THEN
        EXECUTE format('DELETE FROM public.company_invites WHERE id = %L', req_id);
        RETURN;
     END IF;
   END IF;
 
-  -- 4. General permission check for other deletes
-  IF NOT public.is_authorized_for_company(v_company_id, req_email) THEN
-    RAISE EXCEPTION 'Not authorized to delete record from %. Required valid authorization for company %', req_table, v_company_id;
+  -- 4. Fallback: General authorization check
+  IF v_company_id IS NOT NULL AND NOT public.is_authorized_for_company(v_company_id, req_email) THEN
+    RAISE EXCEPTION 'Unauthorized to delete from %', req_table;
   END IF;
 
-  EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
+  -- If we reached here, either it's an authorized worker or owner. 
+  -- But we already handled owner in step 2. 
+  -- So we do a final check if it's authorized and then delete.
+  IF v_company_id IS NOT NULL THEN
+    EXECUTE format('DELETE FROM public.%I WHERE id = %L', req_table, req_id);
+  END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
