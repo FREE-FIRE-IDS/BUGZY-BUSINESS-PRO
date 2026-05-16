@@ -587,9 +587,10 @@ BEGIN
         END IF;
       END IF;
 
-  -- Ensure ID exists to avoid NULL constraint violation on PRIMARY KEY during jsonb_populate_record
+      -- Ensure ID exists to avoid NULL constraint violation on PRIMARY KEY
+      IF v_item IS NULL THEN v_item := '{}'::jsonb; END IF;
       IF (v_item->>'id') IS NULL OR (v_item->>'id') = '' THEN
-        v_item := v_item || jsonb_build_object('id', gen_random_uuid());
+        v_item := v_item || jsonb_build_object('id', gen_random_uuid()::text);
       END IF;
 
       IF req_table = 'company_invites' THEN
@@ -617,12 +618,15 @@ BEGIN
     END LOOP;
     v_result := '{"status": "success", "message": "Bulk upsert complete"}'::jsonb;
   ELSE
+    v_item := req_payload;
+    IF v_item IS NULL THEN v_item := '{}'::jsonb; END IF;
+
     IF req_table = 'companies' THEN
-      v_company_id := (req_payload->>'id')::UUID;
+      v_company_id := (v_item->>'id')::UUID;
     ELSIF req_table IN ('profiles', 'licenses', 'payment_requests') THEN
       v_company_id := NULL;
     ELSE
-      v_company_id := (req_payload->>'company_id')::UUID;
+      v_company_id := (v_item->>'company_id')::UUID;
     END IF;
 
     -- Robust Identification Check
@@ -634,9 +638,9 @@ BEGIN
       IF NOT public.is_authorized_for_company_rpc(v_company_id, req_email) THEN
         -- Fallback for new company creation
         IF req_table = 'companies' AND (
-            LOWER(req_payload->>'owner_email') = LOWER(req_email) OR 
-            LOWER(req_payload->>'user_email') = LOWER(req_email) OR
-            LOWER(req_payload->>'username') = LOWER(req_email)
+            LOWER(v_item->>'owner_email') = LOWER(req_email) OR 
+            LOWER(v_item->>'user_email') = LOWER(req_email) OR
+            LOWER(v_item->>'username') = LOWER(req_email)
         ) THEN
             -- Authorized
         ELSE
@@ -645,14 +649,14 @@ BEGIN
       END IF;
     ELSIF req_table IN ('profiles', 'licenses', 'payment_requests') THEN
       -- Verify that the user is updating their own non-company record
-      IF LOWER(req_payload->>'user_email') != LOWER(req_email) AND LOWER(req_payload->>'email') != LOWER(req_email) THEN
+      IF LOWER(v_item->>'user_email') != LOWER(req_email) AND LOWER(v_item->>'email') != LOWER(req_email) THEN
         RAISE EXCEPTION 'Not authorized to update this % record', req_table;
       END IF;
     END IF;
 
     -- Ensure ID exists
-    IF (req_payload->>'id') IS NULL OR (req_payload->>'id') = '' THEN
-      req_payload := req_payload || jsonb_build_object('id', gen_random_uuid());
+    IF (v_item->>'id') IS NULL OR (v_item->>'id') = '' THEN
+      v_item := v_item || jsonb_build_object('id', gen_random_uuid()::text);
     END IF;
 
     IF req_table = 'company_invites' THEN
@@ -660,24 +664,25 @@ BEGIN
         'INSERT INTO public.company_invites AS t SELECT * FROM jsonb_populate_record(NULL::public.company_invites, %L) ' ||
         'ON CONFLICT (company_id, invited_email, status) DO UPDATE SET %s ' ||
         'RETURNING pg_catalog.to_jsonb(t.*)',
-        req_payload, v_cols
+        v_item, v_cols
       ) INTO v_result;
     ELSIF req_table = 'company_members' THEN
       EXECUTE format(
         'INSERT INTO public.company_members AS t SELECT * FROM jsonb_populate_record(NULL::public.company_members, %L) ' ||
         'ON CONFLICT (company_id, user_id) DO UPDATE SET %s ' ||
         'RETURNING pg_catalog.to_jsonb(t.*)',
-        req_payload, v_cols
+        v_item, v_cols
       ) INTO v_result;
     ELSE
       EXECUTE format(
         'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
         'ON CONFLICT (id) DO UPDATE SET %s ' ||
         'RETURNING pg_catalog.to_jsonb(t.*)',
-        req_table, req_table, req_payload, v_cols
+        req_table, req_table, v_item, v_cols
       ) INTO v_result;
     END IF;
   END IF;
+
 
   RETURN v_result;
 END;
