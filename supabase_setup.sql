@@ -526,15 +526,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-DROP FUNCTION IF EXISTS public.upsert_table_data_by_email(TEXT, JSONB, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS public.upsert_table_data_by_email(TEXT, TEXT, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.upsert_table_data_by_email(req_email TEXT, req_payload JSONB, req_table TEXT)
-RETURNS JSONB AS $$
+DROP FUNCTION IF EXISTS public.upsert_table_data_by_email(text, jsonb, text) CASCADE;
+DROP FUNCTION IF EXISTS public.upsert_table_data_by_email(text, json, text) CASCADE;
+DROP FUNCTION IF EXISTS public.upsert_table_data_by_email(text, text, text) CASCADE;
+
+CREATE OR REPLACE FUNCTION public.upsert_table_data_by_email(req_email text, req_payload jsonb, req_table text)
+RETURNS jsonb AS $$
 DECLARE
   v_company_id UUID;
-  v_item JSONB;
-  v_result JSONB;
-  v_cols TEXT;
+  v_item jsonb;
+  v_result jsonb;
+  v_cols text;
 BEGIN
   -- Validate table name
   IF req_table NOT IN ('companies', 'parties', 'banks', 'inventory', 'transactions', 'invoices', 'profiles', 'licenses', 'payment_requests', 'company_access', 'company_invites', 'company_members') THEN
@@ -645,6 +647,17 @@ BEGIN
   RETURN v_result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.upsert_table_data_by_email(req_email text, req_payload json, req_table text)
+RETURNS jsonb AS $$
+BEGIN
+  RETURN public.upsert_table_data_by_email(req_email, req_payload::jsonb, req_table);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+GRANT EXECUTE ON FUNCTION public.upsert_table_data_by_email(text, jsonb, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_table_data_by_email(text, json, text) TO anon, authenticated;
+
 
 DROP FUNCTION IF EXISTS public.delete_table_data_by_email(TEXT, UUID, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS public.delete_table_data_by_email(TEXT, TEXT, TEXT) CASCADE;
@@ -821,16 +834,6 @@ GRANT EXECUTE ON FUNCTION public.get_invites_for_email(TEXT) TO anon, authentica
 GRANT EXECUTE ON FUNCTION public.get_company_team(TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_table_data_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_table_data_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.upsert_table_data_by_email(TEXT, JSONB, TEXT) TO anon, authenticated;
-
--- Add JSON overload for upsert for better compatibility with some client library versions
-CREATE OR REPLACE FUNCTION public.upsert_table_data_by_email(req_email TEXT, req_payload JSON, req_table TEXT)
-RETURNS JSONB AS $$
-BEGIN
-  RETURN public.upsert_table_data_by_email(req_email, req_payload::jsonb, req_table);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-GRANT EXECUTE ON FUNCTION public.upsert_table_data_by_email(TEXT, JSON, TEXT) TO anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.respond_to_invite_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_leave_company(TEXT, TEXT) TO anon, authenticated;
