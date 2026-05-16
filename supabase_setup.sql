@@ -648,15 +648,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-CREATE OR REPLACE FUNCTION public.upsert_table_data_by_email(req_email text, req_payload json, req_table text)
-RETURNS jsonb AS $$
-BEGIN
-  RETURN public.upsert_table_data_by_email(req_email, req_payload::jsonb, req_table);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
 GRANT EXECUTE ON FUNCTION public.upsert_table_data_by_email(text, jsonb, text) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.upsert_table_data_by_email(text, json, text) TO anon, authenticated;
 
 
 DROP FUNCTION IF EXISTS public.delete_table_data_by_email(TEXT, UUID, TEXT) CASCADE;
