@@ -332,6 +332,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE public.companies
+    SET linked_emails = (
+        SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
+        FROM public.company_members
+        WHERE company_id = COALESCE(NEW.company_id, OLD.company_id)
+    )
+    WHERE id = COALESCE(NEW.company_id, OLD.company_id);
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 -- triggers
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -480,25 +494,6 @@ BEGIN
   WHERE LOWER(m.user_email) = LOWER(req_email);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
-CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
-RETURNS TRIGGER AS $$
-BEGIN
-    UPDATE public.companies
-    SET linked_emails = (
-        SELECT COALESCE(array_agg(DISTINCT LOWER(user_email)), '{}')
-        FROM public.company_members
-        WHERE company_id = COALESCE(NEW.company_id, OLD.company_id)
-    )
-    WHERE id = COALESCE(NEW.company_id, OLD.company_id);
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
-DROP TRIGGER IF EXISTS trg_sync_company_members ON public.company_members;
-CREATE TRIGGER trg_sync_company_members
-AFTER INSERT OR DELETE OR UPDATE ON public.company_members
-FOR EACH ROW EXECUTE FUNCTION public.sync_company_linked_emails();
 
 DROP FUNCTION IF EXISTS public.get_table_data_by_email(TEXT, UUID, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS public.get_table_data_by_email(TEXT, TEXT, TEXT) CASCADE;
@@ -861,7 +856,7 @@ GRANT EXECUTE ON FUNCTION public.get_invites_for_email(TEXT) TO anon, authentica
 GRANT EXECUTE ON FUNCTION public.get_company_team(TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_table_data_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_table_data_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.upsert_table_data_by_email(TEXT, JSONB, TEXT, BOOLEAN) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_table_data_by_email(TEXT, JSONB, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.respond_to_invite_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_leave_company(TEXT, TEXT) TO anon, authenticated;
 
