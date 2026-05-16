@@ -1167,32 +1167,7 @@ export default function App() {
           </div>
         </main>
 
-        {/* Floating Action Button for Mobile */}
-        <div className={cn(
-          "fixed bottom-28 right-6 z-40 md:hidden transition-all",
-          (isTrialExpired && !isLicensedUser) && "animate-bounce"
-        )}>
-          <button 
-            onClick={() => {
-              if (isTrialExpired && !isLicensedUser) {
-                setForceUpgrade(true);
-              } else {
-                window.dispatchEvent(new CustomEvent('open-tx', { detail: 'Payment In' }));
-              }
-            }}
-            className={cn(
-              "w-14 h-14 rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-all shadow-indigo-500/40 relative",
-              (isTrialExpired && !isLicensedUser) ? "bg-amber-500 text-white" : "bg-indigo-600 text-white"
-            )}
-          >
-            {isTrialExpired && !isLicensedUser ? <Crown size={28} className="fill-white" /> : <Plus size={32} />}
-            {isTrialExpired && !isLicensedUser && (
-              <div className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center border-2 border-white">
-                <span className="text-[10px] font-black">!</span>
-              </div>
-            )}
-          </button>
-        </div>
+        {/* Floating Action Button for Mobile - Removed as requested */}
 
         {/* Mobile Bottom Navigation */}
         <nav className={cn(

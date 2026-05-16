@@ -190,9 +190,8 @@ export default function Invoices() {
       const drawInfoRow = (label: string, value: string, y: number) => {
         doc.setFont('helvetica', 'bold');
         doc.text(label, startX, y);
-        const labelWidth = doc.getTextWidth(label);
         doc.setFont('helvetica', 'normal');
-        doc.text(value || '-', startX + labelWidth + 2, y);
+        doc.text(value || '-', startX + 25, y);
       };
 
       drawInfoRow('Bill To:', party?.name || 'Walk-in Customer', infoY);
@@ -227,6 +226,7 @@ export default function Invoices() {
           cellPadding: 2,
           minCellHeight: 10,
           valign: 'middle',
+          halign: 'left' // Unified default
         },
         styles: {
           fontSize: 8,
@@ -245,6 +245,12 @@ export default function Invoices() {
           6: { halign: 'right', cellWidth: 20 },
           7: { halign: 'right', cellWidth: 25 },
           8: { halign: 'right', cellWidth: 25 }
+        },
+        didParseCell: (data) => {
+          // Sync header alignment with column alignment
+          if (data.section === 'head' && data.column.index >= 4) {
+            data.cell.styles.halign = 'right';
+          }
         }
       });
 
@@ -257,14 +263,14 @@ export default function Invoices() {
       doc.setFont('helvetica', 'normal');
       doc.text(`${numberToWords(invoice.total)} Only`, 14, finalY + 6);
 
-      const totalsX = 140;
+      const totalsX = 150;
       let currentY = finalY;
 
       const drawLine = (label: string, value: number, isLast: boolean = false) => {
         doc.setFont('helvetica', isLast ? 'bold' : 'normal');
         doc.text(label, totalsX, currentY);
         doc.text(formatCurrency(value, settings.currency).replace('Rs. ', '').replace('Rs.', ''), 196, currentY, { align: 'right' });
-        doc.line(totalsX, currentY + 2, 196, currentY + 2);
+        doc.line(totalsX, currentY + 1, 196, currentY + 1);
         currentY += 8;
       };
 
@@ -364,7 +370,7 @@ export default function Invoices() {
                       <Download size={18} />
                     </button>
                     <button onClick={() => handleEditInvoice(invoice)} className="p-2 text-slate-400 hover:text-emerald-600 transition-colors">
-                      <Plus size={18} className="rotate-45" />
+                      <FileText size={18} />
                     </button>
                     <button onClick={() => setIsDeleteConfirmOpen(invoice.id)} className="p-2 text-slate-400 hover:text-rose-600 transition-colors">
                       <Trash2 size={18} />

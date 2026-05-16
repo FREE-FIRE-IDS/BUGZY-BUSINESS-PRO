@@ -483,17 +483,6 @@ export default function Reports() {
         const saleInvoices = companyInvoices.filter(i => i.type === 'Sale').flatMap(inv => 
           inv.items.map(item => ({
             id: inv.id,
-            date: inv.date,
-            party_name: parties.find(p => p.id === inv.party_id)?.name || 'Walk-in',
-            item_name: item.name,
-            qty: item.quantity,
-            shipping_mark: item.shipping_mark || '-',
-            total_weight: item.total_weight || 0,
-            shortage: item.shortage || 0,
-            net_weight: item.net_weight || 0,
-            unit: item.unit || 'Unit',
-            price: item.price,
-            total: item.total,
             'Date': inv.date,
             'Party': parties.find(p => p.id === inv.party_id)?.name || 'Walk-in',
             'Shipping Mark': item.shipping_mark || '-',
@@ -508,39 +497,29 @@ export default function Reports() {
         );
         const saleTransactions = companyTransactions.filter(t => t.type === 'Sale').map(t => ({
           id: t.id,
-          date: t.date,
-          party_name: parties.find(p => p.id === t.party_id)?.name || 'N/A',
-          item_name: t.item_id ? companyItems.find(i => i.id === t.item_id)?.name : (t.description || 'General Sale'),
-          qty: t.quantity || 1,
-          unit: (companyItems.find(i => i.id === t.item_id) as any)?.unit || 'Unit',
-          price: t.quantity ? t.amount / t.quantity : t.amount,
-          total: t.amount,
           'Date': t.date,
           'Party': parties.find(p => p.id === t.party_id)?.name || 'N/A',
           'Item': t.item_id ? companyItems.find(i => i.id === t.item_id)?.name : (t.description || 'General Sale'),
           'Qty': t.quantity || 1,
-          'Unit': (companyItems.find(i => i.id === t.item_id) as any)?.unit || 'Unit',
           'Price': t.quantity ? t.amount / t.quantity : t.amount,
           'Total': t.amount
         }));
-        result = filterByDate([...saleInvoices, ...saleTransactions]).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        result = filterByDate([...saleInvoices, ...saleTransactions]).sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
         break;
       case 'Expense':
         result = filterByDate(companyTransactions.filter(t => 
           t.type === 'Expense' && 
           (selectedCategory === 'All' || t.category === selectedCategory)
         )).map(t => ({
-          ...t,
-          paid_from: t.bank_id ? companyBanks.find(b => b.id === t.bank_id)?.name : 'Cash',
           'Date': t.date,
-          'Description': t.description || '-',
           'Category': t.category || '-',
+          'Description': t.description || '-',
           'Qty': (t as any).quantity || 1,
           'Price': (t as any).price || t.amount,
           'Paid From': t.bank_id ? banks.find(b => b.id === t.bank_id)?.name || 'Bank' : 
                       t.party_id ? parties.find(p => p.id === t.party_id)?.name || 'Credit Account' : 'Cash',
           'Amount': t.amount
-        })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        })).sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
         break;
       case 'Invoice':
         result = filterByDate(companyInvoices).flatMap(inv => 

@@ -33,7 +33,9 @@ export default function Expenses() {
   // Enable editing for all members
   const canModify = true;
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateRange, setDateRange] = useState<'All' | 'This Month' | '7 Days'>('All');
+  const [dateRange, setDateRange] = useState<'All' | 'This Month' | 'Custom'>('All');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -112,12 +114,13 @@ export default function Expenses() {
           console.error('Date parsing error:', err);
           matchesDate = false;
         }
-      } else if (dateRange === '7 Days' && e.date) {
+      } else if (dateRange === 'Custom' && e.date && customStartDate && customEndDate) {
         try {
           const date = new Date(e.date);
-          const now = new Date();
-          const diff = (now.getTime() - date.getTime()) / (1000 * 3600 * 24);
-          matchesDate = diff <= 7;
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59, 999);
+          matchesDate = date >= start && date <= end;
         } catch (err) {
           console.error('Date parsing error:', err);
           matchesDate = false;
@@ -126,7 +129,7 @@ export default function Expenses() {
 
       return matchesSearch && matchesDate && matchesCategory;
     });
-  }, [transactions, searchTerm, selectedCategory, dateRange]);
+  }, [transactions, searchTerm, selectedCategory, dateRange, customStartDate, customEndDate]);
 
   const totalFilteredExpenses = React.useMemo(() => {
     return filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
@@ -295,17 +298,37 @@ export default function Expenses() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 min-w-[120px]">
-            <Calendar size={14} className="text-slate-400" />
-            <select 
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value as any)}
-              className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
-            >
-              <option value="All">All Time</option>
-              <option value="This Month">This Month</option>
-              <option value="7 Days">Last 7 Days</option>
-            </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 min-w-[120px]">
+              <Calendar size={14} className="text-slate-400" />
+              <select 
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value as any)}
+                className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
+              >
+                <option value="All">All Time</option>
+                <option value="This Month">This Month</option>
+                <option value="Custom">Custom Range</option>
+              </select>
+            </div>
+
+            {dateRange === 'Custom' && (
+              <div className="flex items-center gap-2">
+                <input 
+                  type="date" 
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold outline-none"
+                />
+                <span className="text-slate-400 text-xs">to</span>
+                <input 
+                  type="date" 
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold outline-none"
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

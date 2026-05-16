@@ -1940,12 +1940,21 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const updateCompany = async (id: string, company: Partial<Company>) => {
     const now = new Date().toISOString();
-    const updated = companies.map(c => c.id === id ? { ...c, ...company, updated_at: now } : c);
-    setCompanies(updated);
+    const updatedCompanies = companies.map(c => c.id === id ? { ...c, ...company, updated_at: now } : c);
+    setCompanies(updatedCompanies);
+    
     if (currentCompany?.id === id) {
       setCurrentCompany({ ...currentCompany, ...company, updated_at: now });
     }
-    await syncToCloud('companies', updated.find(c => c.id === id));
+    
+    // Update Local Storage
+    const targetUser = currentUser || (currentCompany?.username || 'default');
+    localStorage.setItem(`companies_${targetUser}`, JSON.stringify(updatedCompanies));
+    
+    const targetCompany = updatedCompanies.find(c => c.id === id);
+    if (targetCompany) {
+      await syncToCloud('companies', targetCompany);
+    }
   };
 
   const deleteCompany = async (id: string, hard = true) => {
