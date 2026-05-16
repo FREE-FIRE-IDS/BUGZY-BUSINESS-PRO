@@ -226,30 +226,37 @@ export default function Invoices() {
           cellPadding: 2,
           minCellHeight: 10,
           valign: 'middle',
-          halign: 'left' // Unified default
+          halign: 'center' // Default to center for headers
         },
         styles: {
           fontSize: 8,
           cellPadding: 2,
           valign: 'middle',
           textColor: [0, 0, 0],
-          overflow: 'ellipsize'
+          overflow: 'linebreak' // Use linebreak instead of ellipsize
         },
         columnStyles: {
           0: { halign: 'center', cellWidth: 10 },
           1: { halign: 'left', cellWidth: 20 },
           2: { halign: 'left', cellWidth: 'auto' },
-          3: { halign: 'center', cellWidth: 15 },
-          4: { halign: 'right', cellWidth: 20 },
+          3: { halign: 'center', cellWidth: 12 },
+          4: { halign: 'right', cellWidth: 18 },
           5: { halign: 'right', cellWidth: 18 },
-          6: { halign: 'right', cellWidth: 20 },
-          7: { halign: 'right', cellWidth: 25 },
-          8: { halign: 'right', cellWidth: 25 }
+          6: { halign: 'right', cellWidth: 18 },
+          7: { halign: 'right', cellWidth: 22 },
+          8: { halign: 'right', cellWidth: 22 }
         },
         didParseCell: (data) => {
-          // Sync header alignment with column alignment
-          if (data.section === 'head' && data.column.index >= 4) {
-            data.cell.styles.halign = 'right';
+          // Sync header alignment with data alignment for each column
+          if (data.section === 'head') {
+            const colIndex = data.column.index;
+            if (colIndex === 1 || colIndex === 2) {
+              data.cell.styles.halign = 'left';
+            } else if (colIndex === 0 || colIndex === 3) {
+              data.cell.styles.halign = 'center';
+            } else {
+              data.cell.styles.halign = 'right';
+            }
           }
         }
       });
