@@ -812,5 +812,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+-- 6. Explicit Permissions for RPC Functions
+GRANT EXECUTE ON FUNCTION public.is_authorized_for_company_rpc(UUID, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.is_company_owner_rpc(UUID, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_companies_for_email(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_memberships_for_email(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_invites_for_email(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_company_team(TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_table_data_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_table_data_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_table_data_by_email(TEXT, JSONB, TEXT) TO anon, authenticated;
+
+-- Add JSON overload for upsert for better compatibility with some client library versions
+CREATE OR REPLACE FUNCTION public.upsert_table_data_by_email(req_email TEXT, req_payload JSON, req_table TEXT)
+RETURNS JSONB AS $$
+BEGIN
+  RETURN public.upsert_table_data_by_email(req_email, req_payload::jsonb, req_table);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+GRANT EXECUTE ON FUNCTION public.upsert_table_data_by_email(TEXT, JSON, TEXT) TO anon, authenticated;
+
+GRANT EXECUTE ON FUNCTION public.respond_to_invite_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_leave_company(TEXT, TEXT) TO anon, authenticated;
+
 -- Notify PostgREST to reload schema cache
 NOTIFY pgrst, 'reload schema';
