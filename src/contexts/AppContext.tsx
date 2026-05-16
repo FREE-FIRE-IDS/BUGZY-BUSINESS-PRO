@@ -1957,19 +1957,24 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       // REPLACE ALL DATA
       localStorage.clear();
       
+      const stripSynced = (arr: any[]) => (arr || []).map(i => {
+        const { _synced, ...rest } = i;
+        return rest;
+      });
+
       localStorage.setItem('currentUser', data.username);
-      localStorage.setItem(`companies_${data.username}`, JSON.stringify(data.companies));
+      localStorage.setItem(`companies_${data.username}`, JSON.stringify(stripSynced(data.companies)));
       localStorage.setItem('app_settings', JSON.stringify(data.settings));
       if (data.device_license) localStorage.setItem('device_license', data.device_license);
       if (data.active_license_key) localStorage.setItem('active_license_key', data.active_license_key);
 
       Object.keys(data.companyData).forEach(companyId => {
         const cData = data.companyData[companyId];
-        localStorage.setItem(`parties_${companyId}`, JSON.stringify(cData.parties));
-        localStorage.setItem(`banks_${companyId}`, JSON.stringify(cData.banks));
-        localStorage.setItem(`items_${companyId}`, JSON.stringify(cData.items));
-        localStorage.setItem(`transactions_${companyId}`, JSON.stringify(cData.transactions));
-        localStorage.setItem(`invoices_${companyId}`, JSON.stringify(cData.invoices));
+        localStorage.setItem(`parties_${companyId}`, JSON.stringify(stripSynced(cData.parties)));
+        localStorage.setItem(`banks_${companyId}`, JSON.stringify(stripSynced(cData.banks)));
+        localStorage.setItem(`items_${companyId}`, JSON.stringify(stripSynced(cData.items)));
+        localStorage.setItem(`transactions_${companyId}`, JSON.stringify(stripSynced(cData.transactions)));
+        localStorage.setItem(`invoices_${companyId}`, JSON.stringify(stripSynced(cData.invoices)));
       });
 
       window.location.reload();
@@ -2490,16 +2495,17 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     // Admin bypass: if they are the admin, they might have special access,
     // but we still want to know if they are the ORIGINAL owner for UI buttons.
     
-    const myEmail = (session?.user?.email || settings.user_email || '').toLowerCase().trim();
+    const myEmail = (session?.user?.email || settings.user_email || currentUser || '').toLowerCase().trim();
     if (!myEmail) return false;
 
     const ownerEmail = (company.owner_email || company.user_email || '').toLowerCase().trim();
     const myId = session?.user?.id;
     const ownerId = company.owner_id || company.user_id;
     
-    // If I am the owner (by ID or Email), it's not shared
+    // If I am the owner (by ID or Email or Username), it's not shared
     if (ownerId && myId && ownerId === myId) return false;
     if (ownerEmail && myEmail && ownerEmail === myEmail) return false;
+    if (company.username && myEmail && company.username.toLowerCase() === myEmail) return false;
     
     // If it was created offline and hasn't been synced (no owner_email), it's mine
     if (company.company_type === 'hr' || (!company.owner_email && !company.owner_id)) return false;
@@ -2817,7 +2823,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   };
 
    const fetchInvitations = async (emailOverride?: string) => {
-    const email = (emailOverride || settings.user_email || session?.user?.email || '').toLowerCase().trim();
+    const email = (emailOverride || settings.user_email || currentUser || session?.user?.email || '').toLowerCase().trim();
     if (!email) return;
 
     console.log('[Sync] Fetching invitations for:', email);
@@ -2865,7 +2871,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
   const updateInvitationStatus = async (inviteId: string, status: 'accepted' | 'rejected') => {
     console.log('[Invitation] Updating status:', { inviteId, status });
-    const email = (settings.user_email || session?.user?.email || '').toLowerCase().trim();
+    const email = (settings.user_email || currentUser || session?.user?.email || '').toLowerCase().trim();
     if (!email) throw new Error('Email required to process invitation');
 
     try {

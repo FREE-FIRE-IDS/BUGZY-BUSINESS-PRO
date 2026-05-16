@@ -254,6 +254,7 @@ BEGIN
       owner_id = current_uid OR
       LOWER(owner_email) = current_email OR 
       LOWER(user_email) = current_email OR 
+      LOWER(username) = current_email OR 
       current_email = ANY(COALESCE(linked_emails, '{}'))
     )
   ) OR EXISTS (
@@ -274,7 +275,8 @@ BEGIN
     WHERE id = cid AND (
       owner_id = auth.uid()::text OR
       LOWER(owner_email) = current_email OR
-      LOWER(user_email) = current_email
+      LOWER(user_email) = current_email OR
+      LOWER(username) = current_email
     )
   );
 END;
@@ -289,6 +291,7 @@ BEGIN
     WHERE id = req_company_id AND (
       LOWER(owner_email) = LOWER(req_email) OR
       LOWER(user_email) = LOWER(req_email) OR
+      LOWER(username) = LOWER(req_email) OR
       LOWER(req_email) = ANY(COALESCE(linked_emails, '{}'))
     )
   ) OR EXISTS (
@@ -305,7 +308,8 @@ BEGIN
     SELECT 1 FROM public.companies
     WHERE id = req_company_id AND (
       LOWER(owner_email) = LOWER(req_email) OR
-      LOWER(user_email) = LOWER(req_email)
+      LOWER(user_email) = LOWER(req_email) OR
+      LOWER(username) = LOWER(req_email)
     )
   );
 END;
@@ -357,6 +361,7 @@ CREATE POLICY "companies_access" ON public.companies FOR ALL USING (
   owner_id = auth.uid()::text OR 
   LOWER(owner_email) = LOWER(auth.jwt() ->> 'email') OR 
   LOWER(user_email) = LOWER(auth.jwt() ->> 'email') OR
+  LOWER(username) = LOWER(auth.jwt() ->> 'email') OR
   LOWER(auth.jwt() ->> 'email') = ANY(COALESCE(linked_emails, '{}')) OR
   id IN (SELECT company_id FROM public.company_invites WHERE status = 'pending' AND LOWER(invited_email) = LOWER(auth.jwt() ->> 'email')) OR
   id IN (SELECT company_id FROM public.company_members WHERE user_id = auth.uid() OR LOWER(user_email) = LOWER(auth.jwt() ->> 'email')) OR
@@ -436,6 +441,7 @@ BEGIN
   WHERE 
     LOWER(c.owner_email) = LOWER(req_email) OR
     LOWER(c.user_email) = LOWER(req_email) OR
+    LOWER(c.username) = LOWER(req_email) OR
     LOWER(req_email) = ANY(COALESCE(c.linked_emails, '{}')) OR
     LOWER(m.user_email) = LOWER(req_email);
 END;
@@ -561,7 +567,8 @@ BEGIN
           -- Fallback for new company creation
           IF req_table = 'companies' AND (
               LOWER(v_item->>'owner_email') = LOWER(req_email) OR 
-              LOWER(v_item->>'user_email') = LOWER(req_email)
+              LOWER(v_item->>'user_email') = LOWER(req_email) OR
+              LOWER(v_item->>'username') = LOWER(req_email)
           ) THEN
               -- Authorized
           ELSE
@@ -607,7 +614,8 @@ BEGIN
         -- Fallback for new company creation
         IF req_table = 'companies' AND (
             LOWER(req_payload->>'owner_email') = LOWER(req_email) OR 
-            LOWER(req_payload->>'user_email') = LOWER(req_email)
+            LOWER(req_payload->>'user_email') = LOWER(req_email) OR
+            LOWER(req_payload->>'username') = LOWER(req_email)
         ) THEN
             -- Authorized
         ELSE
