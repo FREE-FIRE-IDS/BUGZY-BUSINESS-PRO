@@ -903,10 +903,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return sanitized;
         };
 
-        const dataWithEmail = Array.isArray(data) 
+    const dataWithEmail = Array.isArray(data) 
           ? data.map(d => sanitize({ ...d, user_email: email, company_id: d.company_id || activeCompanyId }))
           : sanitize({ ...data, user_email: email, company_id: data.company_id || activeCompanyId });
         
+        // Final validation for companies table
+        if (table === 'companies') {
+            const hasId = Array.isArray(dataWithEmail) 
+                ? dataWithEmail.every(d => !!d.id)
+                : !!(dataWithEmail as any).id;
+            
+            if (!hasId) {
+                console.error('[Sync Error] Company data is missing required "id" field!', dataWithEmail);
+                return;
+            }
+        }
+
         // Strip company_id for tables that don't have it
         const tablesWithNoCompanyId = ['companies', 'profiles', 'licenses', 'payment_requests'];
         if (tablesWithNoCompanyId.includes(table)) {
@@ -926,7 +938,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             if (!session && settings.user_email) {
               // Use secure RPC for email-sync mode
               const { data: rpcRes, error: rpcErr } = await supabase.rpc('upsert_table_data_by_email', {
-                req_email: settings.user_email.toLowerCase().trim(),
+                req_email: email.toLowerCase().trim(),
                 req_payload: payload,
                 req_table: dbTable
               });
@@ -1986,7 +1998,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     
     const targetCompany = updatedCompanies.find(c => c.id === id);
     if (targetCompany) {
-      await syncToCloud('companies', targetCompany);
+      await syncToCloud('companies', targetCompany, false, targetCompany.id);
     }
   };
 
