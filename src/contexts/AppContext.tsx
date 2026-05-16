@@ -568,15 +568,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [settings.user_email, currentCompany?.id]);
 
-  const refreshData = async (emailOverride?: string, force = false) => {
+  const refreshData = async (emailOverride?: string, force = false, companyIdOverride?: string) => {
     const email = emailOverride || settings.user_email;
     const username = currentUser;
     
     if (!settings.sync_enabled || (!email && !username)) return;
     
+    const activeCompanyId = companyIdOverride || currentCompany?.id;
+
     // Prevent redundant syncs unless forced
-    if (!force && currentCompany && hasInitialSynced.current[currentCompany.id]) {
-      console.log(`[Sync] Skipping redundant sync for ${currentCompany.id}`);
+    if (!force && activeCompanyId && hasInitialSynced.current[activeCompanyId]) {
+      console.log(`[Sync] Skipping redundant sync for ${activeCompanyId}`);
       return;
     }
 
@@ -1943,18 +1945,18 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const updatedCompanies = companies.map(c => c.id === id ? { ...c, ...company, updated_at: now } : c);
     setCompanies(updatedCompanies);
     
-    const targetUser = currentUser || (currentCompany?.username || 'default');
+    const userKey = currentUser || 'default';
     
     if (currentCompany?.id === id) {
       const updatedCurrent = { ...currentCompany, ...company, updated_at: now };
       setCurrentCompany(updatedCurrent);
-      if (targetUser) {
-        localStorage.setItem(`currentCompany_${targetUser}`, JSON.stringify(updatedCurrent));
+      if (userKey) {
+        localStorage.setItem(`currentCompany_${userKey}`, JSON.stringify(updatedCurrent));
       }
     }
     
     // Update Local Storage
-    localStorage.setItem(`companies_${targetUser}`, JSON.stringify(updatedCompanies));
+    localStorage.setItem(`companies_${userKey}`, JSON.stringify(updatedCompanies));
     
     const targetCompany = updatedCompanies.find(c => c.id === id);
     if (targetCompany) {
@@ -3069,7 +3071,12 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     <AppContext.Provider value={{
       companies, 
       currentCompany, 
-      setCurrentCompany: (company) => setCurrentCompany(company),
+      setCurrentCompany: (company) => {
+        setCurrentCompany(company);
+        if (currentUser) {
+          localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(company));
+        }
+      },
       parties, banks, items, transactions, invoices, settings, syncStatus,
       updateSettings, refreshData, pullCompanies, linkDevice,
       addTransaction, addTransactions, updateTransaction,

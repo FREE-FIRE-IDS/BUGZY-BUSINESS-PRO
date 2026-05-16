@@ -873,7 +873,8 @@ export default function Reports() {
           fontSize: pdfSettings.smallFont ? 8 : 9,
           fontStyle: 'bold',
           halign: 'left',
-          overflow: 'ellipsize' // Prevent header wrapping
+          overflow: 'ellipsize', // Force single line
+          minCellHeight: 8
         },
         columnStyles: {
           0: { halign: 'left', cellWidth: 15 },
@@ -974,7 +975,8 @@ export default function Reports() {
           textColor: [0, 0, 0], 
           fontSize: pdfSettings.smallFont ? 7 : 8, 
           fontStyle: 'bold',
-          overflow: 'ellipsize'
+          overflow: 'ellipsize', // Force single line
+          halign: 'left'
         },
         columnStyles: {
           0: { halign: 'left', fontStyle: 'bold' },
@@ -1097,7 +1099,7 @@ export default function Reports() {
           textColor: [255, 255, 255],
           fontSize: 10,
           fontStyle: 'bold',
-          overflow: 'ellipsize',
+          overflow: 'ellipsize', // Force single line
           halign: 'left'
         },
         columnStyles: {
@@ -1210,7 +1212,7 @@ export default function Reports() {
           fontSize: pdfSettings.smallFont ? 8 : 9,
           fontStyle: 'bold',
           halign: 'left',
-          overflow: 'ellipsize'
+          overflow: 'ellipsize' // Force single line
         },
         styles: {
           fontSize: pdfSettings.smallFont ? 7 : 8,

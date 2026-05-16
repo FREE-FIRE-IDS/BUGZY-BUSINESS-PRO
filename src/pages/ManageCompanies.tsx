@@ -141,8 +141,8 @@ export default function ManageCompanies() {
         onClick={() => {
             setCurrentCompany(company);
             if (company.company_type === 'normal' || isSharedTab || isShared) {
-                // Shared or normal companies can trigger a refresh if online
-                refreshData(undefined, true).catch(console.error);
+                // Pass company.id explicitly to avoid state race condition
+                refreshData(undefined, true, company.id).catch(console.error);
             }
         }}
       >

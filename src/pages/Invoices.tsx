@@ -227,22 +227,22 @@ export default function Invoices() {
           minCellHeight: 10,
           valign: 'middle',
           halign: 'center',
-          overflow: 'ellipsize'
+          overflow: 'ellipsize' // Force single line for headers
         },
         styles: {
           fontSize: 8,
           cellPadding: 2,
           valign: 'middle',
           textColor: [0, 0, 0],
-          overflow: 'linebreak' // Use linebreak instead of ellipsize
+          overflow: 'linebreak'
         },
         columnStyles: {
-          0: { halign: 'center', cellWidth: 10 },
-          1: { halign: 'left', cellWidth: 20 },
+          0: { halign: 'center', cellWidth: 8 },
+          1: { halign: 'left', cellWidth: 18 },
           2: { halign: 'left', cellWidth: 'auto' },
-          3: { halign: 'center', cellWidth: 12 },
+          3: { halign: 'center', cellWidth: 10 },
           4: { halign: 'right', cellWidth: 18 },
-          5: { halign: 'right', cellWidth: 18 },
+          5: { halign: 'right', cellWidth: 15 },
           6: { halign: 'right', cellWidth: 18 },
           7: { halign: 'right', cellWidth: 22 },
           8: { halign: 'right', cellWidth: 22 }
