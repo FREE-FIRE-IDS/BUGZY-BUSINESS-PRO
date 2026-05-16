@@ -226,7 +226,8 @@ export default function Invoices() {
           cellPadding: 2,
           minCellHeight: 10,
           valign: 'middle',
-          halign: 'center' // Default to center for headers
+          halign: 'center',
+          overflow: 'ellipsize'
         },
         styles: {
           fontSize: 8,

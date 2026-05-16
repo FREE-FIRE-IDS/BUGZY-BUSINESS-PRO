@@ -872,7 +872,8 @@ export default function Reports() {
           textColor: [255, 255, 255],
           fontSize: pdfSettings.smallFont ? 8 : 9,
           fontStyle: 'bold',
-          halign: 'left' // Base alignment for headers
+          halign: 'left',
+          overflow: 'ellipsize' // Prevent header wrapping
         },
         columnStyles: {
           0: { halign: 'left', cellWidth: 15 },
@@ -973,7 +974,7 @@ export default function Reports() {
           textColor: [0, 0, 0], 
           fontSize: pdfSettings.smallFont ? 7 : 8, 
           fontStyle: 'bold',
-          halign: 'left'
+          overflow: 'ellipsize'
         },
         columnStyles: {
           0: { halign: 'left', fontStyle: 'bold' },
@@ -990,6 +991,9 @@ export default function Reports() {
           lineWidth: 0.1
         },
         didParseCell: (data) => {
+          if (data.section === 'head' && (data.column.index === 1 || data.column.index === 3)) {
+            data.cell.styles.halign = 'right';
+          }
           const rowIndex = data.row.index;
           const a = assetRows[rowIndex];
           const l = liabilityRows[rowIndex];
@@ -1092,10 +1096,12 @@ export default function Reports() {
           fillColor: [30, 41, 59],
           textColor: [255, 255, 255],
           fontSize: 10,
-          fontStyle: 'bold'
+          fontStyle: 'bold',
+          overflow: 'ellipsize',
+          halign: 'left'
         },
         columnStyles: {
-          0: { cellWidth: 15 },
+          0: { cellWidth: 15, halign: 'center' },
           1: { halign: 'left' },
           2: { halign: 'right', cellWidth: 50 }
         },
@@ -1104,6 +1110,12 @@ export default function Reports() {
           cellPadding: 3
         },
         didParseCell: (data) => {
+          if (data.section === 'head' && data.column.index === 2) {
+            data.cell.styles.halign = 'right';
+          }
+          if (data.section === 'head' && data.column.index === 0) {
+            data.cell.styles.halign = 'center';
+          }
           const rowData = dataToExport[data.row.index];
           if (rowData) {
             if (rowData.isHeader) {
@@ -1197,7 +1209,8 @@ export default function Reports() {
           textColor: [255, 255, 255],
           fontSize: pdfSettings.smallFont ? 8 : 9,
           fontStyle: 'bold',
-          halign: 'left'
+          halign: 'left',
+          overflow: 'ellipsize'
         },
         styles: {
           fontSize: pdfSettings.smallFont ? 7 : 8,
