@@ -584,17 +584,33 @@ BEGIN
         END IF;
       END IF;
 
-      -- Ensure ID exists to avoid NULL constraint violation on PRIMARY KEY during jsonb_populate_record
-      IF NOT (v_item ? 'id') OR (v_item->>'id') IS NULL THEN
+  -- Ensure ID exists to avoid NULL constraint violation on PRIMARY KEY during jsonb_populate_record
+      IF (v_item->>'id') IS NULL OR (v_item->>'id') = '' THEN
         v_item := v_item || jsonb_build_object('id', gen_random_uuid());
       END IF;
 
-      EXECUTE format(
-        'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
-        'ON CONFLICT (id) DO UPDATE SET %s ' ||
-        'RETURNING pg_catalog.to_jsonb(t.*)',
-        req_table, req_table, v_item, v_cols
-      ) INTO v_result;
+      IF req_table = 'company_invites' THEN
+        EXECUTE format(
+          'INSERT INTO public.company_invites AS t SELECT * FROM jsonb_populate_record(NULL::public.company_invites, %L) ' ||
+          'ON CONFLICT (company_id, invited_email, status) DO UPDATE SET %s ' ||
+          'RETURNING pg_catalog.to_jsonb(t.*)',
+          v_item, v_cols
+        ) INTO v_result;
+      ELSIF req_table = 'company_members' THEN
+        EXECUTE format(
+          'INSERT INTO public.company_members AS t SELECT * FROM jsonb_populate_record(NULL::public.company_members, %L) ' ||
+          'ON CONFLICT (company_id, user_id) DO UPDATE SET %s ' ||
+          'RETURNING pg_catalog.to_jsonb(t.*)',
+          v_item, v_cols
+        ) INTO v_result;
+      ELSE
+        EXECUTE format(
+          'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
+          'ON CONFLICT (id) DO UPDATE SET %s ' ||
+          'RETURNING pg_catalog.to_jsonb(t.*)',
+          req_table, req_table, v_item, v_cols
+        ) INTO v_result;
+      END IF;
     END LOOP;
     v_result := '{"status": "success", "message": "Bulk upsert complete"}'::jsonb;
   ELSE
@@ -632,16 +648,32 @@ BEGIN
     END IF;
 
     -- Ensure ID exists
-    IF NOT (req_payload ? 'id') OR (req_payload->>'id') IS NULL THEN
+    IF (req_payload->>'id') IS NULL OR (req_payload->>'id') = '' THEN
       req_payload := req_payload || jsonb_build_object('id', gen_random_uuid());
     END IF;
 
-    EXECUTE format(
-      'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
-      'ON CONFLICT (id) DO UPDATE SET %s ' ||
-      'RETURNING pg_catalog.to_jsonb(t.*)',
-      req_table, req_table, req_payload, v_cols
-    ) INTO v_result;
+    IF req_table = 'company_invites' THEN
+      EXECUTE format(
+        'INSERT INTO public.company_invites AS t SELECT * FROM jsonb_populate_record(NULL::public.company_invites, %L) ' ||
+        'ON CONFLICT (company_id, invited_email, status) DO UPDATE SET %s ' ||
+        'RETURNING pg_catalog.to_jsonb(t.*)',
+        req_payload, v_cols
+      ) INTO v_result;
+    ELSIF req_table = 'company_members' THEN
+      EXECUTE format(
+        'INSERT INTO public.company_members AS t SELECT * FROM jsonb_populate_record(NULL::public.company_members, %L) ' ||
+        'ON CONFLICT (company_id, user_id) DO UPDATE SET %s ' ||
+        'RETURNING pg_catalog.to_jsonb(t.*)',
+        req_payload, v_cols
+      ) INTO v_result;
+    ELSE
+      EXECUTE format(
+        'INSERT INTO public.%I AS t SELECT * FROM jsonb_populate_record(NULL::public.%I, %L) ' ||
+        'ON CONFLICT (id) DO UPDATE SET %s ' ||
+        'RETURNING pg_catalog.to_jsonb(t.*)',
+        req_table, req_table, req_payload, v_cols
+      ) INTO v_result;
+    END IF;
   END IF;
 
   RETURN v_result;
