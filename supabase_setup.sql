@@ -430,12 +430,12 @@ ALTER TABLE company_invites REPLICA IDENTITY FULL;
 ALTER TABLE company_members REPLICA IDENTITY FULL;
 
 -- 8. RPC Functions for bypassing RLS securely via email
-DROP FUNCTION IF EXISTS public.get_companies_for_email(TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.get_companies_for_email(req_email TEXT)
+DROP FUNCTION IF EXISTS public.get_companies_for_email(text) CASCADE;
+CREATE OR REPLACE FUNCTION public.get_companies_for_email(req_email text)
 RETURNS SETOF public.companies AS $$
 BEGIN
   RETURN QUERY
-  SELECT DISTINCT c.* 
+  SELECT DISTINCT c.*
   FROM public.companies c
   LEFT JOIN public.company_members m ON c.id = m.company_id
   WHERE 
@@ -446,16 +446,17 @@ BEGIN
     LOWER(m.user_email) = LOWER(req_email);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+GRANT EXECUTE ON FUNCTION public.get_companies_for_email(text) TO anon, authenticated;
 
-DROP FUNCTION IF EXISTS public.get_invites_for_email(TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.get_invites_for_email(req_email TEXT)
+DROP FUNCTION IF EXISTS public.get_invites_for_email(text) CASCADE;
+CREATE OR REPLACE FUNCTION public.get_invites_for_email(req_email text)
 RETURNS TABLE (
   id UUID,
   company_id UUID,
-  invited_email TEXT,
-  invited_by TEXT,
-  status TEXT,
-  company_name TEXT
+  invited_email text,
+  invited_by text,
+  status text,
+  company_name text
 ) AS $$
 BEGIN
   RETURN QUERY
@@ -465,9 +466,10 @@ BEGIN
   WHERE LOWER(i.invited_email) = LOWER(req_email) AND i.status = 'pending';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+GRANT EXECUTE ON FUNCTION public.get_invites_for_email(text) TO anon, authenticated;
 
-DROP FUNCTION IF EXISTS public.get_memberships_for_email(TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.get_memberships_for_email(req_email TEXT)
+DROP FUNCTION IF EXISTS public.get_memberships_for_email(text) CASCADE;
+CREATE OR REPLACE FUNCTION public.get_memberships_for_email(req_email text)
 RETURNS TABLE (
   membership_id UUID,
   companies JSONB
@@ -480,6 +482,7 @@ BEGIN
   WHERE LOWER(m.user_email) = LOWER(req_email);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+GRANT EXECUTE ON FUNCTION public.get_memberships_for_email(text) TO anon, authenticated;
 
 -- 8. RPC Functions for bypassing RLS securely via email
 CREATE OR REPLACE FUNCTION public.sync_company_linked_emails()
@@ -807,14 +810,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-DROP FUNCTION IF EXISTS public.get_company_team(TEXT, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS public.get_company_team(UUID, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION public.get_company_team(req_company_id TEXT, req_email TEXT)
+DROP FUNCTION IF EXISTS public.get_company_team(text, text) CASCADE;
+DROP FUNCTION IF EXISTS public.get_company_team(uuid, text) CASCADE;
+CREATE OR REPLACE FUNCTION public.get_company_team(req_company_id text, req_email text)
 RETURNS TABLE (
-  id TEXT,
-  invited_email TEXT,
-  status TEXT,
-  role TEXT,
+  id text,
+  invited_email text,
+  status text,
+  role text,
   created_at TIMESTAMP WITH TIME ZONE
 ) AS $$
 DECLARE
@@ -848,19 +851,15 @@ BEGIN
   WHERE i.company_id = v_uuid_id AND i.status = 'pending';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+GRANT EXECUTE ON FUNCTION public.get_company_team(text, text) TO anon, authenticated;
 
 -- 6. Explicit Permissions for RPC Functions
-GRANT EXECUTE ON FUNCTION public.is_authorized_for_company_rpc(UUID, TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.is_company_owner_rpc(UUID, TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_companies_for_email(TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_memberships_for_email(TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_invites_for_email(TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_company_team(TEXT, TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_table_data_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.delete_table_data_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
-
-GRANT EXECUTE ON FUNCTION public.respond_to_invite_by_email(TEXT, TEXT, TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.rpc_leave_company(TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.is_authorized_for_company_rpc(UUID, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.is_company_owner_rpc(UUID, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_table_data_by_email(text, text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_table_data_by_email(text, text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.respond_to_invite_by_email(text, text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_leave_company(text, text) TO anon, authenticated;
 
 -- Notify PostgREST to reload schema cache
 NOTIFY pgrst, 'reload schema';
