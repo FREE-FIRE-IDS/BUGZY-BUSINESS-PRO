@@ -837,8 +837,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const syncToCloud = async (table: string, data: any, isNew: boolean = false, companyIdOverride?: string) => {
-    const companyId = companyIdOverride || currentCompany?.id;
-    const company = companyId === currentCompany?.id ? currentCompany : companies.find(c => c.id === companyId);
+    let activeCompanyId = companyIdOverride || currentCompany?.id;
+    
+    // Defensive: if table is not 'companies' but we have no activeCompanyId, try to pull it from the payload
+    if (!activeCompanyId && table !== 'companies' && data) {
+        if (Array.isArray(data) && data.length > 0) {
+            activeCompanyId = data[0].company_id;
+        } else if (data.company_id) {
+            activeCompanyId = data.company_id;
+        }
+    }
+
+    // Safety check: Don't sync data without a company ID (except for companies table)
+    if (!activeCompanyId && table !== 'companies') {
+        console.log(`[Sync Skip] No company ID for table ${table}`);
+        return;
+    }
+
+    const company = activeCompanyId === currentCompany?.id ? currentCompany : companies.find(c => c.id === activeCompanyId);
     
     // SKIP SYNC FOR HR COMPANIES as requested
     if (company?.company_type === 'hr') {
@@ -888,9 +904,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         };
 
         const dataWithEmail = Array.isArray(data) 
-          ? data.map(d => sanitize({ ...d, user_email: email }))
-          : sanitize({ ...data, user_email: email });
+          ? data.map(d => sanitize({ ...d, user_email: email, company_id: d.company_id || activeCompanyId }))
+          : sanitize({ ...data, user_email: email, company_id: data.company_id || activeCompanyId });
         
+        // Strip company_id for tables that don't have it
+        const tablesWithNoCompanyId = ['companies', 'profiles', 'licenses', 'payment_requests'];
+        if (tablesWithNoCompanyId.includes(table)) {
+            if (Array.isArray(dataWithEmail)) {
+                dataWithEmail.forEach(d => delete d.company_id);
+            } else {
+                delete (dataWithEmail as any).company_id;
+            }
+        }
+
         console.log(`[Sync Attempt] Table: ${dbTable}, Operation: ${isNew ? 'INSERT' : 'UPSERT'}`, dataWithEmail);
         
         // Robust Upsert with Recursive Column Stripping
@@ -3073,9 +3099,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       currentCompany, 
       setCurrentCompany: (company) => {
         setCurrentCompany(company);
-        if (currentUser) {
-          localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(company));
-        }
+        const userKey = currentUser || 'default';
+        localStorage.setItem(`currentCompany_${userKey}`, JSON.stringify(company));
       },
       parties, banks, items, transactions, invoices, settings, syncStatus,
       updateSettings, refreshData, pullCompanies, linkDevice,

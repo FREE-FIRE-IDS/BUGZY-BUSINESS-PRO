@@ -502,6 +502,10 @@ RETURNS SETOF JSONB AS $$
 DECLARE
   v_uuid_company_id UUID;
 BEGIN
+  IF req_company_id IS NULL OR req_company_id = '' THEN
+    RETURN;
+  END IF;
+
   v_uuid_company_id := req_company_id::UUID;
   IF NOT public.is_authorized_for_company_rpc(v_uuid_company_id, req_email) THEN
     RAISE EXCEPTION 'Not authorized for this company %', req_company_id;
@@ -539,9 +543,33 @@ BEGIN
   -- 1. Extract company_id and validate access
   IF jsonb_typeof(req_payload) = 'array' THEN
     FOR v_item IN SELECT jsonb_array_elements(req_payload) LOOP
-      v_company_id := (v_item->>'company_id')::UUID;
-      IF NOT public.is_authorized_for_company_rpc(v_company_id, req_email) THEN
-        RAISE EXCEPTION 'Not authorized for company %', v_company_id;
+      IF req_table = 'companies' THEN
+        v_company_id := (v_item->>'id')::UUID;
+      ELSIF req_table IN ('profiles', 'licenses', 'payment_requests') THEN
+        v_company_id := NULL;
+      ELSE
+        v_company_id := (v_item->>'company_id')::UUID;
+      END IF;
+
+      IF v_company_id IS NULL AND req_table NOT IN ('profiles', 'licenses', 'payment_requests') THEN
+         RAISE EXCEPTION 'company_id is required for table %', req_table;
+      END IF;
+
+      IF v_company_id IS NOT NULL AND NOT public.is_authorized_for_company_rpc(v_company_id, req_email) THEN
+        -- Allow new companies if the email matches owner_email or user_email in payload
+        IF req_table = 'companies' AND (
+            LOWER(v_item->>'owner_email') = LOWER(req_email) OR 
+            LOWER(v_item->>'user_email') = LOWER(req_email)
+        ) THEN
+            -- Authorized to create new company
+        ELSE
+            RAISE EXCEPTION 'Not authorized for company %', v_company_id;
+        END IF;
+      ELSIF v_company_id IS NULL AND req_table IN ('profiles', 'licenses', 'payment_requests') THEN
+        -- Verify that the user is updating their own non-company record
+        IF LOWER(v_item->>'user_email') != LOWER(req_email) AND LOWER(v_item->>'email') != LOWER(req_email) THEN
+          RAISE EXCEPTION 'Not authorized to update this % record', req_table;
+        END IF;
       END IF;
 
       -- Ensure ID exists to avoid NULL constraint violation on PRIMARY KEY during jsonb_populate_record
@@ -558,9 +586,33 @@ BEGIN
     END LOOP;
     v_result := '{"status": "success", "message": "Bulk upsert complete"}'::jsonb;
   ELSE
-    v_company_id := (req_payload->>'company_id')::UUID;
-    IF NOT public.is_authorized_for_company_rpc(v_company_id, req_email) THEN
-      RAISE EXCEPTION 'Not authorized for company %', v_company_id;
+    IF req_table = 'companies' THEN
+      v_company_id := (req_payload->>'id')::UUID;
+    ELSIF req_table IN ('profiles', 'licenses', 'payment_requests') THEN
+      v_company_id := NULL;
+    ELSE
+      v_company_id := (req_payload->>'company_id')::UUID;
+    END IF;
+
+    IF v_company_id IS NULL AND req_table NOT IN ('profiles', 'licenses', 'payment_requests') THEN
+       RAISE EXCEPTION 'company_id is required for table %', req_table;
+    END IF;
+
+    IF v_company_id IS NOT NULL AND NOT public.is_authorized_for_company_rpc(v_company_id, req_email) THEN
+      -- Allow new companies if the email matches owner_email or user_email in payload
+      IF req_table = 'companies' AND (
+          LOWER(req_payload->>'owner_email') = LOWER(req_email) OR 
+          LOWER(req_payload->>'user_email') = LOWER(req_email)
+      ) THEN
+          -- Authorized to create new company
+      ELSE
+          RAISE EXCEPTION 'Not authorized for company %', v_company_id;
+      END IF;
+    ELSIF v_company_id IS NULL AND req_table IN ('profiles', 'licenses', 'payment_requests') THEN
+      -- Verify that the user is updating their own non-company record
+      IF LOWER(req_payload->>'user_email') != LOWER(req_email) AND LOWER(req_payload->>'email') != LOWER(req_email) THEN
+        RAISE EXCEPTION 'Not authorized to update this % record', req_table;
+      END IF;
     END IF;
 
     -- Ensure ID exists
