@@ -179,21 +179,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [banks, setBanks] = useState<BankAccount[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [leavingIds, setLeavingIds] = useState<string[]>([]);
+  const leavingIdsRef = React.useRef<string[]>([]);
   
-  // Re-sync state when currentUser changes (e.g. after restore or login)
   useEffect(() => {
-    if (currentUser) {
-      const saved = localStorage.getItem(`companies_${currentUser}`);
-      if (saved) {
-        const parsed = JSON.parse(saved).filter((c: any) => !c.deleted_at);
-        setCompanies(parsed);
-        companiesRef.current = parsed;
-      }
-    } else {
-      setCompanies([]);
-      companiesRef.current = [];
+    leavingIdsRef.current = leavingIds;
+  }, [leavingIds]);
+
+  const companiesRef = React.useRef<Company[]>([]);
+  
+  const setCompaniesWithRef = (newVal: Company[] | ((prev: Company[]) => Company[])) => {
+    setCompanies(prev => {
+      const updated = typeof newVal === 'function' ? newVal(prev) : newVal;
+      companiesRef.current = updated;
+      return updated;
+    });
+  };
+
+  // Consolidated effect to load data when user or company changes
+  useEffect(() => {
+    if (!currentUser) {
+      setCompaniesWithRef([]);
+      setCurrentCompany(null);
+      return;
     }
+
+    const savedCompanies = localStorage.getItem(`companies_${currentUser}`);
+    const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies).filter((c: any) => !c.deleted_at) : [];
+    setCompaniesWithRef(loadedCompanies);
+
+    const savedCurrent = localStorage.getItem(`currentCompany_${currentUser}`);
+    const loadedCurrent = savedCurrent ? JSON.parse(savedCurrent) : (loadedCompanies[0] || null);
+    setCurrentCompany(loadedCurrent);
   }, [currentUser]);
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   
@@ -203,22 +221,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     currentCompanyIdRef.current = currentCompany?.id || null;
   }, [currentCompany]);
 
-  // Load data when user or company changes
-  useEffect(() => {
-    if (!currentUser) {
-      setCompanies([]);
-      setCurrentCompany(null);
-      return;
-    }
-
-    const savedCompanies = localStorage.getItem(`companies_${currentUser}`);
-    const loadedCompanies = savedCompanies ? JSON.parse(savedCompanies) : [];
-    setCompanies(loadedCompanies);
-
-    const savedCurrent = localStorage.getItem(`currentCompany_${currentUser}`);
-    const loadedCurrent = savedCurrent ? JSON.parse(savedCurrent) : (loadedCompanies[0] || null);
-    setCurrentCompany(loadedCurrent);
-  }, [currentUser]);
 
   useEffect(() => {
     if (!currentCompany || !currentUser) {
@@ -794,11 +796,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const companiesRef = React.useRef<Company[]>(companies);
-  useEffect(() => {
-    companiesRef.current = companies;
-  }, [companies]);
-
   const pullCompanies = async (email?: string) => {
     const targetEmail = (email || settings.user_email || session?.user?.email || '').toLowerCase().trim();
     const username = currentUser;
@@ -830,23 +827,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       // Use latest companies from Ref to avoid race conditions
       const currentLocalCompanies = companiesRef.current;
-      const { merged, toUpload } = mergeData(currentLocalCompanies, data || []);
+      const { merged, toUpload } = mergeData(currentLocalCompanies, (data || []) as Company[]);
       
-      // CRITICAL: Filter out any IDs we are currently leaving
-      const finalMerged = merged.filter(c => !leavingIds.includes(c.id));
+      // CRITICAL: Filter out any IDs we are currently leaving using Ref to ensure latest state
+      const currentlyLeaving = leavingIdsRef.current;
+      const finalMerged = (merged as Company[]).filter(c => !currentlyLeaving.includes(c.id));
       const nonDeleted = finalMerged.filter(c => !c.deleted_at);
       
       // Save to state and local storage
-      setCompanies(nonDeleted);
+      setCompaniesWithRef(nonDeleted);
       
       // CRITICAL: Determine which user context to save under
       const effectiveUser = username || targetEmail?.split('@')[0] || 'user';
-      if (!currentUser) {
+      if (!currentUser && effectiveUser !== 'user') {
         setCurrentUser(effectiveUser);
         localStorage.setItem('currentUser', effectiveUser);
       }
       
       localStorage.setItem(`companies_${effectiveUser}`, JSON.stringify(finalMerged));
+
       
       if (toUpload.length > 0) {
         await syncToCloud('companies', toUpload);
@@ -2062,10 +2061,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       
       // Update state and ref immediately to block pullCompanies from overwriting
       const activeRestored = finalCompanies.filter(c => !c.deleted_at);
-      setCompanies(activeRestored);
-      companiesRef.current = activeRestored;
+      setCompaniesWithRef(activeRestored);
 
       if (!currentCompany && newRestoredCompanies.length > 0) {
+
         const first = newRestoredCompanies[0];
         setCurrentCompany(first);
         localStorage.setItem(`currentCompany_${targetUserKey}`, JSON.stringify(first));
@@ -2090,7 +2089,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         if (!newCompanyId) return;
         
         const cData = data.companyData[oldCompanyId];
-        const markNew = (arr: any[]) => (arr || []).map(item => ({ ...item, _synced: false }));
+        const markNew = (arr: any[]) => (arr || []).map(item => ({ 
+          ...item, 
+          company_id: newCompanyId, // CRITICAL: Update to the new ID
+          _synced: false 
+        }));
 
         localStorage.setItem(`parties_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(markNew(cData.parties))));
         localStorage.setItem(`banks_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(markNew(cData.banks))));
@@ -3135,13 +3138,15 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         req_email: authEmail
       });
       
-      if (error) throw error;
+      if (error) {
+        setLeavingIds(prev => prev.filter(id => id !== companyId));
+        throw error;
+      }
       
       // 3. Filter companies locally using functional update to be absolutely sure
       let nextToSet: Company | null = null;
-      setCompanies(prev => {
+      setCompaniesWithRef(prev => {
         const updated = prev.filter(c => c.id !== companyId);
-        companiesRef.current = updated; // Update ref immediately
         nextToSet = updated.length > 0 ? updated[0] : null;
         if (currentUser) {
            // We save without the left company
@@ -3151,6 +3156,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         }
         return updated;
       });
+
       
       // 4. Handle navigation if deleting current
       if (currentCompany?.id === companyId) {
