@@ -1058,7 +1058,7 @@ NOTIFY pgrst, 'reload schema';
                 </div>
                 <div>
                   <p className="font-bold text-slate-900 dark:text-white">Restore Data</p>
-                  <p className="text-sm text-slate-500 text-amber-600 font-medium">Note: This will merge backup data with your current businesses. Existing records with same IDs will be updated.</p>
+                  <p className="text-sm text-slate-500 text-amber-600 font-medium">Note: This will add the businesses from your backup file as new entries. Your current companies and data will not be removed.</p>
                 </div>
                 <label className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer text-center">
                   <Upload size={18} />
@@ -1073,7 +1073,7 @@ NOTIFY pgrst, 'reload schema';
                         const reader = new FileReader();
                         reader.onload = async (event) => {
                           const content = event.target?.result as string;
-                          if (confirm("Restore Backup: This will merge business data from the backup file with your current data. Continue?")) {
+                          if (confirm("Restore Backup: This will add the businesses from the backup file to your current list. Your existing data will remain safe. Continue?")) {
                             try {
                               await restoreData(content);
                             } catch (err: any) {

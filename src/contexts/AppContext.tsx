@@ -1966,40 +1966,57 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         setCurrentUser(data.username);
       }
 
-      // 2. Merge Companies
+      // 2. Add Companies as New Entries (Don't Merge or Overwrite)
       const companiesKey = `companies_${data.username}`;
       const existingCompanies = JSON.parse(localStorage.getItem(companiesKey) || '[]');
       const backupCompanies = stripSynced(data.companies);
       
-      const mergedCompaniesMap = new Map();
-      existingCompanies.forEach((c: any) => mergedCompaniesMap.set(c.id, c));
+      const newRestoredCompanies: any[] = [];
+      const idMapping: Record<string, string> = {};
+
       backupCompanies.forEach((c: any) => {
-        // In a restore, we prioritize the backup version for that specific company ID
-        mergedCompaniesMap.set(c.id, c);
+        // Generate a new ID for the restored version to prevent conflicts
+        const newId = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).substring(2) + Date.now().toString(36));
+        idMapping[c.id] = newId;
+        newRestoredCompanies.push({
+          ...c,
+          id: newId,
+          name: `${c.name} (Restored)`,
+          _synced: false // Reset sync status for the new instance
+        });
       });
-      
-      const mergedCompanies = Array.from(mergedCompaniesMap.values());
-      localStorage.setItem(companiesKey, JSON.stringify(mergedCompanies));
-      setCompanies(mergedCompanies.filter(c => !c.deleted_at));
 
-      // 3. Update global settings if none exist, or merge
+      const finalCompanies = [...existingCompanies, ...newRestoredCompanies];
+      localStorage.setItem(companiesKey, JSON.stringify(finalCompanies));
+      setCompanies(finalCompanies.filter(c => !c.deleted_at));
+
+      // 3. Update global settings if none exist
       const existingSettings = JSON.parse(localStorage.getItem('app_settings') || '{}');
-      localStorage.setItem('app_settings', JSON.stringify({ ...existingSettings, ...data.settings }));
+      if (Object.keys(existingSettings).length === 0) {
+        localStorage.setItem('app_settings', JSON.stringify(data.settings));
+      }
       
-      if (data.device_license) localStorage.setItem('device_license', data.device_license);
-      if (data.active_license_key) localStorage.setItem('active_license_key', data.active_license_key);
+      if (data.device_license && !localStorage.getItem('device_license')) {
+        localStorage.setItem('device_license', data.device_license);
+      }
+      if (data.active_license_key && !localStorage.getItem('active_license_key')) {
+        localStorage.setItem('active_license_key', data.active_license_key);
+      }
 
-      // 4. Update individual company data
-      Object.keys(data.companyData).forEach(companyId => {
-        const cData = data.companyData[companyId];
-        localStorage.setItem(`parties_${companyId}`, JSON.stringify(stripSynced(cData.parties)));
-        localStorage.setItem(`banks_${companyId}`, JSON.stringify(stripSynced(cData.banks)));
-        localStorage.setItem(`items_${companyId}`, JSON.stringify(stripSynced(cData.items)));
-        localStorage.setItem(`transactions_${companyId}`, JSON.stringify(stripSynced(cData.transactions)));
-        localStorage.setItem(`invoices_${companyId}`, JSON.stringify(stripSynced(cData.invoices)));
+      // 4. Save individual company data under the NEW IDs
+      Object.keys(data.companyData || {}).forEach(oldCompanyId => {
+        const newCompanyId = idMapping[oldCompanyId];
+        if (!newCompanyId) return;
+        
+        const cData = data.companyData[oldCompanyId];
+        localStorage.setItem(`parties_${newCompanyId}`, JSON.stringify(stripSynced(cData.parties)));
+        localStorage.setItem(`banks_${newCompanyId}`, JSON.stringify(stripSynced(cData.banks)));
+        localStorage.setItem(`items_${newCompanyId}`, JSON.stringify(stripSynced(cData.items)));
+        localStorage.setItem(`transactions_${newCompanyId}`, JSON.stringify(stripSynced(cData.transactions)));
+        localStorage.setItem(`invoices_${newCompanyId}`, JSON.stringify(stripSynced(cData.invoices)));
       });
 
-      toast.success('Backup restored successfully! Companies merged.');
+      toast.success('Backup restored! Restored businesses added to your list.');
       setTimeout(() => window.location.reload(), 1500);
     } catch (e: any) {
       alert('Restore failed: ' + e.message);
