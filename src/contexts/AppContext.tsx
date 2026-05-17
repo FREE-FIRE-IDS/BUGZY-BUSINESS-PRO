@@ -1942,7 +1942,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `backup_${currentUser}_${new Date().toISOString().split('T')[0]}.json`;
+    const fileName = `backup_${currentCompany?.name.replace(/\s+/g, '_') || currentUser}_${new Date().toISOString().split('T')[0]}.byb`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1954,20 +1955,41 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       const data = JSON.parse(json);
       if (!data.username) throw new Error('Invalid backup file');
 
-      // REPLACE ALL DATA
-      localStorage.clear();
-      
       const stripSynced = (arr: any[]) => (arr || []).map(i => {
         const { _synced, ...rest } = i;
         return rest;
       });
 
-      localStorage.setItem('currentUser', data.username);
-      localStorage.setItem(`companies_${data.username}`, JSON.stringify(stripSynced(data.companies)));
-      localStorage.setItem('app_settings', JSON.stringify(data.settings));
+      // 1. Update current user context if needed
+      if (!currentUser) {
+        localStorage.setItem('currentUser', data.username);
+        setCurrentUser(data.username);
+      }
+
+      // 2. Merge Companies
+      const companiesKey = `companies_${data.username}`;
+      const existingCompanies = JSON.parse(localStorage.getItem(companiesKey) || '[]');
+      const backupCompanies = stripSynced(data.companies);
+      
+      const mergedCompaniesMap = new Map();
+      existingCompanies.forEach((c: any) => mergedCompaniesMap.set(c.id, c));
+      backupCompanies.forEach((c: any) => {
+        // In a restore, we prioritize the backup version for that specific company ID
+        mergedCompaniesMap.set(c.id, c);
+      });
+      
+      const mergedCompanies = Array.from(mergedCompaniesMap.values());
+      localStorage.setItem(companiesKey, JSON.stringify(mergedCompanies));
+      setCompanies(mergedCompanies.filter(c => !c.deleted_at));
+
+      // 3. Update global settings if none exist, or merge
+      const existingSettings = JSON.parse(localStorage.getItem('app_settings') || '{}');
+      localStorage.setItem('app_settings', JSON.stringify({ ...existingSettings, ...data.settings }));
+      
       if (data.device_license) localStorage.setItem('device_license', data.device_license);
       if (data.active_license_key) localStorage.setItem('active_license_key', data.active_license_key);
 
+      // 4. Update individual company data
       Object.keys(data.companyData).forEach(companyId => {
         const cData = data.companyData[companyId];
         localStorage.setItem(`parties_${companyId}`, JSON.stringify(stripSynced(cData.parties)));
@@ -1977,7 +1999,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         localStorage.setItem(`invoices_${companyId}`, JSON.stringify(stripSynced(cData.invoices)));
       });
 
-      window.location.reload();
+      toast.success('Backup restored successfully! Companies merged.');
+      setTimeout(() => window.location.reload(), 1500);
     } catch (e: any) {
       alert('Restore failed: ' + e.message);
     }

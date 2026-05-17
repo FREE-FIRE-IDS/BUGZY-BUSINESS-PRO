@@ -1058,14 +1058,14 @@ NOTIFY pgrst, 'reload schema';
                 </div>
                 <div>
                   <p className="font-bold text-slate-900 dark:text-white">Restore Data</p>
-                  <p className="text-sm text-slate-500 text-amber-600 font-medium">Warning: This will REPLACE all current data. This action cannot be undone.</p>
+                  <p className="text-sm text-slate-500 text-amber-600 font-medium">Note: This will merge backup data with your current businesses. Existing records with same IDs will be updated.</p>
                 </div>
                 <label className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer text-center">
                   <Upload size={18} />
                   Upload & Restore
                   <input 
                     type="file" 
-                    accept=".json" 
+                    accept=".byb,.json" 
                     className="hidden" 
                     onChange={(e) => {
                       const file = e.target.files?.[0];
@@ -1073,7 +1073,7 @@ NOTIFY pgrst, 'reload schema';
                         const reader = new FileReader();
                         reader.onload = async (event) => {
                           const content = event.target?.result as string;
-                          if (confirm("CRITICAL WARNING: This will permanently DELETE all current data and replace it with the backup file. Are you absolutely sure?")) {
+                          if (confirm("Restore Backup: This will merge business data from the backup file with your current data. Continue?")) {
                             try {
                               await restoreData(content);
                             } catch (err: any) {

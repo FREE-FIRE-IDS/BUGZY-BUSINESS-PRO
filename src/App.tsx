@@ -1489,7 +1489,7 @@ function SetupCompany() {
                 </div>
               </div>
               <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl hover:border-indigo-500 transition-all cursor-pointer group">
-                <input type="file" accept=".json" onChange={handleFileRestore} className="hidden" />
+                <input type="file" accept=".byb,.json" onChange={handleFileRestore} className="hidden" />
                 <Upload className="text-slate-400 group-hover:text-indigo-500 mb-2" size={24} />
                 <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Restore from Backup File</span>
               </label>
