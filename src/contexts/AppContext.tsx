@@ -429,15 +429,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .channel('db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, (payload) => {
         const email = settings.user_email?.toLowerCase();
-        const data = (payload.new || payload.old) as any;
+        const newData = payload.new as any;
+        const oldData = payload.old as any;
         
-        if (data && (data.user_email?.toLowerCase() === email || (data.linked_emails && data.linked_emails.includes(email)) || data.owner_email?.toLowerCase() === email)) {
-          const updatedCompany = payload.new as Company;
-          if (updatedCompany && (
-            updatedCompany.user_email?.toLowerCase() === email || 
-            (updatedCompany.linked_emails && updatedCompany.linked_emails.includes(email)) || 
-            updatedCompany.owner_email?.toLowerCase() === email
-          )) {
+        const hasAccess = (d: any) => d && (
+          d.user_email?.toLowerCase() === email || 
+          (d.linked_emails && d.linked_emails.includes(email)) || 
+          d.owner_email?.toLowerCase() === email
+        );
+
+        if (hasAccess(newData) || hasAccess(oldData)) {
+          if (hasAccess(newData)) {
+            const updatedCompany = newData as Company;
             setCompanies(prev => {
               const exists = prev.find(c => c.id === updatedCompany.id);
               if (exists) {
@@ -452,8 +455,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               }
             }
           } else {
-            // User was removed from access or company deleted
-            const targetId = updatedCompany?.id || (payload.old as any)?.id || data.id;
+            // Access was lost (either deleted from DB or user removed from permission)
+            const targetId = newData?.id || oldData?.id;
             if (targetId) {
               setCompanies(prev => prev.filter(c => c.id !== targetId));
               if (currentCompany?.id === targetId) {
@@ -3051,15 +3054,29 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       
       if (error) throw error;
       
-      // 2. Clear current company if it was the one left
-      if (currentCompany?.id === companyId) {
-        setCurrentCompany(null);
+      // 2. Filter companies locally
+      const updatedCompanies = companies.filter(c => c.id !== companyId);
+      setCompanies(updatedCompanies);
+      
+      // 3. Explicitly persist to localStorage for insurance
+      if (currentUser) {
+        localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updatedCompanies));
       }
       
-      // 3. Immediately filter the companies state locally
-      setCompanies(prev => prev.filter(c => c.id !== companyId));
+      // 4. Handle navigation if deleting current
+      if (currentCompany?.id === companyId) {
+        const nextCompany = updatedCompanies.length > 0 ? updatedCompanies[0] : null;
+        setCurrentCompany(nextCompany);
+        if (currentUser) {
+          if (nextCompany) {
+            localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(nextCompany));
+          } else {
+            localStorage.removeItem(`currentCompany_${currentUser}`);
+          }
+        }
+      }
       
-      // 4. Robust Cleanup: Clear local storage related to this company
+      // 5. Robust Cleanup: Clear local storage related to this company
       try {
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -3075,7 +3092,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       
       toast.success('Successfully left company');
       
-      // 5. Delayed full refresh to let cloud settle
+      // 6. Delayed full refresh to let cloud settle
       setTimeout(async () => {
         await refreshData(authEmail, true);
         await pullCompanies();
