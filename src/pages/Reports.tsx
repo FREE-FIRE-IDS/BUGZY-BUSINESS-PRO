@@ -189,11 +189,18 @@ export default function Reports() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     
     const filterByDate = (txs: any[]) => {
-      if (dateRange === 'This Month') return txs.filter(t => new Date(t.date) >= startOfMonth);
+      const getEntryDate = (t: any) => t.date || t.Date || t.invoice_date;
+      if (dateRange === 'This Month') return txs.filter(t => {
+        const d = new Date(getEntryDate(t));
+        return !isNaN(d.getTime()) && d >= startOfMonth;
+      });
       if (dateRange === 'Custom' && customStartDate && customEndDate) {
+        const start = new Date(customStartDate);
+        const end = new Date(customEndDate);
+        end.setHours(23, 59, 59, 999);
         return txs.filter(t => {
-          const d = new Date(t.date);
-          return d >= new Date(customStartDate) && d <= new Date(customEndDate);
+          const d = new Date(getEntryDate(t));
+          return !isNaN(d.getTime()) && d >= start && d <= end;
         });
       }
       return txs;
@@ -483,6 +490,7 @@ export default function Reports() {
         const saleInvoices = companyInvoices.filter(i => i.type === 'Sale').flatMap(inv => 
           inv.items.map(item => ({
             id: inv.id,
+            date: inv.date,
             'Date': inv.date,
             'Party': parties.find(p => p.id === inv.party_id)?.name || 'Walk-in',
             'Shipping Mark': item.shipping_mark || '-',
@@ -497,6 +505,7 @@ export default function Reports() {
         );
         const saleTransactions = companyTransactions.filter(t => t.type === 'Sale').map(t => ({
           id: t.id,
+          date: t.date,
           'Date': t.date,
           'Party': parties.find(p => p.id === t.party_id)?.name || 'N/A',
           'Item': t.item_id ? companyItems.find(i => i.id === t.item_id)?.name : (t.description || 'General Sale'),
@@ -504,7 +513,7 @@ export default function Reports() {
           'Price': t.quantity ? t.amount / t.quantity : t.amount,
           'Total': t.amount
         }));
-        result = filterByDate([...saleInvoices, ...saleTransactions]).sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
+        result = filterByDate([...saleInvoices, ...saleTransactions]).sort((a, b) => new Date(b.date || b.Date).getTime() - new Date(a.date || a.Date).getTime());
         break;
       case 'Expense':
         result = filterByDate(companyTransactions.filter(t => 
