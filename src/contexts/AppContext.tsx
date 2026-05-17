@@ -178,6 +178,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [parties, setParties] = useState<Party[]>([]);
   const [banks, setBanks] = useState<BankAccount[]>([]);
   const [items, setItems] = useState<Item[]>([]);
+  const [leavingIds, setLeavingIds] = useState<string[]>([]);
+  
+  // Re-sync state when currentUser changes (e.g. after restore or login)
+  useEffect(() => {
+    if (currentUser) {
+      const saved = localStorage.getItem(`companies_${currentUser}`);
+      if (saved) {
+        const parsed = JSON.parse(saved).filter((c: any) => !c.deleted_at);
+        setCompanies(parsed);
+        companiesRef.current = parsed;
+      }
+    } else {
+      setCompanies([]);
+      companiesRef.current = [];
+    }
+  }, [currentUser]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   
@@ -784,7 +800,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [companies]);
 
   const pullCompanies = async (email?: string) => {
-    const targetEmail = email || settings.user_email;
+    const targetEmail = (email || settings.user_email || session?.user?.email || '').toLowerCase().trim();
     const username = currentUser;
     
     if (!targetEmail && !username) {
@@ -805,7 +821,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             .or(`user_email.eq."${targetEmail}",linked_emails.cs.{"${targetEmail}"},owner_email.eq."${targetEmail}"`);
         }
       } else {
-        query = supabase.from('companies').select('*').eq('username', username);
+        query = supabase.from('companies').select('*').eq('username', username || '');
       }
       
       const { data, error } = await query;
@@ -815,7 +831,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Use latest companies from Ref to avoid race conditions
       const currentLocalCompanies = companiesRef.current;
       const { merged, toUpload } = mergeData(currentLocalCompanies, data || []);
-      const nonDeleted = merged.filter(c => !c.deleted_at);
+      
+      // CRITICAL: Filter out any IDs we are currently leaving
+      const finalMerged = merged.filter(c => !leavingIds.includes(c.id));
+      const nonDeleted = finalMerged.filter(c => !c.deleted_at);
       
       // Save to state and local storage
       setCompanies(nonDeleted);
@@ -827,7 +846,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('currentUser', effectiveUser);
       }
       
-      localStorage.setItem(`companies_${effectiveUser}`, JSON.stringify(merged));
+      localStorage.setItem(`companies_${effectiveUser}`, JSON.stringify(finalMerged));
       
       if (toUpload.length > 0) {
         await syncToCloud('companies', toUpload);
@@ -2040,7 +2059,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
       const finalCompanies = [...existingCompanies, ...newRestoredCompanies];
       localStorage.setItem(companiesKey, JSON.stringify(finalCompanies));
-      setCompanies(finalCompanies.filter(c => !c.deleted_at));
+      
+      // Update state and ref immediately to block pullCompanies from overwriting
+      const activeRestored = finalCompanies.filter(c => !c.deleted_at);
+      setCompanies(activeRestored);
+      companiesRef.current = activeRestored;
 
       if (!currentCompany && newRestoredCompanies.length > 0) {
         const first = newRestoredCompanies[0];
@@ -3103,7 +3126,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (!authEmail) throw new Error('Authentication required to leave company ❌');
 
     try {
-      // 1. Call RPC to leave
+      // 1. Mark as leaving locally to prevent ghost reappearances during pull
+      setLeavingIds(prev => [...prev, companyId]);
+
+      // 2. Call RPC to leave
       const { error } = await supabase.rpc('rpc_leave_company', {
         req_company_id: companyId,
         req_email: authEmail
@@ -3111,38 +3137,39 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       
       if (error) throw error;
       
-      // 2. Filter companies locally using functional update to be absolutely sure
+      // 3. Filter companies locally using functional update to be absolutely sure
+      let nextToSet: Company | null = null;
       setCompanies(prev => {
         const updated = prev.filter(c => c.id !== companyId);
-        // Also persist to localStorage
+        companiesRef.current = updated; // Update ref immediately
+        nextToSet = updated.length > 0 ? updated[0] : null;
         if (currentUser) {
-           localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updated));
+           // We save without the left company
+           const allCompanies = JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]');
+           const filteredAll = allCompanies.filter((c: any) => c.id !== companyId);
+           localStorage.setItem(`companies_${currentUser}`, JSON.stringify(filteredAll));
         }
         return updated;
       });
       
-      // 3. Handle navigation if deleting current
+      // 4. Handle navigation if deleting current
       if (currentCompany?.id === companyId) {
-        setCompanies(prev => {
-          const nextCompany = prev.length > 0 ? prev[0] : null;
-          setCurrentCompany(nextCompany);
-          if (currentUser) {
-            if (nextCompany) {
-              localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(nextCompany));
-            } else {
-              localStorage.removeItem(`currentCompany_${currentUser}`);
-            }
+        setCurrentCompany(nextToSet);
+        if (currentUser) {
+          if (nextToSet) {
+            localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(nextToSet));
+          } else {
+            localStorage.removeItem(`currentCompany_${currentUser}`);
           }
-          return prev;
-        });
+        }
       }
       
-      // 4. Robust Cleanup: Clear local storage related to this company
+      // 5. Robust Cleanup: Clear local storage related to this company
       try {
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && key.includes(companyId)) {
+          if (key && (key.includes(companyId) || key.includes(`_${companyId}`))) {
             keysToRemove.push(key);
           }
         }
@@ -3153,11 +3180,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       
       toast.success('Successfully left company');
       
-      // 6. Delayed full refresh to let cloud settle
+      // 6. Delayed cleanup of ignored ID and refresh
       setTimeout(async () => {
+        setLeavingIds(prev => prev.filter(id => id !== companyId));
         await refreshData(authEmail, true);
-        await pullCompanies();
-      }, 1500);
+      }, 5000); // 5s to ensure cloud settled
 
       return true;
     } catch (err: any) {
