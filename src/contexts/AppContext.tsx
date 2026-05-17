@@ -190,10 +190,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setCompaniesWithRef = (newVal: Company[] | ((prev: Company[]) => Company[])) => {
     setCompanies(prev => {
       const updated = typeof newVal === 'function' ? newVal(prev) : newVal;
-      companiesRef.current = updated;
-      return updated;
+      const filtered = updated.filter(c => !leavingIdsRef.current.includes(c.id));
+      companiesRef.current = filtered;
+      return filtered;
     });
   };
+
+  useEffect(() => {
+    if (leavingIds.length > 0) {
+      setCompaniesWithRef(prev => [...prev]);
+    }
+  }, [leavingIds]);
 
   // Consolidated effect to load data when user or company changes
   useEffect(() => {
@@ -479,7 +486,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (hasAccess(newData) || hasAccess(oldData)) {
           if (hasAccess(newData)) {
             const updatedCompany = newData as Company;
-            setCompanies(prev => {
+            setCompaniesWithRef(prev => {
               const exists = prev.find(c => c.id === updatedCompany.id);
               if (exists) {
                 if (JSON.stringify(exists) === JSON.stringify(updatedCompany)) return prev;
@@ -496,7 +503,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             // Access was lost (either deleted from DB or user removed from permission)
             const targetId = newData?.id || oldData?.id;
             if (targetId) {
-              setCompanies(prev => prev.filter(c => c.id !== targetId));
+              setCompaniesWithRef(prev => prev.filter(c => c.id !== targetId));
               if (currentCompany?.id === targetId) {
                 setCurrentCompany(null);
                 toast.error('Your access to this business has been updated 🔐');
@@ -666,11 +673,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       const { merged: mergedCompanies, toUpload: companiesToUpload } = mergeData<Company>(localCompanies, (cloudCompanies as Company[]) || []);
       
-      const nonDeletedCompanies = mergedCompanies.filter(c => !c.deleted_at) as Company[];
+      const currentlyLeaving = leavingIdsRef.current;
+      const filteredMerged = (mergedCompanies as Company[]).filter(c => !currentlyLeaving.includes(c.id));
+      const nonDeletedCompanies = filteredMerged.filter(c => !c.deleted_at) as Company[];
+      
+      const effectiveUser = username || email || currentUser || 'user';
+      
       if (JSON.stringify(companies) !== JSON.stringify(nonDeletedCompanies)) {
-        setCompanies(nonDeletedCompanies);
+        setCompaniesWithRef(nonDeletedCompanies);
       }
-      localStorage.setItem(`companies_${username || email || currentUser}`, JSON.stringify(mergedCompanies));
+      localStorage.setItem(`companies_${effectiveUser}`, JSON.stringify(filteredMerged));
 
       if (companiesToUpload.length > 0) {
         await syncToCloud('companies', companiesToUpload);
@@ -838,7 +850,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCompaniesWithRef(nonDeleted);
       
       // CRITICAL: Determine which user context to save under
-      const effectiveUser = username || targetEmail?.split('@')[0] || 'user';
+      const effectiveUser = username || targetEmail || currentUser || 'user';
       if (!currentUser && effectiveUser !== 'user') {
         setCurrentUser(effectiveUser);
         localStorage.setItem('currentUser', effectiveUser);
@@ -1226,7 +1238,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
                     else if (table === 'invoices') updateState('invoices', setInvoices);
                     else if (table === 'companies') {
                         isInternalUpdate.current = true;
-                        setCompanies(prev => {
+                        setCompaniesWithRef(prev => {
                             const localAll = JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]');
                             let updatedAll = [...localAll];
                             if (eventType === 'INSERT' || eventType === 'UPDATE') {
@@ -1762,7 +1774,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         if (isLogin) {
           localStorage.setItem('currentUser', normalizedUsername);
           setCurrentUser(normalizedUsername);
-          setCompanies(localData);
+          setCompaniesWithRef(localData);
           if (localData.length > 0) {
             setCurrentCompany(localData[0]);
             localStorage.setItem('currentCompany', JSON.stringify(localData[0]));
@@ -1811,7 +1823,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         localStorage.setItem('currentUser', normalizedUsername);
         
         // Also set state directly to avoid "empty frame"
-        setCompanies(data);
+        setCompaniesWithRef(data as Company[]);
         if (data.length > 0) {
           setCurrentCompany(data[0]);
           localStorage.setItem(`currentCompany_${normalizedUsername}`, JSON.stringify(data[0]));
@@ -1934,7 +1946,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
       // 3. Update local state
       const updatedCompanies = [...companies, newCompany];
-      setCompanies(updatedCompanies);
+      setCompaniesWithRef(updatedCompanies);
       setCurrentCompany(newCompany);
       localStorage.setItem(`companies_${newCompany.username}`, JSON.stringify(updatedCompanies));
       localStorage.setItem(`currentCompany_${newCompany.username}`, JSON.stringify(newCompany));
@@ -2112,7 +2124,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const updateCompany = async (id: string, company: Partial<Company>) => {
     const now = new Date().toISOString();
     const updatedCompanies = companies.map(c => c.id === id ? { ...c, ...company, updated_at: now } : c);
-    setCompanies(updatedCompanies);
+    setCompaniesWithRef(updatedCompanies);
     
     const userKey = currentUser || 'default';
     
@@ -2138,10 +2150,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     if (!companyToDelete) return;
 
     const now = new Date().toISOString();
-    const updatedCompanies = companies.filter(c => c.id !== id);
+    const updatedCompanies = companies.filter(c => !leavingIdsRef.current.includes(c.id) && c.id !== id);
     
     // 1. Update State
-    setCompanies(updatedCompanies);
+    setCompaniesWithRef(updatedCompanies);
     
     // 2. Update Local Storage explicitly for current user
     const targetUser = currentUser || companyToDelete.username;
@@ -2200,7 +2212,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
           localStorage.setItem('currentUser', targetUser);
         }
 
-        setCompanies(prev => {
+        setCompaniesWithRef(prev => {
           const exists = prev.find(c => c.id === data.id);
           const updated = exists ? prev.map(c => c.id === data.id ? data : c) : [...prev, data];
           if (targetUser) {
@@ -2610,7 +2622,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     localStorage.removeItem('currentUser');
     setCurrentUser(null);
     setCurrentCompany(null);
-    setCompanies([]);
+    setCompaniesWithRef([]);
     setSession(null);
     await supabase.auth.signOut();
   };
@@ -3130,7 +3142,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
     try {
       // 1. Mark as leaving locally to prevent ghost reappearances during pull
-      setLeavingIds(prev => [...prev, companyId]);
+      setLeavingIds(prev => {
+        const next = [...prev, companyId];
+        leavingIdsRef.current = next;
+        return next;
+      });
 
       // 2. Call RPC to leave
       const { error } = await supabase.rpc('rpc_leave_company', {
