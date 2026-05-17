@@ -153,8 +153,28 @@ const mergeData = <T extends { id: string; updated_at?: string; created_at?: str
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<string | null>(() => localStorage.getItem('currentUser'));
   
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
+  const [companies, setCompanies] = useState<Company[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const user = localStorage.getItem('currentUser');
+    if (!user) return [];
+    const saved = localStorage.getItem(`companies_${user}`);
+    return saved ? JSON.parse(saved).filter((c: any) => !c.deleted_at) : [];
+  });
+
+  const [currentCompany, setCurrentCompany] = useState<Company | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const user = localStorage.getItem('currentUser');
+    if (!user) return null;
+    const saved = localStorage.getItem(`currentCompany_${user}`);
+    if (saved) return JSON.parse(saved);
+    // Fallback to first company
+    const savedCompanies = localStorage.getItem(`companies_${user}`);
+    if (savedCompanies) {
+      const parsed = JSON.parse(savedCompanies).filter((c: any) => !c.deleted_at);
+      return parsed[0] || null;
+    }
+    return null;
+  });
   const [parties, setParties] = useState<Party[]>([]);
   const [banks, setBanks] = useState<BankAccount[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -605,7 +625,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       };
 
-      const localCompanies = companies;
+      const localCompanies = companiesRef.current;
       let { data: cloudCompanies, error: compError } = await fetchCompanies();
       
       if (compError) {
@@ -758,6 +778,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
+  const companiesRef = React.useRef<Company[]>(companies);
+  useEffect(() => {
+    companiesRef.current = companies;
+  }, [companies]);
+
   const pullCompanies = async (email?: string) => {
     const targetEmail = email || settings.user_email;
     const username = currentUser;
@@ -787,8 +812,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       if (error) throw error;
       
-      // Reconcile regardless of cloud state (handles companies user left/access revoked)
-      const { merged, toUpload } = mergeData(companies, data || []);
+      // Use latest companies from Ref to avoid race conditions
+      const currentLocalCompanies = companiesRef.current;
+      const { merged, toUpload } = mergeData(currentLocalCompanies, data || []);
       const nonDeleted = merged.filter(c => !c.deleted_at);
       
       // Save to state and local storage
@@ -807,7 +833,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await syncToCloud('companies', toUpload);
       }
       
-      if (!currentCompany && nonDeleted.length > 0) {
+      // Handle current company if none selected
+      const savedCurrent = localStorage.getItem(`currentCompany_${effectiveUser}`);
+      if (!currentCompany && !savedCurrent && nonDeleted.length > 0) {
         setCurrentCompany(nonDeleted[0]);
         localStorage.setItem(`currentCompany_${effectiveUser}`, JSON.stringify(nonDeleted[0]));
       }
@@ -2001,19 +2029,24 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         newRestoredCompanies.push({
           ...c,
           id: newId,
-          name: `${c.name} (Restored)`,
           user_email: userEmail || undefined,
           owner_email: userEmail || undefined,
           linked_emails: userEmail ? [userEmail] : [],
-          company_type: 'normal', // Freshly restored companies are local-first
-          _synced: false, // Reset sync status for the new instance
-          deleted_at: null // Ensure visible
+          company_type: 'normal', 
+          _synced: false,
+          deleted_at: null 
         });
       });
 
       const finalCompanies = [...existingCompanies, ...newRestoredCompanies];
       localStorage.setItem(companiesKey, JSON.stringify(finalCompanies));
       setCompanies(finalCompanies.filter(c => !c.deleted_at));
+
+      if (!currentCompany && newRestoredCompanies.length > 0) {
+        const first = newRestoredCompanies[0];
+        setCurrentCompany(first);
+        localStorage.setItem(`currentCompany_${targetUserKey}`, JSON.stringify(first));
+      }
 
       // 3. Update global settings if none exist
       const existingSettings = JSON.parse(localStorage.getItem('app_settings') || '{}');
@@ -2034,11 +2067,13 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         if (!newCompanyId) return;
         
         const cData = data.companyData[oldCompanyId];
-        localStorage.setItem(`parties_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(cData.parties)));
-        localStorage.setItem(`banks_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(cData.banks)));
-        localStorage.setItem(`items_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(cData.items)));
-        localStorage.setItem(`transactions_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(cData.transactions)));
-        localStorage.setItem(`invoices_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(cData.invoices)));
+        const markNew = (arr: any[]) => (arr || []).map(item => ({ ...item, _synced: false }));
+
+        localStorage.setItem(`parties_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(markNew(cData.parties))));
+        localStorage.setItem(`banks_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(markNew(cData.banks))));
+        localStorage.setItem(`items_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(markNew(cData.items))));
+        localStorage.setItem(`transactions_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(markNew(cData.transactions))));
+        localStorage.setItem(`invoices_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(markNew(cData.invoices))));
       });
 
       toast.success('Backup restored! Restored businesses added to your list.');
@@ -3076,29 +3111,33 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       
       if (error) throw error;
       
-      // 2. Filter companies locally
-      const updatedCompanies = companies.filter(c => c.id !== companyId);
-      setCompanies(updatedCompanies);
-      
-      // 3. Explicitly persist to localStorage for insurance
-      if (currentUser) {
-        localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updatedCompanies));
-      }
-      
-      // 4. Handle navigation if deleting current
-      if (currentCompany?.id === companyId) {
-        const nextCompany = updatedCompanies.length > 0 ? updatedCompanies[0] : null;
-        setCurrentCompany(nextCompany);
+      // 2. Filter companies locally using functional update to be absolutely sure
+      setCompanies(prev => {
+        const updated = prev.filter(c => c.id !== companyId);
+        // Also persist to localStorage
         if (currentUser) {
-          if (nextCompany) {
-            localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(nextCompany));
-          } else {
-            localStorage.removeItem(`currentCompany_${currentUser}`);
-          }
+           localStorage.setItem(`companies_${currentUser}`, JSON.stringify(updated));
         }
+        return updated;
+      });
+      
+      // 3. Handle navigation if deleting current
+      if (currentCompany?.id === companyId) {
+        setCompanies(prev => {
+          const nextCompany = prev.length > 0 ? prev[0] : null;
+          setCurrentCompany(nextCompany);
+          if (currentUser) {
+            if (nextCompany) {
+              localStorage.setItem(`currentCompany_${currentUser}`, JSON.stringify(nextCompany));
+            } else {
+              localStorage.removeItem(`currentCompany_${currentUser}`);
+            }
+          }
+          return prev;
+        });
       }
       
-      // 5. Robust Cleanup: Clear local storage related to this company
+      // 4. Robust Cleanup: Clear local storage related to this company
       try {
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
