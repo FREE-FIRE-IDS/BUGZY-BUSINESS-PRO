@@ -1922,22 +1922,44 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
   const backupData = () => {
     if (!currentUser) return;
     
+    const stripSyncFields = (obj: any) => {
+      const { 
+        user_email, 
+        owner_email, 
+        linked_emails, 
+        _synced, 
+        created_at_cloud, // any cloud specific fields
+        updated_at_cloud,
+        ...rest 
+      } = obj;
+      return rest;
+    };
+
+    const companies = JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]');
+    const cleanedCompanies = companies.map(stripSyncFields);
+
     const data: any = {
       username: currentUser,
-      companies: JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]'),
+      companies: cleanedCompanies,
       settings: JSON.parse(localStorage.getItem('app_settings') || '{}'),
       device_license: localStorage.getItem('device_license'),
       active_license_key: localStorage.getItem('active_license_key'),
       companyData: {}
     };
 
-    data.companies.forEach((c: any) => {
+    companies.forEach((c: any) => {
+      const parties = JSON.parse(localStorage.getItem(`parties_${c.id}`) || '[]');
+      const banks = JSON.parse(localStorage.getItem(`banks_${c.id}`) || '[]');
+      const items = JSON.parse(localStorage.getItem(`items_${c.id}`) || '[]');
+      const transactions = JSON.parse(localStorage.getItem(`transactions_${c.id}`) || '[]');
+      const invoices = JSON.parse(localStorage.getItem(`invoices_${c.id}`) || '[]');
+
       data.companyData[c.id] = {
-        parties: JSON.parse(localStorage.getItem(`parties_${c.id}`) || '[]'),
-        banks: JSON.parse(localStorage.getItem(`banks_${c.id}`) || '[]'),
-        items: JSON.parse(localStorage.getItem(`items_${c.id}`) || '[]'),
-        transactions: JSON.parse(localStorage.getItem(`transactions_${c.id}`) || '[]'),
-        invoices: JSON.parse(localStorage.getItem(`invoices_${c.id}`) || '[]'),
+        parties: parties.map(stripSyncFields),
+        banks: banks.map(stripSyncFields),
+        items: items.map(stripSyncFields),
+        transactions: transactions.map(stripSyncFields),
+        invoices: invoices.map(stripSyncFields),
       };
     });
 
@@ -1958,8 +1980,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       const data = JSON.parse(json);
       if (!data.username) throw new Error('Invalid backup file');
 
+      const userEmail = (settings.user_email || currentUser || session?.user?.email || '').toLowerCase().trim();
+
       const stripSynced = (arr: any[]) => (arr || []).map(i => {
-        const { _synced, ...rest } = i;
+        const { _synced, user_email, owner_email, linked_emails, ...rest } = i;
         return rest;
       });
 
@@ -1970,7 +1994,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       }
 
       // 2. Add Companies as New Entries (Don't Merge or Overwrite)
-      const companiesKey = `companies_${data.username}`;
+      const targetUserKey = currentUser || data.username;
+      const companiesKey = `companies_${targetUserKey}`;
       const existingCompanies = JSON.parse(localStorage.getItem(companiesKey) || '[]');
       const backupCompanies = stripSynced(data.companies);
       
@@ -1985,6 +2010,10 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
           ...c,
           id: newId,
           name: `${c.name} (Restored)`,
+          user_email: userEmail || undefined,
+          owner_email: userEmail || undefined,
+          linked_emails: userEmail ? [userEmail] : [],
+          company_type: 'normal', // Freshly restored companies are local-first
           _synced: false // Reset sync status for the new instance
         });
       });
