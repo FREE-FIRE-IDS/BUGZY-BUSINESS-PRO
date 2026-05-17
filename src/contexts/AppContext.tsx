@@ -787,41 +787,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       if (error) throw error;
       
-      if (data && data.length > 0) {
-        const { merged, toUpload } = mergeData(companies, data);
-        const nonDeleted = merged.filter(c => !c.deleted_at);
-        
-        // Save to state and local storage
-        setCompanies(nonDeleted);
-        
-        // CRITICAL: Determine which user context to save under
-        const effectiveUser = username || targetEmail?.split('@')[0] || 'user';
-        if (!currentUser) {
-          setCurrentUser(effectiveUser);
-          localStorage.setItem('currentUser', effectiveUser);
-        }
-        
-        localStorage.setItem(`companies_${effectiveUser}`, JSON.stringify(nonDeleted));
-        
-        if (toUpload.length > 0) {
-          await syncToCloud('companies', toUpload);
-        }
-        
-        if (!currentCompany && nonDeleted.length > 0) {
-          setCurrentCompany(nonDeleted[0]);
-          localStorage.setItem(`currentCompany_${effectiveUser}`, JSON.stringify(nonDeleted[0]));
-        }
-        
-        setSyncStatus({ loading: false, error: null, success: `Successfully pulled ${data.length} companies` });
-        return true;
-      } else {
-        setSyncStatus({ 
-          loading: false, 
-          error: 'No companies found in the cloud. If you have data on this device, click "Sync Now" to push it to the cloud.', 
-          success: null 
-        });
-        return false;
+      // Reconcile regardless of cloud state (handles companies user left/access revoked)
+      const { merged, toUpload } = mergeData(companies, data || []);
+      const nonDeleted = merged.filter(c => !c.deleted_at);
+      
+      // Save to state and local storage
+      setCompanies(nonDeleted);
+      
+      // CRITICAL: Determine which user context to save under
+      const effectiveUser = username || targetEmail?.split('@')[0] || 'user';
+      if (!currentUser) {
+        setCurrentUser(effectiveUser);
+        localStorage.setItem('currentUser', effectiveUser);
       }
+      
+      localStorage.setItem(`companies_${effectiveUser}`, JSON.stringify(merged));
+      
+      if (toUpload.length > 0) {
+        await syncToCloud('companies', toUpload);
+      }
+      
+      if (!currentCompany && nonDeleted.length > 0) {
+        setCurrentCompany(nonDeleted[0]);
+        localStorage.setItem(`currentCompany_${effectiveUser}`, JSON.stringify(nonDeleted[0]));
+      }
+      
+      setSyncStatus({ loading: false, error: null, success: data && data.length > 0 ? `Successfully pulled ${data.length} companies` : 'Already up to date' });
+      return true;
     } catch (error: any) {
       console.error('Error pulling companies:', error);
       let errorMessage = error.message || 'Check your connection.';
@@ -1935,7 +1927,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       return rest;
     };
 
-    const companies = JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]');
+    const companies = JSON.parse(localStorage.getItem(`companies_${currentUser}`) || '[]').filter((c: any) => !c.deleted_at);
     const cleanedCompanies = companies.map(stripSyncFields);
 
     const data: any = {
@@ -1948,11 +1940,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
     };
 
     companies.forEach((c: any) => {
-      const parties = JSON.parse(localStorage.getItem(`parties_${c.id}`) || '[]');
-      const banks = JSON.parse(localStorage.getItem(`banks_${c.id}`) || '[]');
-      const items = JSON.parse(localStorage.getItem(`items_${c.id}`) || '[]');
-      const transactions = JSON.parse(localStorage.getItem(`transactions_${c.id}`) || '[]');
-      const invoices = JSON.parse(localStorage.getItem(`invoices_${c.id}`) || '[]');
+      const parties = JSON.parse(localStorage.getItem(`parties_${c.id}`) || '[]').filter((p: any) => !p.deleted_at);
+      const banks = JSON.parse(localStorage.getItem(`banks_${c.id}`) || '[]').filter((b: any) => !b.deleted_at);
+      const items = JSON.parse(localStorage.getItem(`items_${c.id}`) || '[]').filter((i: any) => !i.deleted_at);
+      const transactions = JSON.parse(localStorage.getItem(`transactions_${c.id}`) || '[]').filter((t: any) => !t.deleted_at);
+      const invoices = JSON.parse(localStorage.getItem(`invoices_${c.id}`) || '[]').filter((inv: any) => !inv.deleted_at);
 
       data.companyData[c.id] = {
         parties: parties.map(stripSyncFields),
@@ -1982,8 +1974,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
 
       const userEmail = (settings.user_email || currentUser || session?.user?.email || '').toLowerCase().trim();
 
-      const stripSynced = (arr: any[]) => (arr || []).map(i => {
-        const { _synced, user_email, owner_email, linked_emails, ...rest } = i;
+      const stripSyncedAndDeleted = (arr: any[]) => (arr || []).map(i => {
+        const { _synced, user_email, owner_email, linked_emails, deleted_at, ...rest } = i;
         return rest;
       });
 
@@ -1997,7 +1989,7 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
       const targetUserKey = currentUser || data.username;
       const companiesKey = `companies_${targetUserKey}`;
       const existingCompanies = JSON.parse(localStorage.getItem(companiesKey) || '[]');
-      const backupCompanies = stripSynced(data.companies);
+      const backupCompanies = stripSyncedAndDeleted(data.companies);
       
       const newRestoredCompanies: any[] = [];
       const idMapping: Record<string, string> = {};
@@ -2014,7 +2006,8 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
           owner_email: userEmail || undefined,
           linked_emails: userEmail ? [userEmail] : [],
           company_type: 'normal', // Freshly restored companies are local-first
-          _synced: false // Reset sync status for the new instance
+          _synced: false, // Reset sync status for the new instance
+          deleted_at: null // Ensure visible
         });
       });
 
@@ -2041,11 +2034,11 @@ const deleteFromCloud = async (table: string, id: string, emailOverride?: string
         if (!newCompanyId) return;
         
         const cData = data.companyData[oldCompanyId];
-        localStorage.setItem(`parties_${newCompanyId}`, JSON.stringify(stripSynced(cData.parties)));
-        localStorage.setItem(`banks_${newCompanyId}`, JSON.stringify(stripSynced(cData.banks)));
-        localStorage.setItem(`items_${newCompanyId}`, JSON.stringify(stripSynced(cData.items)));
-        localStorage.setItem(`transactions_${newCompanyId}`, JSON.stringify(stripSynced(cData.transactions)));
-        localStorage.setItem(`invoices_${newCompanyId}`, JSON.stringify(stripSynced(cData.invoices)));
+        localStorage.setItem(`parties_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(cData.parties)));
+        localStorage.setItem(`banks_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(cData.banks)));
+        localStorage.setItem(`items_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(cData.items)));
+        localStorage.setItem(`transactions_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(cData.transactions)));
+        localStorage.setItem(`invoices_${newCompanyId}`, JSON.stringify(stripSyncedAndDeleted(cData.invoices)));
       });
 
       toast.success('Backup restored! Restored businesses added to your list.');
